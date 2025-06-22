@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gregs projects</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome CDN for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Custom styles for the Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0; /* Ensure no default body margin */
+            overflow: hidden; /* Hide scrollbars for the canvas animation */
+        }
+
+        /* Keyframe animation for the title */
+        @keyframes fadeInScale {
+            0% {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* Apply animation to the title */
+        .animated-title {
+            animation: fadeInScale 1s ease-out forwards; /* 1 second duration, ease-out timing, keeps final state */
+        }
+
+        /* Button hover effect */
+        button {
+            transition: transform 0.2s ease-in-out; /* Smooth transition for the transform property */
+        }
+
+        button:hover {
+            transform: translateY(-5px); /* Moves the button up by 5 pixels on hover */
+        }
+
+        /* Canvas specific styling */
+        #animationCanvas {
+            display: block;
+            background-color: #1a202c; /* Dark background for animation */
+            width: 100%; /* Make canvas fill its parent */
+            height: 100%; /* Make canvas fill its parent */
+        }
+
+        /* Layout for the main content and animation content */
+        .content-container {
+            width: 100%;
+            height: 100vh; /* Full viewport height */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative; /* For absolute positioning of elements inside */
+        }
+
+        .main-view, .animation-view {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            box-sizing: border-box; /* Include padding in element's total width and height */
+            position: relative; /* Essential for absolute children */
+            background-color: #1a202c; /* Ensure consistent background for animation */
+        }
+
+        .main-view {
+            background-color: #f7fafc; /* bg-gray-100 */
+        }
+
+        .animation-view {
+            display: none; /* Hidden by default */
+        }
+
+        .back-button-container {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 10;
+        }
+
+        /* Styles for microphone permission overlay */
+        .microphone-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .microphone-overlay button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #6366f1; /* purple-500 */
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            border: none;
+        }
+
+        .microphone-overlay button:hover {
+            background-color: #4f46e5; /* purple-600 */
+        }
+
+        /* Dot Density Controls Styling */
+        .dot-density-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 10;
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 0.5rem;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+            padding: 0.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dot-density-controls button {
+            padding: 0.5rem 0.75rem;
+            background-color: #4a5568; /* Gray-700 */
+            color: white;
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 500; /* font-medium */
+            border-radius: 6px;
+            transition: background-color 0.2s ease-in-out;
+            border: none;
+            cursor: pointer;
+            flex-grow: 1; /* Allow buttons to grow and shrink */
+            min-width: 80px; /* Ensure a minimum width for buttons */
+        }
+
+        .dot-density-controls button:hover {
+            background-color: #2d3748; /* Gray-800 */
+        }
+
+        .dot-density-controls button.active {
+            background-color: #6366f1; /* purple-500 */
+            box-shadow: 0 0 0 2px #6366f1, 0 0 0 4px rgba(99, 102, 241, 0.4); /* Highlight active button */
+        }
+
+        /* Responsive adjustments for density controls */
+        @media (max-width: 640px) { /* Small screens (sm breakpoint) */
+            .dot-density-controls {
+                flex-direction: column; /* Stack buttons vertically */
+                width: auto; /* Allow width to shrink */
+                align-items: stretch; /* Stretch buttons to full width of container */
+            }
+        }
+
+        /* FPS display styling */
+        #fpsDisplay {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-container" id="appContainer">
+        <!-- Main Projects View -->
+        <div id="mainView" class="main-view">
+            <!-- Title -->
+            <h1 class="text-4xl font-bold text-gray-800 mb-8 text-center animated-title">Gregs projects</h1>
+
+            <!-- Buttons container - Using flex-wrap for better responsiveness -->
+            <div class="flex flex-wrap justify-center gap-4 w-full px-4">
+                <!-- Button 1: Album -->
+                <button class="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io">
+                    <i class="fa-solid fa-image mr-2"></i>
+                    Album
+                </button>
+
+                <!-- Button 2: Game -->
+                <button class="w-full sm:w-auto px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/game">
+                    <i class="fa-solid fa-gamepad mr-2"></i>
+                    Game
+                </button>
+
+                <!-- Button 3: Minecraft -->
+                <button class="w-full sm:w-auto px-6 py-3 bg-orange-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/minecraft">
+                    <i class="fa-solid fa-cube mr-2"></i>
+                    Minecraft
+                </button>
+
+                <!-- Button 4: FPSTest -->
+                <button class="w-full sm:w-auto px-6 py-3 bg-red-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/fpstest">
+                    <i class="fa-solid fa-crosshairs mr-2"></i>
+                    FPSTest
+                </button>
+
+                <!-- New Button 5: Satisfying Animations -->
+                <button id="satisfyingAnimationsButton" class="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-75 transition duration-300 ease-in-out flex items-center justify-center">
+                    <i class="fa-solid fa-sparkles mr-2"></i>
+                    Satisfying Animations
+                </button>
+            </div>
+        </div>
+
+        <!-- Animation View -->
+        <div id="animationView" class="animation-view">
+            <!-- Back button -->
+            <div class="back-button-container">
+                <button class="px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-opacity-75 transition duration-300 ease-in-out" onclick="showMainView()">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Back to Projects
+                </button>
+            </div>
+            <!-- Dot Density Controls -->
+            <div class="dot-density-controls">
+                <button id="densityLow" data-density="low">Low</button>
+                <button id="densityStandard" data-density="standard">Standard</button>
+                <button id="densityHigh" data-density="high" class="active">High</button>
+                <button id="densityUltra" data-density="ultra">Ultra</button>
+                <button id="densityCrazy" data-density="crazy">Crazy</button>
+                <button id="densityInsane" data-density="insane">Insane</button>
+                <button id="densityLudicrous" data-density="ludicrous">Ludicrous</button>
+            </div>
+            
+            <!-- FPS Display -->
+            <div id="fpsDisplay">FPS: 0</div>
+
+            <!-- Canvas now fills the entire animationView -->
+            <canvas id="animationCanvas"></canvas>
+
+
+            <!-- Microphone Permission Overlay -->
+            <div id="microphoneOverlay" class="microphone-overlay hidden">
+                <p class="text-xl">This animation can react to sound!</p>
+                <p class="text-lg mt-2">Please allow microphone access to enable sound visualization.</p>
+                <button id="allowMicrophoneBtn">Allow Microphone</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get references to the views
+        const mainView = document.getElementById('mainView');
+        const animationView = document.getElementById('animationView');
+        const microphoneOverlay = document.getElementById('microphoneOverlay');
+        const allowMicrophoneBtn = document.getElementById('allowMicrophoneBtn');
+        const animationCanvas = document.getElementById('animationCanvas'); 
+        const ctx = animationCanvas.getContext('2d');
+        const fpsDisplay = document.getElementById('fpsDisplay'); // Get FPS display element
+
+        // Dot Density Control Variables
+        const densityLevels = {
+            low: 20,
+            standard: 12,
+            high: 8,
+            ultra: 6,
+            crazy: 4,
+            insane: 3,
+            ludicrous: 2
+        };
+        let currentParticleGap = densityLevels.high; // Default to 'high'
+
+
+        // Functions to show/hide views
+        function showAnimationView() {
+            mainView.style.display = 'none';
+            animationView.style.display = 'flex';
+            
+            microphoneOverlay.classList.remove('hidden');
+            
+            initializeAnimationCanvas();
+            // Highlight the initially active density button
+            document.querySelector('.dot-density-controls button.active')?.classList.remove('active');
+            document.getElementById('densityHigh').classList.add('active');
+        }
+
+        function showMainView() {
+            animationView.style.display = 'none';
+            mainView.style.display = 'flex';
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (animationCanvas) {
+                animationCanvas.onmousemove = null;
+                animationCanvas.onmouseleave = null;
+                animationCanvas.onclick = null;
+                animationCanvas.ontouchstart = null;
+                animationCanvas.ontouchmove = null;
+                animationCanvas.ontouchend = null;
+            }
+            mouse.x = undefined;
+            mouse.y = undefined;
+            clickEffectX = undefined;
+            clickEffectY = undefined;
+            lastClickTime = 0;
+            clickEffectActive = false;
+
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close().then(() => {
+                    audioContext = null;
+                    analyser = null;
+                    microphone = null;
+                    dataArray = null;
+                    averageLoudness = 0;
+                    currentAnimationMode = 'mouse_control';
+                });
+            } else {
+                 audioContext = null;
+                 analyser = null;
+                 microphone = null;
+                 dataArray = null;
+                 averageLoudness = 0;
+                 currentAnimationMode = 'mouse_control';
+            }
+            if (audioProcessingFrameId) {
+                cancelAnimationFrame(audioProcessingFrameId);
+                audioProcessingFrameId = null;
+            }
+        }
+
+        // 2D Animation Canvas Script Variables (Global)
+        let animationFrameId;
+        let mouse = { x: undefined, y: undefined };
+
+        let clickEffectX = undefined;
+        let clickEffectY = undefined;
+        let lastClickTime = 0;
+        let clickEffectActive = false;
+
+        let currentAnimationMode = 'mouse_control'; 
+
+        const BURST_DURATION = 500;
+        const BURST_MAX_DISTANCE = 150;
+        const BURST_STRENGTH_MULTIPLIER = 40;
+
+        const HOVER_MAX_DISTANCE = 80;
+        const HOVER_STRENGTH = 2.5;
+
+        let audioContext;
+        let analyser;
+        let microphone;
+        let dataArray;
+        let averageLoudness = 0;
+        const MIN_LOUDNESS_THRESHOLD = 50;
+
+        const SOUND_WAVE_INTENSITY_BASE = 3.0;
+        const SOUND_WAVE_FREQUENCY = 0.05;
+        const SOUND_WAVE_RADIUS_BASE = 50; 
+        const SOUND_WAVE_RADIUS_AMPLIFICATION_FACTOR = 350;
+        const SOUND_WAVE_STRENGTH_AMPLIFICATION_FACTOR = 100;
+
+        let soundWaveOriginX = 0;
+        let soundWaveOriginY = 0;
+
+        const BASS_FREQ_START_BIN = 0;
+        const BASS_FREQ_END_BIN = 8;
+
+        let particlesArray = []; 
+        const particleRadius = 1.2;
+
+        // FPS variables
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+
+        // Particle class definition
+        class Particle {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.baseX = this.x;
+                this.baseY = this.y;
+                this.density = (Math.random() * 5) + 1;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.draw();
+
+                let forceX = 0;
+                let forceY = 0;
+
+                const restoringForceMagnitude = 0.02;
+                forceX += (this.baseX - this.x) * restoringForceMagnitude;
+                forceY += (this.baseY - this.y) * restoringForceMagnitude;
+
+                if (currentAnimationMode === 'mouse_control') {
+                    if (mouse.x !== undefined && mouse.y !== undefined) {
+                        const dxHover = mouse.x - this.x;
+                        const dyHover = mouse.y - this.y;
+                        const distHover = Math.sqrt(dxHover * dxHover + dyHover * dyHover);
+
+                        if (distHover < HOVER_MAX_DISTANCE) {
+                            const repulsionStrength = ((HOVER_MAX_DISTANCE - distHover) / HOVER_MAX_DISTANCE) * HOVER_STRENGTH * this.density;
+                            forceX -= (dxHover / (distHover || 1)) * repulsionStrength;
+                            forceY -= (dyHover / (distHover || 1)) * repulsionStrength;
+                        }
+                    }
+
+                    const currentTime = performance.now();
+                    const elapsedTime = currentTime - lastClickTime;
+
+                    if (clickEffectActive && elapsedTime < BURST_DURATION) {
+                        const dxEffect = clickEffectX - this.x;
+                        const dyEffect = clickEffectY - this.y;
+                        const distEffect = Math.sqrt(dxEffect * dxEffect + dyEffect * dyEffect);
+
+                        if (distEffect < BURST_MAX_DISTANCE) {
+                            const effectDirectionX = dxEffect / (distEffect || 1);
+                            const effectDirectionY = dyEffect / (distEffect || 1);
+
+                            const distanceFactor = 1 - (distEffect / BURST_MAX_DISTANCE);
+                            const timeFactor = Math.max(0, 1 - (elapsedTime / BURST_DURATION) * 2);
+
+                            const effectPushStrength = distanceFactor * timeFactor * this.density * BURST_STRENGTH_MULTIPLIER;
+                            forceX -= effectDirectionX * effectPushStrength;
+                            forceY -= effectDirectionY * effectPushStrength;
+                        }
+                    }
+                } else if (currentAnimationMode === 'sound_control') {
+                    const dx = soundWaveOriginX - this.x;
+                    const dy = soundWaveOriginY - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    const dynamicRadius = SOUND_WAVE_RADIUS_BASE + (averageLoudness / 255) * SOUND_WAVE_RADIUS_AMPLIFICATION_FACTOR;
+                    const dynamicStrength = SOUND_WAVE_INTENSITY_BASE + (averageLoudness / 255) * SOUND_WAVE_STRENGTH_AMPLIFICATION_FACTOR;
+
+                    const timeOffset = performance.now() * 0.005;
+                    const waveValue = Math.sin(distance * SOUND_WAVE_FREQUENCY + timeOffset);
+
+                    if (distance < dynamicRadius) {
+                        const waveForce = waveValue * dynamicStrength * this.density;
+                        forceX -= (dx / (distance || 1)) * waveForce;
+                        forceY -= (dy / (distance || 1)) * waveForce;
+                    }
+                }
+
+                this.x += forceX;
+                this.y += forceY;
+            }
+        }
+
+
+        let audioProcessingFrameId;
+        function getAudioDataLoop() {
+            if (analyser && dataArray) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = BASS_FREQ_START_BIN; i <= BASS_FREQ_END_BIN && i < dataArray.length; i++) {
+                    sum += dataArray[i];
+                }
+                averageLoudness = sum / (BASS_FREQ_END_BIN - BASS_FREQ_START_BIN + 1);
+            }
+
+            if (audioContext && audioContext.state === 'running' && averageLoudness > MIN_LOUDNESS_THRESHOLD) {
+                currentAnimationMode = 'sound_control';
+            } else {
+                currentAnimationMode = 'mouse_control';
+            }
+            audioProcessingFrameId = requestAnimationFrame(getAudioDataLoop);
+        }
+
+        function initializeAudio() {
+            allowMicrophoneBtn.onclick = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount; 
+                    dataArray = new Uint8Array(bufferLength);
+
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+
+                    microphoneOverlay.classList.add('hidden');
+                    getAudioDataLoop();
+                    
+                    soundWaveOriginX = animationCanvas.width / 2;
+                    soundWaveOriginY = animationCanvas.height / 2;
+
+                } catch (err) {
+                    console.error('Error accessing microphone:', err);
+                    let errorMessage = "Microphone access denied.";
+                    if (err.name === "NotFoundError") {
+                        errorMessage = "No microphone found. Please ensure one is connected.";
+                    } else if (err.name === "NotAllowedError") {
+                        errorMessage = "Microphone permission denied. Please allow access in your browser settings.";
+                    } else if (err.name === "NotReadableError") {
+                        errorMessage = "Microphone is in use by another application or device error.";
+                    }
+
+                    microphoneOverlay.innerHTML = `
+                        <p class="text-xl text-red-400">${errorMessage}</p>
+                        <p class="text-lg mt-2">Animation will run without sound reactivity.</p>
+                        <button class="px-4 py-2 bg-gray-700 text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-opacity-75 transition duration-300 ease-in-out mt-4" onclick="document.getElementById('microphoneOverlay').classList.add('hidden'); currentAnimationMode = 'mouse_control';">Continue Without Sound</button>
+                    `;
+                    currentAnimationMode = 'mouse_control';
+                }
+            };
+        }
+
+
+        function initializeAnimationCanvas() {
+            initializeAudio();
+
+            const setCanvasSize = () => {
+                animationCanvas.width = window.innerWidth;
+                animationCanvas.height = window.innerHeight;
+                initParticles(); 
+                soundWaveOriginX = animationCanvas.width / 2;
+                soundWaveOriginY = animationCanvas.height / 2;
+            };
+
+            setCanvasSize();
+
+            animationCanvas.onmousemove = (event) => {
+                mouse.x = event.clientX;
+                mouse.y = event.clientY;
+            };
+            animationCanvas.onmouseleave = () => {
+                mouse.x = undefined;
+                mouse.y = undefined;
+            };
+
+            animationCanvas.onclick = (event) => {
+                if (currentAnimationMode === 'mouse_control') {
+                    clickEffectX = event.clientX;
+                    clickEffectY = event.clientY;
+                    lastClickTime = performance.now();
+                    clickEffectActive = true;
+                }
+            };
+
+            animationCanvas.ontouchstart = (event) => {
+                event.preventDefault();
+                const touch = event.touches[0];
+                mouse.x = touch.clientX;
+                mouse.y = touch.clientY;
+
+                if (currentAnimationMode === 'mouse_control') {
+                    clickEffectX = touch.clientX;
+                    clickEffectY = touch.clientY;
+                    lastClickTime = performance.now();
+                    clickEffectActive = true;
+                }
+            };
+            animationCanvas.ontouchmove = (event) => {
+                event.preventDefault();
+                const touch = event.touches[0];
+                mouse.x = touch.clientX;
+                mouse.y = touch.clientY;
+            };
+            animationCanvas.ontouchend = () => {
+                mouse.x = undefined;
+                mouse.y = undefined;
+            };
+
+            if (!window._resizeListenerAddedFor2D) {
+                window.addEventListener('resize', setCanvasSize);
+                window._resizeListenerAddedFor2D = true;
+            }
+
+            function initParticles() {
+                particlesArray = [];
+                for (let y = 0; y < animationCanvas.height; y += currentParticleGap) {
+                    for (let x = 0; x < animationCanvas.width; x += currentParticleGap) {
+                        const hue = Math.floor(Math.random() * 360);
+                        const saturation = Math.floor(Math.random() * 30) + 70;
+                        const lightness = Math.floor(Math.random() * 20) + 60;
+                        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                        particlesArray.push(new Particle(x, y, particleRadius, color));
+                    }
+                }
+            }
+
+            function animate(currentTime) { // Pass currentTime to animate for accurate FPS calculation
+                animationFrameId = requestAnimationFrame(animate);
+                ctx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+
+                // FPS Calculation
+                frameCount++;
+                const deltaTime = currentTime - lastFrameTime;
+                if (deltaTime >= 1000) { // Update FPS every second
+                    fps = Math.round(frameCount / (deltaTime / 1000));
+                    fpsDisplay.textContent = `FPS: ${fps}`;
+                    frameCount = 0;
+                    lastFrameTime = currentTime;
+                }
+
+                for (let i = 0; i < particlesArray.length; i++) {
+                    particlesArray[i].update();
+                }
+
+                if (currentAnimationMode === 'mouse_control' && clickEffectActive && (currentTime - lastClickTime) >= BURST_DURATION) {
+                    clickEffectActive = false;
+                    clickEffectX = undefined;
+                    clickEffectY = undefined;
+                    lastClickTime = 0;
+                }
+            }
+
+            if (!animationFrameId) {
+                // Call animate for the first time with performance.now()
+                animate(performance.now());
+            }
+
+            document.querySelectorAll('.dot-density-controls button').forEach(button => {
+                button.onclick = (event) => {
+                    const selectedDensity = event.target.dataset.density;
+                    currentParticleGap = densityLevels[selectedDensity];
+                    initParticles();
+                    document.querySelector('.dot-density-controls button.active')?.classList.remove('active');
+                    event.target.classList.add('active');
+                };
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            mainView.style.display = 'flex';
+            animationView.style.display = 'none';
+
+            document.querySelectorAll('.main-view button:not(#satisfyingAnimationsButton)').forEach(button => {
+                button.onclick = function() {
+                    window.open(this.dataset.url, '_blank');
+                };
+            });
+            document.getElementById('satisfyingAnimationsButton').onclick = showAnimationView;
+        });
+    </script>
+</body>
+</html>
