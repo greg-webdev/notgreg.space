@@ -65,7 +65,7 @@
         });
         // Set __app_id to your Firebase projectId for Firestore pathing
         window.__app_id = "chatv1-5432a";
-        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; // Kept for consistency, but not used in authentication flow now
+        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Log the Firebase config as a JSON string and then parsed object for debugging
         console.log("Firebase config string on load:", window.__firebase_config);
@@ -80,12 +80,12 @@
 
         // ====================================================================================
         // IMPORTANT: FIREBASE AUTHENTICATION AND FIRESTORE RULES
-        // To resolve "auth/configuration-not-found" errors (which indicate an Authentication setup issue)
-        // and "Missing or insufficient permissions" (which indicate Firestore rules issues):
+        // To resolve "auth/configuration-not-found" errors (Authentication setup issue)
+        // and "Missing or insufficient permissions" (Firestore rules issues):
         //
         // 1. **CRITICAL: ENABLE ANONYMOUS AUTHENTICATION IN FIREBASE CONSOLE**
-        //    This app now exclusively uses anonymous sign-in. If this method is not enabled,
-        //    Firebase Auth will fail to initialize, leading to "auth/configuration-not-found".
+        //    This app exclusively uses anonymous sign-in. If this method is not enabled,
+        //    Firebase Auth will fail to initialize.
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
         //    b. Select your project ("chatv1-5432a").
@@ -107,10 +107,18 @@
         //    rules_version = '2';
         //    service cloud.firestore {
         //      match /databases/{database}/documents {
-        //        // This path MUST EXACTLY MATCH where your messages are stored.
-        //        // Ensure 'appId' in the rules matches 'window.__app_id' in your code ("chatv1-5432a").
+        //        // Rules for chat messages
         //        match /artifacts/{appId}/public/data/messages/{document=**} {
         //          allow read, write: if request.auth != null; // Allows any authenticated user (including anonymous)
+        //        }
+        //
+        //        // Rules for banned users
+        //        // Ensure 'appId' matches 'window.__app_id' in your code ("chatv1-5432a").
+        //        match /artifacts/{appId}/public/data/banned_users/{userId} {
+        //          allow read: if request.auth != null; // Any authenticated user can read the banned list
+        //          // Only authenticated users can create/delete entries in the banned list.
+        //          // The actual "admin" UI control is client-side.
+        //          allow create, delete: if request.auth != null;
         //        }
         //      }
         //    }
@@ -121,27 +129,29 @@
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Note: Added 'setDoc' for banning users, and 'doc', 'deleteDoc' for message deletion
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Main App component for the chat application (inlined)
         function App() {
-            // State variables for Firebase instances, user ID, messages, new message, and user's chosen name
+            // State variables
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
             const [userId, setUserId] = React.useState(null);
             const [messages, setMessages] = React.useState([]);
             const [newMessage, setNewMessage] = React.useState('');
-            const [isAuthReady, setIsAuthReady] = React.useState(false); // To track if authentication is ready
+            const [isAuthReady, setIsAuthReady] = React.useState(false);
             const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
             const [nameInput, setNameInput] = React.useState('');
             const [isAdmin, setIsAdmin] = React.useState(userName === 'admin'); // Track admin status
-            const [showAdminConfirmScreen, setShowAdminConfirmScreen] = React.useState(false); // For second 'admin' prompt
+            // Changed showAdminConfirmScreen to showAdminPasswordScreen for clarity
+            const [showAdminPasswordScreen, setShowAdminPasswordScreen] = React.useState(false);
+            const [bannedUsers, setBannedUsers] = React.useState([]); // New state for banned user IDs
 
 
             // Initialize Firebase and handle authentication
             React.useEffect(() => {
                 try {
-                    // Initialize Firebase app with the parsed configuration
                     const app = initializeApp(parsedFirebaseConfig);
                     const firestoreDb = getFirestore(app);
                     const firebaseAuth = getAuth(app);
@@ -149,12 +159,10 @@
                     setDb(firestoreDb);
                     setAuth(firebaseAuth);
 
-                    // Sign in anonymously (removed custom token logic as it's not applicable for static hosting without backend)
                     signInAnonymously(firebaseAuth)
                         .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
                         .catch(error => console.error("Error signing in anonymously:", error));
 
-                    // Listen for authentication state changes
                     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
                         if (user) {
                             setUserId(user.uid);
@@ -169,42 +177,64 @@
                         }
                     });
 
-                    // Cleanup function for auth listener
                     return () => unsubscribeAuth();
                 } catch (error) {
                     console.error("Failed to initialize Firebase app or auth:", error);
                 }
-            }, []); // Empty dependency array means this runs once on mount
+            }, []);
 
             // Set up real-time listener for messages from Firestore
             React.useEffect(() => {
-                // Ensure db and userId are available and authentication is ready
                 if (db && isAuthReady) {
-                    // Define the collection path for public data
                     const chatCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/messages`);
-
-                    // Create a query to order messages by timestamp
                     const q = query(chatCollectionRef);
 
-                    // Subscribe to real-time updates
                     const unsubscribe = onSnapshot(q, (snapshot) => {
-                        const fetchedMessages = snapshot.docs.map(doc => ({
+                        let fetchedMessages = snapshot.docs.map(doc => ({
                             id: doc.id,
                             ...doc.data()
                         }));
+
+                        // Filter out messages from banned users BEFORE sorting
+                        fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId));
+
                         fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
                         setMessages(fetchedMessages);
                     }, (error) => {
                         console.error("Error fetching messages:", error);
                     });
 
-                    // Cleanup function for snapshot listener
                     return () => unsubscribe();
                 }
-            }, [db, isAuthReady]); // Re-run when db or isAuthReady changes
+            }, [db, isAuthReady, bannedUsers]); // Add bannedUsers to dependency array
+
+            // New: Set up real-time listener for banned users from Firestore
+            React.useEffect(() => {
+                if (db && isAuthReady) {
+                    const bannedUsersCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/banned_users`);
+                    const q = query(bannedUsersCollectionRef);
+
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        const fetchedBannedUsers = snapshot.docs.map(doc => doc.id); // Doc ID is the banned userId
+                        setBannedUsers(fetchedBannedUsers);
+                        console.log("Fetched Banned Users:", fetchedBannedUsers);
+                    }, (error) => {
+                        console.error("Error fetching banned users:", error);
+                    });
+
+                    return () => unsubscribe();
+                }
+            }, [db, isAuthReady]);
 
             // Function to send a new message
             const sendMessage = async () => {
+                // Prevent sending if user is banned
+                if (bannedUsers.includes(userId)) {
+                    alert('You are banned from sending messages.');
+                    setNewMessage(''); // Clear input if banned
+                    return;
+                }
+
                 if (newMessage.trim() === '' || !db || !userId) return;
 
                 try {
@@ -222,7 +252,7 @@
 
             // Function to delete a message (only for admin)
             const deleteMessage = async (messageId) => {
-                if (!db || !isAdmin) { // Only allow if db is ready and user is admin
+                if (!db || !isAdmin) {
                     console.warn("Permission denied: Only admin can delete messages.");
                     return;
                 }
@@ -235,47 +265,77 @@
                 }
             };
 
+            // New: Function to ban a user (only for admin)
+            const banUser = async (targetUserId) => {
+                if (!db || !isAdmin) {
+                    console.warn("Permission denied: Only admin can ban users.");
+                    return;
+                }
+                if (targetUserId === userId) { // Prevent banning self
+                    alert("You cannot ban yourself.");
+                    return;
+                }
+                try {
+                    // Add the targetUserId as a document ID in the banned_users collection
+                    const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/banned_users`, targetUserId);
+                    await setDoc(bannedUserRef, { bannedAt: serverTimestamp() }); // Store a timestamp for when they were banned
+                    alert(`User ${targetUserId} has been banned.`);
+                    console.log(`User ${targetUserId} banned successfully.`);
+                } catch (error) {
+                    console.error("Error banning user:", error);
+                }
+            };
+
             // Handle key press for sending message (e.g., Enter key)
             const handleKeyPress = (e) => {
                 if (e.key === 'Enter') {
-                    sendMessage();
+                    if (userName === '') { // If still on initial name screen
+                        setChatUserName();
+                    } else if (showAdminPasswordScreen) { // If on admin password screen
+                        handleAdminPassword();
+                    } else { // In main chat
+                        sendMessage();
+                    }
                 }
             };
 
             // Function to handle initial name setting or admin first attempt
             const setChatUserName = () => {
                 if (nameInput.trim() === 'admin') {
-                    setShowAdminConfirmScreen(true); // Show confirmation for admin
-                    setNameInput(''); // Clear input for re-entry
+                    setShowAdminPasswordScreen(true); // Show password screen for admin
+                    setNameInput(''); // Clear input for password entry
                 } else if (nameInput.trim() !== '') {
                     setUserName(nameInput.trim());
                     localStorage.setItem('chatUserName', nameInput.trim());
                     setIsAdmin(false); // Not admin if name is not 'admin'
-                    setShowAdminConfirmScreen(false);
+                    setShowAdminPasswordScreen(false);
                 }
             };
 
-            // Function to confirm admin access on the second 'admin' entry
-            const confirmAdminAccess = () => {
-                if (nameInput.trim() === 'admin') {
+            // Function to handle admin password confirmation
+            const handleAdminPassword = () => {
+                // Specific password for admin access
+                const adminPassword = '69$@';
+                if (nameInput.trim() === adminPassword) {
                     setUserName('admin');
                     localStorage.setItem('chatUserName', 'admin');
                     setIsAdmin(true); // Grant admin rights
-                    setShowAdminConfirmScreen(false);
+                    setShowAdminPasswordScreen(false);
                     setNameInput(''); // Clear input
+                    alert('Admin access granted!');
                 } else {
-                    // If wrong password for admin, reset to initial name input
+                    // If wrong password, reset to initial name input
                     setUserName('');
                     localStorage.removeItem('chatUserName');
                     setIsAdmin(false);
-                    setShowAdminConfirmScreen(false);
+                    setShowAdminPasswordScreen(false);
                     setNameInput('');
-                    alert('Incorrect input for admin. Please enter your name again.'); // Simple message for incorrect entry
+                    alert('Incorrect password. Please enter your name again to start chatting or re-attempt admin login.');
                 }
             };
 
-            // Conditional rendering: Show name input or admin confirmation
-            if (!userName || showAdminConfirmScreen) {
+            // Conditional rendering: Show name input or admin password confirmation
+            if (!userName || showAdminPasswordScreen) {
                 return React.createElement(
                     "div",
                     {
@@ -286,41 +346,33 @@
                         {
                             className: "text-2xl font-bold text-gray-800 mb-6"
                         },
-                        showAdminConfirmScreen ? "Confirm Admin Access" : "Welcome to the Chat!"
+                        showAdminPasswordScreen ? "Enter Admin Password" : "Welcome to the Chat!"
                     ),
                     React.createElement(
                         "p",
                         {
                             className: "text-gray-600 mb-4"
                         },
-                        showAdminConfirmScreen ? "Please re-enter 'admin' to confirm administrator privileges." : "Please enter your name to start chatting."
+                        showAdminPasswordScreen ? "Please enter the admin password to confirm administrator privileges." : "Please enter your name to start chatting."
                     ),
                     React.createElement(
                         "input",
                         {
-                            type: "text",
+                            type: "password", // Use type="password" for the admin password field
                             value: nameInput,
                             onChange: e => setNameInput(e.target.value),
-                            onKeyPress: (e) => {
-                                if (e.key === 'Enter') {
-                                    if (showAdminConfirmScreen) {
-                                        confirmAdminAccess();
-                                    } else {
-                                        setChatUserName();
-                                    }
-                                }
-                            },
-                            placeholder: showAdminConfirmScreen ? "Type 'admin' again" : "Your Name",
+                            onKeyPress: handleKeyPress, // Use generic handleKeyPress
+                            placeholder: showAdminPasswordScreen ? "Admin Password" : "Your Name",
                             className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
                         }
                     ),
                     React.createElement(
                         "button",
                         {
-                            onClick: showAdminConfirmScreen ? confirmAdminAccess : setChatUserName,
+                            onClick: showAdminPasswordScreen ? handleAdminPassword : setChatUserName,
                             className: "px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                         },
-                        showAdminConfirmScreen ? "Confirm" : "Start Chatting"
+                        showAdminPasswordScreen ? "Confirm Password" : "Start Chatting"
                     )
                 );
             }
@@ -373,7 +425,7 @@
                                 setIsAdmin(false); // Remove admin status
                                 setNewMessage(''); // Clear any message in input
                                 setMessages([]); // Clear messages to reset view
-                                setShowAdminConfirmScreen(false); // Ensure admin confirm screen is hidden
+                                setShowAdminPasswordScreen(false); // Ensure admin password screen is hidden
                             },
                             className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
                         },
@@ -398,7 +450,7 @@
                             const isCurrentUser = msg.userId === userId;
 
                             // Define class strings for message bubble styling
-                            const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm";
+                            const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col"; // Added flex-col
                             const messageBubbleUserClasses = isCurrentUser
                                 ? "bg-blue-600 text-white rounded-br-none"
                                 : "bg-gray-200 text-gray-800 rounded-bl-none";
@@ -429,21 +481,41 @@
                                         },
                                         msg.text
                                     ),
-                                    msg.timestamp && React.createElement(
+                                    React.createElement(
                                         "div",
                                         {
-                                            className: "text-right text-xs mt-1 opacity-75"
+                                            className: "flex justify-between items-center mt-1"
                                         },
-                                        new Date(msg.timestamp.toMillis()).toLocaleTimeString()
-                                    ),
-                                    // Render delete button only if current user is admin
-                                    isAdmin && React.createElement(
-                                        "button",
-                                        {
-                                            onClick: () => deleteMessage(msg.id),
-                                            className: "ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition duration-200 self-end"
-                                        },
-                                        "Delete"
+                                        msg.timestamp && React.createElement(
+                                            "div",
+                                            {
+                                                className: "text-right text-xs opacity-75"
+                                            },
+                                            new Date(msg.timestamp.toMillis()).toLocaleTimeString()
+                                        ),
+                                        // Render delete and ban buttons only if current user is admin
+                                        isAdmin && React.createElement(
+                                            "div",
+                                            {
+                                                className: "flex ml-2"
+                                            },
+                                            React.createElement(
+                                                "button",
+                                                {
+                                                    onClick: () => deleteMessage(msg.id),
+                                                    className: "px-2 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition duration-200 mr-1"
+                                                },
+                                                "Delete"
+                                            ),
+                                            React.createElement(
+                                                "button",
+                                                {
+                                                    onClick: () => banUser(msg.userId),
+                                                    className: "px-2 py-1 bg-yellow-500 text-white text-xs rounded-full hover:bg-yellow-600 transition duration-200"
+                                                },
+                                                "Ban"
+                                            )
+                                        )
                                     )
                                 )
                             );
