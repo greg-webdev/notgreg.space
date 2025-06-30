@@ -530,7 +530,7 @@
 
                     // Set call data in Firestore. Clear previous call data.
                     await setDoc(callDocRef, {
-                        offer: offer.toJSON(),
+                        offer: offer, // FIXED: Removed .toJSON()
                         callerId: userId,
                         answer: null, // Ensure old answer is cleared
                         iceCandidates: [] // Start with an empty array for new candidates
@@ -666,7 +666,7 @@
                     console.log("answerCall: Local description set (answer).");
 
                     // Set answer in Firestore.
-                    await setDoc(callDocRef, { answer: answer.toJSON(), answererId: userId }, { merge: true });
+                    await setDoc(callDocRef, { answer: answer, answererId: userId }, { merge: true }); // FIXED: Removed .toJSON()
                     console.log("answerCall: Call answer sent to Firestore.");
 
                     // Add any existing ICE candidates from the offerer that arrived before our PC was ready
@@ -918,7 +918,7 @@
                             className: "text-2xl font-bold text-gray-800 mb-6"
                         },
                         showAdminPasswordScreen ? "Enter Admin Password" : `Welcome to the ${activeChatTab} Chat!`
-                    ),
+                        ),
                     React.createElement(
                         "p",
                         {
