@@ -154,7 +154,6 @@
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // NOTE: Removed Storage imports as file upload functionality is no longer needed.
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
@@ -163,7 +162,6 @@
             // State variables
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
-            // Removed storage state
             const [userId, setUserId] = React.useState(null);
             const [messages, setMessages] = React.useState([]);
             const [newMessage, setNewMessage] = React.useState('');
@@ -174,11 +172,9 @@
             const [showAdminPasswordScreen, setShowAdminPasswordScreen] = React.useState(false);
             const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
             const [showUnbanPage, setShowUnbanPage] = React.useState(false); // State for unban page visibility
-
-            // New state for active chat tab, initialized from localStorage or null
             const [activeChatTab, setActiveChatTab] = React.useState(localStorage.getItem('activeChatTab') || null);
 
-            // Removed uploadingFile state and fileInputRef
+            const [isLoading, setIsLoading] = React.useState(true); // NEW: Loading state
 
 
             // Initialize Firebase and handle authentication
@@ -187,33 +183,37 @@
                     const app = initializeApp(parsedFirebaseConfig);
                     const firestoreDb = getFirestore(app);
                     const firebaseAuth = getAuth(app);
-                    // Removed Firebase Storage initialization
 
                     setDb(firestoreDb);
                     setAuth(firebaseAuth);
-                    // Removed setStorage
 
                     signInAnonymously(firebaseAuth)
-                        .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
-                        .catch(error => console.error("Error signing in anonymously:", error));
+                        .then((userCredential) => {
+                            console.log("Signed in anonymously:", userCredential.user.uid);
+                            // No longer setting isLoading here, moved to onAuthStateChanged
+                        })
+                        .catch(error => {
+                            console.error("Error signing in anonymously:", error);
+                            setIsLoading(false); // If sign-in fails, stop loading and show error if needed
+                        });
 
                     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
                         if (user) {
                             setUserId(user.uid);
-                            setIsAuthReady(true);
-                            console.log("Auth state changed: User is authenticated. User ID:", user.uid, "isAuthReady:", true);
                         } else {
-                            if (!userId) {
-                                setUserId(crypto.randomUUID());
-                            }
-                            setIsAuthReady(true);
-                            console.log("Auth state changed: User is NOT authenticated. (Anonymous expected). isAuthReady:", true);
+                            // If for some reason anonymous sign-in fails or user is null, generate a random ID.
+                            // This scenario is less likely if anonymous auth is enabled.
+                            setUserId(crypto.randomUUID());
                         }
+                        setIsAuthReady(true);
+                        setIsLoading(false); // Set loading to false once auth state is determined
+                        console.log("Auth state changed: User ID:", user?.uid || 'anonymous', "isAuthReady:", true);
                     });
 
                     return () => unsubscribeAuth();
                 } catch (error) {
                     console.error("Failed to initialize Firebase app or auth:", error);
+                    setIsLoading(false); // If initialization itself fails, stop loading
                 }
             }, []);
 
@@ -272,7 +272,6 @@
                     setNewMessage('');
                     return;
                 }
-                // Removed uploadingFile check
 
                 if (newMessage.trim() === '' || !db || !userId || !activeChatTab) return;
 
@@ -297,7 +296,6 @@
                 }
                 try {
                     const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`, messageId);
-                    // Removed logic for deleting associated file from Storage
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
                 } catch (error) {
@@ -346,6 +344,7 @@
                 if (e.key === 'Enter') {
                     if (!activeChatTab) {
                         console.log("Please select a chat tab.");
+                        // No action needed as selection is via button click
                     } else if (!userName) {
                         setChatUserName();
                     } else if (showAdminPasswordScreen) {
@@ -396,6 +395,15 @@
                 setMessages([]);
                 setBannedUsers([]);
             };
+
+            // NEW: Render loading screen if Firebase is not yet initialized
+            if (isLoading) {
+                return React.createElement(
+                    "div",
+                    { className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter" },
+                    React.createElement("p", { className: "text-lg text-gray-700" }, "Loading chat...")
+                );
+            }
 
             // Conditional rendering: Show tab selection, name input, admin password, or unban page
             if (!activeChatTab) {
@@ -669,7 +677,6 @@
                                         },
                                         isCurrentUser ? 'You' : (msg.userName || msg.userId)
                                     ),
-                                    // Always render as text, as fileInfo is no longer sent
                                     React.createElement(
                                         "p",
                                         { className: "text-sm" },
@@ -687,7 +694,6 @@
                                             },
                                             new Date(msg.timestamp.toMillis()).toLocaleTimeString()
                                         ),
-                                        // Render delete and ban buttons only if current user is admin
                                         isAdmin && React.createElement(
                                             "div",
                                             {
@@ -732,7 +738,6 @@
                             disabled: !isAuthReady || bannedUsers.includes(userId)
                         }
                     ),
-                    <!-- Removed file input and attach file button -->
                     React.createElement(
                         "button",
                         {
