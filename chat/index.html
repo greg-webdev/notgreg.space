@@ -218,7 +218,7 @@
 
             const [isLoading, setIsLoading] = React.useState(true); // Loading state
 
-            // NEW: Video call states
+            // Video call states
             const [localStream, setLocalStream] = React.useState(null);
             const [remoteStream, setRemoteStream] = React.useState(null);
             const [peerConnection, setPeerConnection] = React.useState(null);
@@ -308,7 +308,7 @@
                 }
             }, [db, isAuthReady, activeChatTab]);
 
-            // NEW: Effect for WebRTC signaling via Firestore
+            // Effect for WebRTC signaling via Firestore
             React.useEffect(() => {
                 if (!db || !isAuthReady || !activeChatTab || !userId) return;
 
@@ -319,54 +319,99 @@
                     if (!callData) {
                         // Call document deleted, means call ended or never started.
                         if (inCall) {
-                            endCall(false); // End call, but don't delete doc again
-                            console.log("Call document removed, ending call.");
+                            console.log("Call document removed by other party, ending call.");
+                            endCall(false); // End call, but don't delete doc again as other side did it
                         }
                         setCallOfferReceived(false);
                         return;
                     }
 
                     // Process offer
+                    // Only process if we are not already in a call, haven't initiated one, and haven't received an offer yet
                     if (callData.offer && callData.offer.type === 'offer' && !inCall && !callInitiated && !callOfferReceived) {
                         setCallOfferReceived(true);
-                        console.log("Call offer received.");
+                        console.log("Call offer received. Caller ID:", callData.callerId);
+                        // If we are the answerer, and a peerConnection is not yet established for answering (e.g. from a previous failed attempt)
+                        // Then instantiate it here to handle the incoming offer right away.
+                        if (!peerConnection) {
+                             try {
+                                 const pc = new RTCPeerConnection({
+                                     iceServers: [
+                                         { urls: 'stun:stun.l.google.com:19302' },
+                                     ]
+                                 });
+                                 setPeerConnection(pc);
+
+                                 // Listen for remote tracks (important for answerer to get remote video)
+                                 pc.ontrack = (event) => {
+                                     if (event.streams && event.streams[0]) {
+                                         console.log("Remote stream received (answerer setup):", event.streams[0]);
+                                         setRemoteStream(event.streams[0]);
+                                     } else {
+                                         console.warn("ontrack event fired without streams[0]. (answerer setup)", event);
+                                     }
+                                 };
+
+                                 // Gather ICE candidates (important for answerer to send candidates back)
+                                 pc.onicecandidate = async (event) => {
+                                     if (event.candidate) {
+                                         console.log("New ICE candidate generated (answerer setup):", event.candidate);
+                                         await setDoc(callDocRef, {
+                                             iceCandidates: (await getDoc(callDocRef)).data()?.iceCandidates ? [...(await getDoc(callDocRef)).data().iceCandidates, { candidate: event.candidate.toJSON(), senderId: userId }] : [{ candidate: event.candidate.toJSON(), senderId: userId }]
+                                         }, { merge: true });
+                                         console.log("Sent ICE candidate to Firestore (answerer setup).");
+                                     }
+                                 };
+                                 // Now process the offer
+                                 console.log("Setting remote description from received offer (answerer setup)...");
+                                 await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+                                 console.log("Remote description set from received offer (answerer setup).");
+                             } catch (err) {
+                                 console.error("Error setting up PeerConnection for incoming offer:", err.name, err.message, err.stack);
+                                 setCallOfferReceived(false); // Reset to allow retrying
+                             }
+                        }
                     }
 
                     // Process answer if we initiated the call and are waiting for an answer
-                    if (callData.answer && callData.answer.type === 'answer' && peerConnection && peerConnection.remoteDescription?.type !== 'answer') {
+                    if (callData.answer && callData.answer.type === 'answer' && peerConnection && peerConnection.remoteDescription?.type !== 'answer' && callData.answererId !== userId) {
                         try {
                             console.log("Attempting to set remote description from answer.");
                             await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.answer));
                             setInCall(true); // Call is now connected
                             console.log("Call answer received and set.");
                         } catch (e) {
-                            console.error("Error setting remote description from answer:", e);
+                            console.error("Error setting remote description from answer:", e.name, e.message, e.stack);
                         }
                     }
 
                     // Process ICE candidates
                     if (callData.iceCandidates && peerConnection) {
                         for (const candidate of callData.iceCandidates) {
-                            // Ensure candidate is from the other peer
-                            if (candidate.senderId !== userId) {
+                            // Ensure candidate is from the other peer and has not been added yet (basic check)
+                            if (candidate.senderId !== userId && !peerConnection.remoteDescription?.candidates?.some(c => c.candidate === candidate.candidate.candidate)) {
                                 const iceCandidate = new RTCIceCandidate(candidate.candidate);
                                 try {
                                     await peerConnection.addIceCandidate(iceCandidate);
                                     console.log("Added ICE candidate:", iceCandidate);
                                 } catch (e) {
-                                    console.error("Error adding ICE candidate:", e);
+                                    console.error("Error adding ICE candidate:", e.name, e.message, e.stack);
                                 }
                             }
                         }
-                        // For simplicity, candidates are processed as they arrive.
-                        // In a real app, candidates might be removed from Firestore after being consumed
-                        // or a more robust queueing system would be used.
                     }
                 }, (error) => {
-                    console.error("Error listening to call signaling:", error);
+                    console.error("Error listening to call signaling:", error.name, error.message, error.stack);
                 });
 
-                return () => unsubscribeCallSignaling();
+                return () => {
+                    unsubscribeCallSignaling();
+                    // Cleanup call document if this user initiated it and disconnects
+                    if (callInitiated && db && activeChatTab) {
+                        const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
+                        deleteDoc(callDocRef).catch(e => console.error("Error cleaning up call doc on unmount:", e));
+                    }
+                };
             }, [db, isAuthReady, activeChatTab, userId, peerConnection, inCall, callInitiated, callOfferReceived]); // Dependencies for signaling effect
 
             // Function to send a new message
@@ -396,7 +441,7 @@
                 }
             };
 
-            // NEW: Function to start a video call
+            // Function to start a video call
             const startCall = async () => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
                     console.error("Cannot start call: Firebase not ready or tab not selected.");
@@ -411,44 +456,45 @@
                     return;
                 }
                 if (callInitiated) { // Prevent multiple initiation clicks
-                    console.warn("Call already being initiated.");
+                    console.warn("Call already being initiated. Please wait.");
                     return;
                 }
-                if (callOfferReceived) { // Don't initiate if an offer is already pending
-                    console.warn("Incoming call offer detected. Please answer or decline.");
-                    alert("There is an incoming call. Please answer or decline it.");
+                if (callOfferReceived) { // If an offer is already pending, try to answer it instead
+                    console.log("Incoming call offer detected. Attempting to answer instead of initiating new call.");
+                    answerCall();
                     return;
                 }
 
+                setCallInitiated(true); // Indicate this user is initiating
+                console.log("startCall: Attempting to get user media...");
 
-                setCallInitiated(true); // Set initiation state
-                console.log("Attempting to get user media...");
-
+                let stream;
+                let pc;
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    console.log("Local stream obtained successfully.");
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    console.log("startCall: Local stream obtained successfully.");
                     setLocalStream(stream);
 
-                    const pc = new RTCPeerConnection({
+                    pc = new RTCPeerConnection({
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' }, // Google's public STUN server
-                            // Consider adding TURN servers for more robust connections in production
                         ]
                     });
-                    setPeerConnection(pc);
+                    console.log("startCall: RTCPeerConnection created.");
+                    setPeerConnection(pc); // Set state here
 
                     // Add local tracks to peer connection
                     stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("Local tracks added to peer connection.");
+                    console.log("startCall: Local tracks added to peer connection.");
 
 
                     // Listen for remote tracks
                     pc.ontrack = (event) => {
                         if (event.streams && event.streams[0]) {
-                            console.log("Remote stream received:", event.streams[0]);
+                            console.log("startCall: Remote stream received:", event.streams[0]);
                             setRemoteStream(event.streams[0]);
                         } else {
-                            console.warn("ontrack event fired without streams[0].", event);
+                            console.warn("startCall: ontrack event fired without streams[0].", event);
                         }
                     };
 
@@ -456,47 +502,69 @@
                     const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
-                            console.log("New ICE candidate generated:", event.candidate);
-                            // Merge the new candidate with existing ones to avoid overwriting
-                            await setDoc(callDocRef, {
-                                iceCandidates: (await getDoc(callDocRef)).data()?.iceCandidates ? [...(await getDoc(callDocRef)).data().iceCandidates, { candidate: event.candidate.toJSON(), senderId: userId }] : [{ candidate: event.candidate.toJSON(), senderId: userId }]
-                            }, { merge: true });
-                            console.log("Sent ICE candidate to Firestore.");
+                            console.log("startCall: New ICE candidate generated:", event.candidate);
+                            try {
+                                const currentCallDoc = (await getDoc(callDocRef)).data();
+                                const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                await setDoc(callDocRef, {
+                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                }, { merge: true });
+                                console.log("startCall: Sent ICE candidate to Firestore.");
+                            } catch (e) {
+                                console.error("startCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                            }
                         } else {
-                            console.log("ICE gathering complete.");
+                            console.log("startCall: ICE gathering complete.");
                         }
                     };
 
                     // Create offer
-                    console.log("Creating SDP offer...");
+                    console.log("startCall: Creating SDP offer...");
                     const offer = await pc.createOffer();
+                    console.log("startCall: SDP offer created.");
                     await pc.setLocalDescription(offer);
-                    console.log("Local description set (offer).");
+                    console.log("startCall: Local description set (offer).");
 
                     // Set 'inCall' to true now that local stream is ready and offer is being sent
                     setInCall(true);
 
-                    // Set call data in Firestore. Use setDoc with merge to avoid overwriting other fields.
+                    // Set call data in Firestore. Clear previous call data.
                     await setDoc(callDocRef, {
                         offer: offer.toJSON(),
                         callerId: userId,
-                        // Clear answer and iceCandidates from previous calls for a fresh start
-                        answer: null,
-                        iceCandidates: []
+                        answer: null, // Ensure old answer is cleared
+                        iceCandidates: [] // Start with an empty array for new candidates
                     }, { merge: true });
-                    console.log("Call offer sent to Firestore.");
+                    console.log("startCall: Call offer sent to Firestore.");
 
                 } catch (error) {
-                    console.error("Error starting call process:", error.name, error.message, error);
-                    alert(`Failed to start video call: ${error.name || 'Error'}. Please ensure camera/mic permissions are granted.`);
-                    endCall(true); // Clean up and try to delete the doc if we initiated and failed
+                    console.error("startCall: Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to start video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    // Clean up if an error occurs during initiation
+                    if (stream) stream.getTracks().forEach(track => track.stop());
+                    if (pc) pc.close();
+                    setLocalStream(null);
+                    setRemoteStream(null);
+                    setPeerConnection(null);
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCallOfferReceived(false); // Reset in case offer was pending from a failed previous attempt
+                    // Attempt to clean up call document in Firestore if it was partially created
+                    if (db && activeChatTab) {
+                        try {
+                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`));
+                            console.log("startCall: Cleaned up failed call document.");
+                        } catch (e) {
+                            console.error("startCall: Error cleaning up failed call document:", e);
+                        }
+                    }
                 }
             };
 
-            // NEW: Function to answer an incoming call
+            // Function to answer an incoming call
             const answerCall = async () => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
-                    console.error("Cannot answer call: Firebase not ready or tab not selected.");
+                    console.error("answerCall: Cannot answer call: Firebase not ready or tab not selected.");
                     return;
                 }
                 if (bannedUsers.includes(userId)) {
@@ -504,123 +572,155 @@
                     return;
                 }
                 if (inCall) {
-                    console.warn("Already in a call.");
+                    console.warn("answerCall: Already in a call.");
                     return;
                 }
                 if (!callOfferReceived) {
-                    console.warn("No call offer currently received to answer.");
+                    console.warn("answerCall: No call offer currently received to answer.");
                     alert("No incoming call detected.");
                     return;
                 }
 
                 setInCall(true);
                 setCallOfferReceived(false); // Reset offer received state
-                console.log("Attempting to get user media for answering call...");
+                console.log("answerCall: Attempting to get user media for answering call...");
 
+                let stream;
+                let pc; // Local variable for RTCPeerConnection
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    console.log("Local stream obtained for answering call.");
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    console.log("answerCall: Local stream obtained for answering call.");
                     setLocalStream(stream);
 
-                    const pc = new RTCPeerConnection({
+                    // Re-instantiate RTCPeerConnection if it's null (e.g., if the offer came before pc was set up in the listener)
+                    pc = peerConnection || new RTCPeerConnection({
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
                         ]
                     });
-                    setPeerConnection(pc);
+                    console.log("answerCall: RTCPeerConnection (re)created or reused.");
+                    setPeerConnection(pc); // Ensure state is updated/set
+
 
                     // Add local tracks to peer connection
                     stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("Local tracks added to peer connection for answering.");
+                    console.log("answerCall: Local tracks added to peer connection for answering.");
 
-                    // Listen for remote tracks
-                    pc.ontrack = (event) => {
-                        if (event.streams && event.streams[0]) {
-                            console.log("Remote stream received (answerer):", event.streams[0]);
-                            setRemoteStream(event.streams[0]);
-                        } else {
-                            console.warn("ontrack event fired without streams[0]. (answerer)", event);
-                        }
-                    };
+                    // Listen for remote tracks (already set up in signaling effect, but re-confirm here)
+                    if (!pc.ontrack) { // Only set if not already set by signaling listener
+                         pc.ontrack = (event) => {
+                             if (event.streams && event.streams[0]) {
+                                 console.log("answerCall: Remote stream received (answerer):", event.streams[0]);
+                                 setRemoteStream(event.streams[0]);
+                             } else {
+                                 console.warn("answerCall: ontrack event fired without streams[0]. (answerer)", event);
+                             }
+                         };
+                    }
 
-                    // Gather ICE candidates
+
+                    // Gather ICE candidates (already set up in signaling effect, but re-confirm here)
                     const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
-                    pc.onicecandidate = async (event) => {
-                        if (event.candidate) {
-                            console.log("New ICE candidate generated (answerer):", event.candidate);
-                            // Merge the new candidate with existing ones
-                            await setDoc(callDocRef, {
-                                iceCandidates: (await getDoc(callDocRef)).data()?.iceCandidates ? [...(await getDoc(callDocRef)).data().iceCandidates, { candidate: event.candidate.toJSON(), senderId: userId }] : [{ candidate: event.candidate.toJSON(), senderId: userId }]
-                            }, { merge: true });
-                            console.log("Sent ICE candidate to Firestore (answerer).");
-                        } else {
-                            console.log("ICE gathering complete (answerer).");
-                        }
-                    };
-
+                    if (!pc.onicecandidate) { // Only set if not already set by signaling listener
+                        pc.onicecandidate = async (event) => {
+                            if (event.candidate) {
+                                console.log("answerCall: New ICE candidate generated (answerer):", event.candidate);
+                                try {
+                                    const currentCallDoc = (await getDoc(callDocRef)).data();
+                                    const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                    await setDoc(callDocRef, {
+                                        iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                    }, { merge: true });
+                                    console.log("answerCall: Sent ICE candidate to Firestore (answerer).");
+                                } catch (e) {
+                                    console.error("answerCall: Error sending ICE candidate to Firestore (answerer):", e.name, e.message, e.stack);
+                                }
+                            } else {
+                                console.log("answerCall: ICE gathering complete (answerer).");
+                            }
+                        };
+                    }
 
                     const callData = (await getDoc(callDocRef)).data();
                     if (!callData || !callData.offer) {
-                        console.error("No valid offer to answer, call might have ended.");
+                        console.error("answerCall: No valid offer to answer, call might have ended.");
                         endCall();
                         return;
                     }
 
-                    console.log("Setting remote description from offer...");
-                    await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-                    console.log("Remote description set from offer.");
+                    console.log("answerCall: Setting remote description from offer...");
+                    // Ensure local PC's remote description is not already set from the signaling listener.
+                    // This check prevents "Failed to set remote answer" errors if already processing.
+                    if (pc.remoteDescription?.type !== 'offer') {
+                         await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+                         console.log("answerCall: Remote description set from offer.");
+                    } else {
+                         console.log("answerCall: Remote description already set to offer.");
+                    }
 
-                    console.log("Creating SDP answer...");
+
+                    console.log("answerCall: Creating SDP answer...");
                     const answer = await pc.createAnswer();
+                    console.log("answerCall: SDP answer created.");
                     await pc.setLocalDescription(answer);
-                    console.log("Local description set (answer).");
+                    console.log("answerCall: Local description set (answer).");
 
                     // Set answer in Firestore.
                     await setDoc(callDocRef, { answer: answer.toJSON(), answererId: userId }, { merge: true });
-                    console.log("Call answer sent to Firestore.");
+                    console.log("answerCall: Call answer sent to Firestore.");
 
                     // Add any existing ICE candidates from the offerer that arrived before our PC was ready
                     if (callData.iceCandidates) {
+                        console.log("answerCall: Adding pre-existing ICE candidates from offerer.");
                         for (const candidate of callData.iceCandidates) {
                             if (candidate.senderId !== userId) { // Only add candidates from the other peer
                                 try {
                                     await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
-                                    console.log("Added pre-existing ICE candidate during answer.");
+                                    console.log("answerCall: Added pre-existing ICE candidate during answer.");
                                 } catch (e) {
-                                    console.error("Error adding pre-existing ICE candidate during answer:", e);
+                                    console.error("answerCall: Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
                                 }
                             }
                         }
                     }
 
                 } catch (error) {
-                    console.error("Error answering call process:", error.name, error.message, error);
-                    alert(`Failed to answer video call: ${error.name || 'Error'}. Please ensure camera/mic permissions are granted.`);
-                    endCall(); // Clean up
+                    console.error("answerCall: Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to answer video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    // Clean up
+                    if (stream) stream.getTracks().forEach(track => track.stop());
+                    if (pc) pc.close();
+                    setLocalStream(null);
+                    setRemoteStream(null);
+                    setPeerConnection(null);
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCallOfferReceived(false);
+                    // No need to delete call doc here, as the caller should manage it.
                 }
             };
 
-            // NEW: Function to end the current call
+            // Function to end the current call
             const endCall = async (deleteDocFromFirestore = true) => {
-                console.log("Attempting to end call. Delete doc:", deleteDocFromFirestore);
+                console.log("endCall: Attempting to end call. Delete doc:", deleteDocFromFirestore);
 
                 // Stop local tracks
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
-                        console.log("Stopping local track:", track);
+                        console.log("endCall: Stopping local track:", track);
                         track.stop();
                     });
                 }
                 // Stop remote tracks (if they exist and are not already stopped)
                 if (remoteStream) {
                     remoteStream.getTracks().forEach(track => {
-                        console.log("Stopping remote track:", track);
+                        console.log("endCall: Stopping remote track:", track);
                         track.stop();
                     });
                 }
                 // Close peer connection
                 if (peerConnection) {
-                    console.log("Closing peer connection.");
+                    console.log("endCall: Closing peer connection.");
                     peerConnection.close();
                 }
 
@@ -632,17 +732,17 @@
                 setCallInitiated(false);
                 setCallOfferReceived(false);
 
-                // Only delete the Firestore document if explicitly requested (e.g., user clicked "End Call")
+                // Only delete the Firestore document if explicitly requested (e.g., user clicked "End Call" on initiating side)
                 if (deleteDocFromFirestore && db && activeChatTab) {
                     try {
-                        console.log(`Deleting call document for ${activeChatTab}.`);
+                        console.log(`endCall: Deleting call document for ${activeChatTab}.`);
                         await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`));
-                        console.log("Call document deleted from Firestore.");
+                        console.log("endCall: Call document deleted from Firestore.");
                     } catch (e) {
-                        console.error("Error deleting call document:", e);
+                        console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
                     }
                 }
-                console.log("Call ended successfully.");
+                console.log("endCall: Call ended successfully.");
             };
 
 
@@ -999,7 +1099,7 @@
                     )
                 ),
 
-                // NEW: Video call UI takes precedence when inCall is true
+                // Video call UI takes precedence when inCall is true
                 inCall ? (
                     React.createElement(
                         "div",
@@ -1131,7 +1231,7 @@
                     {
                         className: "flex items-center space-x-3 bg-white p-4 rounded-b-lg shadow-md mt-auto"
                     },
-                    // NEW: Video call controls only appear when not in a call
+                    // Video call controls only appear when not in a call
                     !inCall && React.createElement(
                         "div",
                         { className: "flex space-x-3 mr-auto" }, // Added mr-auto to push message input to the right
@@ -1140,15 +1240,10 @@
                             {
                                 onClick: startCall,
                                 className: "px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                                disabled: !isAuthReady || bannedUsers.includes(userId) || callOfferReceived || callInitiated
+                                disabled: !isAuthReady || bannedUsers.includes(userId) || callInitiated
                             },
                             callInitiated ? "Calling..." : (callOfferReceived ? "Incoming Call" : "Start Video Call")
                         ),
-                        // The 'Answer Call' button logic is integrated into the 'Start Video Call' button display.
-                        // If an offer is received and we didn't initiate, the 'Start Video Call' button
-                        // text changes to 'Incoming Call'. Clicking it will then call 'answerCall'.
-                        // This makes the UI simpler for two-party calls.
-                        // Removed the separate Answer Call button.
                     ),
                     !inCall && React.createElement(
                         "input",
