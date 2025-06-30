@@ -219,6 +219,11 @@
             const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
             const [showUnbanPage, setShowUnbanPage] = React.useState(false); // State for unban page visibility
             const [activeChatTab, setActiveChatTab] = React.useState(localStorage.getItem('activeChatTab') || null);
+            // NEW: State to control visibility of the admin call management modal
+            const [showAdminCallManagement, setShowAdminCallManagement] = React.useState(false);
+            // NEW: State to store all active calls for admin view
+            const [allActiveCallsForAdmin, setAllActiveCallsForAdmin] = React.useState([]);
+
 
             const [isLoading, setIsLoading] = React.useState(true); // Loading state
 
@@ -265,8 +270,11 @@
                     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
                         if (user) {
                             setUserId(user.uid);
+                            // Re-evaluate admin status when auth state changes (e.g., after initial login)
+                            setIsAdmin(localStorage.getItem('chatUserName') === 'admin');
                         } else {
                             setUserId(crypto.randomUUID());
+                            setIsAdmin(false); // Not authenticated, so not admin
                         }
                         setIsAuthReady(true);
                         setIsLoading(false);
@@ -324,11 +332,16 @@
                 }
             }, [db, isAuthReady, activeChatTab]);
 
-            // NEW: Effect for listening to active call rooms in the current chat tab
+            // Effect for listening to active call rooms in the current chat tab (for regular users)
             React.useEffect(() => {
                 if (!db || !isAuthReady || !activeChatTab) {
                     setActiveCallRooms([]);
                     return;
+                }
+                // Only listen for the current active tab's calls for non-admin users or for the current view.
+                // Admin will have a separate listener for all calls.
+                if (isAdmin && !showAdminCallManagement) { // If admin is viewing main chat, they still see their tab's calls
+                     // If admin is in manage calls view, activeCallRooms for current tab doesn't apply
                 }
 
                 const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
@@ -338,23 +351,22 @@
                 const unsubscribeCallRooms = onSnapshot(q, (snapshot) => {
                     const fetchedRooms = snapshot.docs.map(doc => ({
                         id: doc.id,
+                        chatTab: activeChatTab, // Add chatTab info
                         ...doc.data()
                     }));
                     setActiveCallRooms(fetchedRooms);
-                    console.log("Fetched Active Call Rooms:", fetchedRooms);
+                    console.log(`Fetched Active Call Rooms for ${activeChatTab} tab:`, fetchedRooms);
 
-                    // Check for an incoming offer for this user (only if not already in a call)
                     const incomingOffer = fetchedRooms.find(room =>
                         room.offer && !room.answer && room.callerId !== userId && !room.answererId && !inCall
                     );
                     setCallOfferReceived(!!incomingOffer);
 
-                    // If we are currently in a call and our room has been deleted by other party
                     if (inCall && currentRoomId) {
                          const currentRoomStillExists = fetchedRooms.some(room => room.id === currentRoomId);
                          if (!currentRoomStillExists) {
                              console.log("Current call room removed by other party. Ending call.");
-                             endCall(false); // End call, but don't delete doc again
+                             endCall(false);
                          }
                     }
 
@@ -363,7 +375,48 @@
                 });
 
                 return () => unsubscribeCallRooms();
-            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath]);
+            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath, isAdmin, showAdminCallManagement]);
+
+            // NEW: Effect for admins to listen to ALL active call rooms across all tabs
+            React.useEffect(() => {
+                if (!db || !isAuthReady || !isAdmin) {
+                    setAllActiveCallsForAdmin([]);
+                    return;
+                }
+
+                const chatTabs = ['main', 'games', 'memes'];
+                const unsubscribes = [];
+                const allCallsAccumulator = {}; // Use an object to easily update/remove by room ID
+
+                chatTabs.forEach(chatTabName => {
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, chatTabName);
+                    const callRoomsCollectionRef = collection(db, callRoomsCollectionPath);
+                    const q = query(callRoomsCollectionRef);
+
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        snapshot.docChanges().forEach(change => {
+                            const roomData = { id: change.doc.id, chatTab: chatTabName, ...change.doc.data() };
+                            if (change.type === "added" || change.type === "modified") {
+                                allCallsAccumulator[roomData.id] = roomData;
+                            }
+                            if (change.type === "removed") {
+                                delete allCallsAccumulator[roomData.id];
+                            }
+                        });
+                        // Convert the object back to an array for state
+                        setAllActiveCallsForAdmin(Object.values(allCallsAccumulator));
+                        console.log("Admin - All Active Call Rooms:", Object.values(allCallsAccumulator));
+                    }, (error) => {
+                        console.error(`Admin: Error listening to calls in ${chatTabName} tab:`, error);
+                    });
+                    unsubscribes.push(unsubscribe);
+                });
+
+                return () => {
+                    unsubscribes.forEach(unsub => unsub());
+                    console.log("Admin - Unsubscribed from all call room listeners.");
+                };
+            }, [db, isAuthReady, isAdmin, getChatTabCallRoomsCollectionPath]);
 
 
             // Effect for WebRTC signaling via Firestore for the *current* call room
@@ -689,8 +742,8 @@
 
 
             // Function to end the current call
-            const endCall = async (callerInitiatedEnd = true) => { // Renamed parameter for clarity
-                console.log("[endCall] Attempting to end call. Caller initiated:", callerInitiatedEnd, "isAdmin:", isAdmin);
+            const endCall = async (callerInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Added forceRoomId and forceChatTab
+                console.log("[endCall] Attempting to end call. Caller initiated:", callerInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
 
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
@@ -712,41 +765,45 @@
                     setPeerConnection(null);
                 }
 
-                setInCall(false);
-                setCallInitiated(false);
-                setCallOfferReceived(false);
-                setIsVideoEnabled(true);
-                const prevRoomId = currentRoomId;
-                setCurrentRoomId(null);
+                // Only reset in-call states if this endCall is for the currently active call
+                if (!forceRoomId || forceRoomId === currentRoomId) {
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCallOfferReceived(false);
+                    setIsVideoEnabled(true);
+                    setCurrentRoomId(null);
+                }
 
 
-                if (db && activeChatTab && userId && prevRoomId) {
-                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                    const roomRef = doc(db, `${callRoomsCollectionPath}/${prevRoomId}`);
+                const targetRoomId = forceRoomId || currentRoomId;
+                const targetChatTab = forceChatTab || activeChatTab;
+
+                if (db && targetChatTab && userId && targetRoomId) {
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, targetChatTab);
+                    const roomRef = doc(db, `${callRoomsCollectionPath}/${targetRoomId}`);
                     const roomSnapshot = await getDoc(roomRef);
                     const roomData = roomSnapshot.data();
 
                     if (isAdmin) {
-                        // Admin can always force-end the call by deleting the document
-                        console.log(`[endCall] Admin ${userId} is force-ending call for room ${prevRoomId}.`);
+                        console.log(`[endCall] Admin ${userId} is force-ending call for room ${targetRoomId} in tab ${targetChatTab}.`);
                         try {
                             await deleteDoc(roomRef);
                             console.log("[endCall] Call document deleted by admin.");
                         } catch (e) {
                             console.error("[endCall] Admin: Error deleting call document:", e.name, e.message, e.stack);
+                            alert(`Admin: Failed to delete call room ${targetRoomId}. Check console for details.`);
                         }
                     } else if (callerInitiatedEnd && roomData && roomData.callerId === userId) {
-                        // Non-admin callers can delete the document if they initiated the end
-                        console.log(`[endCall] Caller ${userId} is ending call for room ${prevRoomId}.`);
+                        console.log(`[endCall] Caller ${userId} is ending call for room ${targetRoomId} in tab ${targetChatTab}.`);
                         try {
                             await deleteDoc(roomRef);
                             console.log("[endCall] Call document deleted by caller.");
                         } catch (e) {
                             console.error("[endCall] Caller: Error deleting call document:", e.name, e.message, e.stack);
+                            alert(`Caller: Failed to delete call room ${targetRoomId}. Check console for details.`);
                         }
                     } else {
                         console.log("[endCall] User is not the caller and not an admin. Not deleting Firestore document.");
-                        // If a non-caller/non-admin leaves, the room remains open unless the caller or admin ends it.
                     }
                 }
                 console.log("[endCall] Call ended successfully locally.");
@@ -1014,6 +1071,85 @@
                     )
                 );
             }
+
+            // NEW: Admin Call Management Modal
+            if (isAdmin && showAdminCallManagement) {
+                return React.createElement(
+                    "div",
+                    {
+                        className: "modal-overlay"
+                    },
+                    React.createElement(
+                        "div",
+                        {
+                            className: "modal-content w-full md:max-w-xl lg:max-w-2xl"
+                        },
+                        React.createElement(
+                            "h2",
+                            {
+                                className: "text-2xl font-bold text-gray-800 mb-6 text-center"
+                            },
+                            "Manage Active Calls (Admin)"
+                        ),
+                        allActiveCallsForAdmin.length === 0 ?
+                            React.createElement(
+                                "p",
+                                { className: "text-center text-gray-500" },
+                                "No active calls across all chats."
+                            ) :
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3" },
+                                allActiveCallsForAdmin.map(room =>
+                                    React.createElement(
+                                        "li",
+                                        {
+                                            key: `${room.chatTab}-${room.id}`, // Unique key for combined view
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm flex-wrap gap-2"
+                                        },
+                                        React.createElement(
+                                            "div",
+                                            { className: "flex-1 min-w-[200px]" },
+                                            React.createElement(
+                                                "p",
+                                                { className: "font-medium text-gray-700" },
+                                                `Tab: ${room.chatTab} | ID: ${room.id.substring(0, 8)}... `
+                                                + (room.isVideoCall ? ' (Video Call)' : ' (Audio Call)')
+                                            ),
+                                            React.createElement(
+                                                "p",
+                                                { className: "text-sm text-gray-600" },
+                                                `Caller: ${room.callerName || 'Unknown'} (${room.callerId ? room.callerId.substring(0, 8) + '...' : 'N/A'})`
+                                            ),
+                                            room.answererId && React.createElement(
+                                                "p",
+                                                { className: "text-sm text-gray-600" },
+                                                `Answerer: ${room.answererName || 'Unknown'} (${room.answererId ? room.answererId.substring(0, 8) + '...' : 'N/A'})`
+                                            )
+                                        ),
+                                        React.createElement(
+                                            "button",
+                                            {
+                                                onClick: () => endCall(false, room.id, room.chatTab), // Force delete, pass room ID and chatTab
+                                                className: "ml-4 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition duration-200"
+                                            },
+                                            "Kill Call"
+                                        )
+                                    )
+                                )
+                            ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowAdminCallManagement(false),
+                                className: "mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 w-full"
+                            },
+                            "Back to Chat"
+                        )
+                    )
+                );
+            }
+
 
             return React.createElement(
                 "div",
@@ -1352,6 +1488,15 @@
                             className: "ml-3 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200"
                         },
                         "Unban Users"
+                    ),
+                    // NEW: Admin Call Management Button
+                    isAdmin && !inCall && React.createElement(
+                        "button",
+                        {
+                            onClick: () => setShowAdminCallManagement(true),
+                            className: "ml-3 px-6 py-3 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200"
+                        },
+                        "Manage Calls"
                     )
                 )
             );
