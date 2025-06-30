@@ -65,7 +65,7 @@
         });
         // Set __app_id to your Firebase projectId for Firestore pathing
         window.__app_id = "chatv1-5432a";
-        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; // Kept for consistency, but not used in authentication flow now
 
         // Log the Firebase config as a JSON string and then parsed object for debugging
         console.log("Firebase config string on load:", window.__firebase_config);
@@ -84,7 +84,7 @@
         // and "Missing or insufficient permissions" (which indicate Firestore rules issues):
         //
         // 1. **CRITICAL: ENABLE ANONYMOUS AUTHENTICATION IN FIREBASE CONSOLE**
-        //    This app uses anonymous sign-in by default. If this method is not enabled,
+        //    This app now exclusively uses anonymous sign-in. If this method is not enabled,
         //    Firebase Auth will fail to initialize, leading to "auth/configuration-not-found".
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
@@ -107,20 +107,21 @@
         //    rules_version = '2';
         //    service cloud.firestore {
         //      match /databases/{database}/documents {
-        //        // This path must match exactly where your messages are stored.
-        //        // window.__app_id is used here, which you've set to "chatv1-5432a"
+        //        // This path MUST EXACTLY MATCH where your messages are stored.
+        //        // Ensure 'appId' in the rules matches 'window.__app_id' in your code ("chatv1-5432a").
         //        match /artifacts/{appId}/public/data/messages/{document=**} {
         //          allow read, write: if request.auth != null; // Allows any authenticated user (including anonymous)
         //        }
         //      }
         //    }
+        //    Remember to click "Publish" after making changes to your rules.
         // ====================================================================================
 
 
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Main App component for the chat application (inlined)
         function App() {
@@ -133,6 +134,8 @@
             const [isAuthReady, setIsAuthReady] = React.useState(false); // To track if authentication is ready
             const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
             const [nameInput, setNameInput] = React.useState('');
+            const [isAdmin, setIsAdmin] = React.useState(userName === 'admin'); // Track admin status
+            const [showAdminConfirmScreen, setShowAdminConfirmScreen] = React.useState(false); // For second 'admin' prompt
 
 
             // Initialize Firebase and handle authentication
@@ -146,24 +149,10 @@
                     setDb(firestoreDb);
                     setAuth(firebaseAuth);
 
-                    // Sign in with custom token if available, otherwise anonymously
-                    if (window.__initial_auth_token) {
-                        signInWithCustomToken(firebaseAuth, window.__initial_auth_token)
-                            .then((userCredential) => {
-                                console.log("Signed in with custom token:", userCredential.user.uid);
-                            })
-                            .catch(error => {
-                                console.error("Error signing in with custom token:", error);
-                                // Fallback to anonymous sign-in if custom token fails
-                                signInAnonymously(firebaseAuth)
-                                    .then((userCredential) => console.log("Signed in anonymously (fallback):", userCredential.user.uid))
-                                    .catch(err => console.error("Error signing in anonymously (fallback):", err));
-                            });
-                    } else {
-                        signInAnonymously(firebaseAuth)
-                            .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
-                            .catch(error => console.error("Error signing in anonymously:", error));
-                    }
+                    // Sign in anonymously (removed custom token logic as it's not applicable for static hosting without backend)
+                    signInAnonymously(firebaseAuth)
+                        .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
+                        .catch(error => console.error("Error signing in anonymously:", error));
 
                     // Listen for authentication state changes
                     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
@@ -172,13 +161,10 @@
                             setIsAuthReady(true);
                             console.log("Auth state changed: User is authenticated. User ID:", user.uid, "isAuthReady:", true);
                         } else {
-                            // Only set userId to random UUID if auth failed or user is not found,
-                            // AND only if isAuthReady hasn't already been set by a successful auth.
-                            // The anonymous sign-in ensures a user always exists for this app's purpose.
-                            if (!userId) { // Check if userId is not already set by a successful login
+                            if (!userId) {
                                 setUserId(crypto.randomUUID());
                             }
-                            setIsAuthReady(true); // Always set to true once auth state is determined
+                            setIsAuthReady(true);
                             console.log("Auth state changed: User is NOT authenticated. (Anonymous expected). isAuthReady:", true);
                         }
                     });
@@ -198,7 +184,6 @@
                     const chatCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/messages`);
 
                     // Create a query to order messages by timestamp
-                    // Data will be sorted in memory.
                     const q = query(chatCollectionRef);
 
                     // Subscribe to real-time updates
@@ -207,7 +192,6 @@
                             id: doc.id,
                             ...doc.data()
                         }));
-                        // Sort messages by timestamp in memory
                         fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
                         setMessages(fetchedMessages);
                     }, (error) => {
@@ -224,16 +208,30 @@
                 if (newMessage.trim() === '' || !db || !userId) return;
 
                 try {
-                    // Add a new document to the 'messages' collection
                     await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/messages`), {
                         text: newMessage,
                         userId: userId,
-                        userName: userName || 'Anonymous', // Store the user's chosen name
-                        timestamp: serverTimestamp() // Firestore server timestamp for consistency
+                        userName: userName || 'Anonymous',
+                        timestamp: serverTimestamp()
                     });
-                    setNewMessage(''); // Clear the input field after sending
+                    setNewMessage('');
                 } catch (error) {
                     console.error("Error sending message:", error);
+                }
+            };
+
+            // Function to delete a message (only for admin)
+            const deleteMessage = async (messageId) => {
+                if (!db || !isAdmin) { // Only allow if db is ready and user is admin
+                    console.warn("Permission denied: Only admin can delete messages.");
+                    return;
+                }
+                try {
+                    const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/messages`, messageId);
+                    await deleteDoc(messageRef);
+                    console.log(`Message ${messageId} deleted successfully.`);
+                } catch (error) {
+                    console.error("Error deleting message:", error);
                 }
             };
 
@@ -244,16 +242,40 @@
                 }
             };
 
-            // Function to set the user's name
+            // Function to handle initial name setting or admin first attempt
             const setChatUserName = () => {
-                if (nameInput.trim() !== '') {
+                if (nameInput.trim() === 'admin') {
+                    setShowAdminConfirmScreen(true); // Show confirmation for admin
+                    setNameInput(''); // Clear input for re-entry
+                } else if (nameInput.trim() !== '') {
                     setUserName(nameInput.trim());
-                    localStorage.setItem('chatUserName', nameInput.trim()); // Persist name
+                    localStorage.setItem('chatUserName', nameInput.trim());
+                    setIsAdmin(false); // Not admin if name is not 'admin'
+                    setShowAdminConfirmScreen(false);
                 }
             };
 
-            // Conditional rendering: Show name input if userName is not set
-            if (!userName) {
+            // Function to confirm admin access on the second 'admin' entry
+            const confirmAdminAccess = () => {
+                if (nameInput.trim() === 'admin') {
+                    setUserName('admin');
+                    localStorage.setItem('chatUserName', 'admin');
+                    setIsAdmin(true); // Grant admin rights
+                    setShowAdminConfirmScreen(false);
+                    setNameInput(''); // Clear input
+                } else {
+                    // If wrong password for admin, reset to initial name input
+                    setUserName('');
+                    localStorage.removeItem('chatUserName');
+                    setIsAdmin(false);
+                    setShowAdminConfirmScreen(false);
+                    setNameInput('');
+                    alert('Incorrect input for admin. Please enter your name again.'); // Simple message for incorrect entry
+                }
+            };
+
+            // Conditional rendering: Show name input or admin confirmation
+            if (!userName || showAdminConfirmScreen) {
                 return React.createElement(
                     "div",
                     {
@@ -264,14 +286,14 @@
                         {
                             className: "text-2xl font-bold text-gray-800 mb-6"
                         },
-                        "Welcome to the Chat!"
+                        showAdminConfirmScreen ? "Confirm Admin Access" : "Welcome to the Chat!"
                     ),
                     React.createElement(
                         "p",
                         {
                             className: "text-gray-600 mb-4"
                         },
-                        "Please enter your name to start chatting."
+                        showAdminConfirmScreen ? "Please re-enter 'admin' to confirm administrator privileges." : "Please enter your name to start chatting."
                     ),
                     React.createElement(
                         "input",
@@ -279,18 +301,26 @@
                             type: "text",
                             value: nameInput,
                             onChange: e => setNameInput(e.target.value),
-                            onKeyPress: (e) => { if (e.key === 'Enter') setChatUserName(); },
-                            placeholder: "Your Name",
+                            onKeyPress: (e) => {
+                                if (e.key === 'Enter') {
+                                    if (showAdminConfirmScreen) {
+                                        confirmAdminAccess();
+                                    } else {
+                                        setChatUserName();
+                                    }
+                                }
+                            },
+                            placeholder: showAdminConfirmScreen ? "Type 'admin' again" : "Your Name",
                             className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
                         }
                     ),
                     React.createElement(
                         "button",
                         {
-                            onClick: setChatUserName,
+                            onClick: showAdminConfirmScreen ? confirmAdminAccess : setChatUserName,
                             className: "px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                         },
-                        "Start Chatting"
+                        showAdminConfirmScreen ? "Confirm" : "Start Chatting"
                     )
                 );
             }
@@ -340,8 +370,10 @@
                             onClick: () => {
                                 setUserName(''); // Clear name in state
                                 localStorage.removeItem('chatUserName'); // Clear from localStorage
+                                setIsAdmin(false); // Remove admin status
                                 setNewMessage(''); // Clear any message in input
                                 setMessages([]); // Clear messages to reset view
+                                setShowAdminConfirmScreen(false); // Ensure admin confirm screen is hidden
                             },
                             className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
                         },
@@ -403,6 +435,15 @@
                                             className: "text-right text-xs mt-1 opacity-75"
                                         },
                                         new Date(msg.timestamp.toMillis()).toLocaleTimeString()
+                                    ),
+                                    // Render delete button only if current user is admin
+                                    isAdmin && React.createElement(
+                                        "button",
+                                        {
+                                            onClick: () => deleteMessage(msg.id),
+                                            className: "ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition duration-200 self-end"
+                                        },
+                                        "Delete"
                                     )
                                 )
                             );
@@ -429,8 +470,7 @@
                         "button",
                         {
                             onClick: sendMessage,
-                            className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                            disabled: !isAuthReady || newMessage.trim() === ''
+                            className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         },
                         "Send"
                     )
