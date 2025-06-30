@@ -84,7 +84,7 @@
         // and "Missing or insufficient permissions" (Firestore rules issues):
         //
         // 1. **CRITICAL: ENABLE ANONYMOUS AUTHENTICATION IN FIREBASE CONSOLE**
-        //    This app exclusively uses anonymous sign-in. If this method is not enabled,
+        //    This app now exclusively uses anonymous sign-in. If this method is not enabled,
         //    Firebase Auth will fail to initialize.
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
@@ -358,7 +358,8 @@
                     React.createElement(
                         "input",
                         {
-                            type: "password", // Use type="password" for the admin password field
+                            // Dynamically set type based on which screen is active
+                            type: showAdminPasswordScreen ? "password" : "text",
                             value: nameInput,
                             onChange: e => setNameInput(e.target.value),
                             onKeyPress: handleKeyPress, // Use generic handleKeyPress
