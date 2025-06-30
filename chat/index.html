@@ -1,213 +1,394 @@
-import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Website Chat</title>
+    <!-- Include Tailwind CSS CDN directly -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Optional: Basic styling for the body */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+        #root {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Make sure the root div takes full viewport height */
+            padding: 20px; /* Add some padding around the chat app */
+            box-sizing: border-box;
+        }
+        /* Custom CSS for scrollbar (for better aesthetics) */
+        .font-inter {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+    <!-- Import React and ReactDOM from CDN as global variables -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+</head>
+<body>
+    <!-- This is the root div where your React application will be mounted -->
+    <div id="root"></div>
 
-// Main App component for the chat application
-function App() {
-    // State variables for Firebase instances, user ID, messages, and new message input
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [isAuthReady, setIsAuthReady] = useState(false); // To track if authentication is ready
+    <script type="module">
+        // Define the global variables that the React app expects
+        // These will be replaced by the Canvas environment when running there.
+        // For a static site, you would typically hardcode these values or fetch them from a secure source.
+        window.__app_id = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.__firebase_config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    // Initialize Firebase and handle authentication
-    useEffect(() => {
-        try {
-            // Retrieve __app_id and __firebase_config from the global scope
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Important: For Firestore to work, you MUST set up security rules in your Firebase project console.
+        // For public chat data like this (stored in artifacts/{appId}/public/data/messages),
+        // you would typically set rules that allow read/write for authenticated users.
+        // Example Firestore Security Rules (in your Firebase Console -> Firestore Database -> Rules tab):
+        //
+        // rules_version = '2';
+        // service cloud.firestore {
+        //   match /databases/{database}/documents {
+        //     match /artifacts/{appId}/public/data/messages/{document=**} {
+        //       allow read, write: if request.auth != null;
+        //     }
+        //   }
+        // }
 
-            // Initialize Firebase app
-            const app = initializeApp(firebaseConfig);
-            const firestoreDb = getFirestore(app);
-            const firebaseAuth = getAuth(app);
 
-            setDb(firestoreDb);
-            setAuth(firebaseAuth);
+        // Import Firebase modules from CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            // Sign in with custom token if available, otherwise anonymously
-            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // Main App component for the chat application (inlined)
+        function App() {
+            // State variables for Firebase instances, user ID, messages, new message, and user's chosen name
+            const [db, setDb] = React.useState(null);
+            const [auth, setAuth] = React.useState(null);
+            const [userId, setUserId] = React.useState(null);
+            const [messages, setMessages] = React.useState([]);
+            const [newMessage, setNewMessage] = React.useState('');
+            const [isAuthReady, setIsAuthReady] = React.useState(false); // To track if authentication is ready
+            const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
+            const [nameInput, setNameInput] = React.useState('');
 
-            if (initialAuthToken) {
-                signInWithCustomToken(firebaseAuth, initialAuthToken)
-                    .then(() => console.log("Signed in with custom token"))
-                    .catch(error => {
-                        console.error("Error signing in with custom token:", error);
-                        // Fallback to anonymous sign-in if custom token fails
+
+            // Initialize Firebase and handle authentication
+            React.useEffect(() => {
+                try {
+                    // Initialize Firebase app
+                    const app = initializeApp(window.__firebase_config);
+                    const firestoreDb = getFirestore(app);
+                    const firebaseAuth = getAuth(app);
+
+                    setDb(firestoreDb);
+                    setAuth(firebaseAuth);
+
+                    // Sign in with custom token if available, otherwise anonymously
+                    if (window.__initial_auth_token) {
+                        signInWithCustomToken(firebaseAuth, window.__initial_auth_token)
+                            .then(() => console.log("Signed in with custom token"))
+                            .catch(error => {
+                                console.error("Error signing in with custom token:", error);
+                                // Fallback to anonymous sign-in if custom token fails
+                                signInAnonymously(firebaseAuth)
+                                    .then(() => console.log("Signed in anonymously (fallback)"))
+                                    .catch(err => console.error("Error signing in anonymously:", err));
+                            });
+                    } else {
                         signInAnonymously(firebaseAuth)
-                            .then(() => console.log("Signed in anonymously (fallback)"))
-                            .catch(err => console.error("Error signing in anonymously:", err));
+                            .then(() => console.log("Signed in anonymously"))
+                            .catch(error => console.error("Error signing in anonymously:", error));
+                    }
+
+                    // Listen for authentication state changes
+                    const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
+                        if (user) {
+                            setUserId(user.uid);
+                            setIsAuthReady(true);
+                        } else {
+                            setUserId(crypto.randomUUID()); // Use a random UUID if not authenticated
+                            setIsAuthReady(true); // Still ready even if anonymous
+                        }
                     });
-            } else {
-                signInAnonymously(firebaseAuth)
-                    .then(() => console.log("Signed in anonymously"))
-                    .catch(error => console.error("Error signing in anonymously:", error));
+
+                    // Cleanup function for auth listener
+                    return () => unsubscribeAuth();
+                } catch (error) {
+                    console.error("Failed to initialize Firebase:", error);
+                }
+            }, []); // Empty dependency array means this runs once on mount
+
+            // Set up real-time listener for messages from Firestore
+            React.useEffect(() => {
+                // Ensure db and userId are available and authentication is ready
+                if (db && isAuthReady) {
+                    // Define the collection path for public data
+                    const chatCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/messages`);
+
+                    // Create a query to order messages by timestamp
+                    // Data will be sorted in memory.
+                    const q = query(chatCollectionRef);
+
+                    // Subscribe to real-time updates
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        const fetchedMessages = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        // Sort messages by timestamp in memory
+                        fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+                        setMessages(fetchedMessages);
+                    }, (error) => {
+                        console.error("Error fetching messages:", error);
+                    });
+
+                    // Cleanup function for snapshot listener
+                    return () => unsubscribe();
+                }
+            }, [db, isAuthReady]); // Re-run when db or isAuthReady changes
+
+            // Function to send a new message
+            const sendMessage = async () => {
+                if (newMessage.trim() === '' || !db || !userId) return;
+
+                try {
+                    // Add a new document to the 'messages' collection
+                    await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/messages`), {
+                        text: newMessage,
+                        userId: userId,
+                        userName: userName || 'Anonymous', // Store the user's chosen name
+                        timestamp: serverTimestamp() // Firestore server timestamp for consistency
+                    });
+                    setNewMessage(''); // Clear the input field after sending
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                }
+            };
+
+            // Handle key press for sending message (e.g., Enter key)
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            };
+
+            // Function to set the user's name
+            const setChatUserName = () => {
+                if (nameInput.trim() !== '') {
+                    setUserName(nameInput.trim());
+                    localStorage.setItem('chatUserName', nameInput.trim()); // Persist name
+                }
+            };
+
+            // Conditional rendering: Show name input if userName is not set
+            if (!userName) {
+                return React.createElement(
+                    "div",
+                    {
+                        className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter p-4 rounded-lg shadow-xl"
+                    },
+                    React.createElement(
+                        "h2",
+                        {
+                            className: "text-2xl font-bold text-gray-800 mb-6"
+                        },
+                        "Welcome to the Chat!"
+                    ),
+                    React.createElement(
+                        "p",
+                        {
+                            className: "text-gray-600 mb-4"
+                        },
+                        "Please enter your name to start chatting."
+                    ),
+                    React.createElement(
+                        "input",
+                        {
+                            type: "text",
+                            value: nameInput,
+                            onChange: e => setNameInput(e.target.value),
+                            onKeyPress: (e) => { if (e.key === 'Enter') setChatUserName(); },
+                            placeholder: "Your Name",
+                            className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
+                        }
+                    ),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: setChatUserName,
+                            className: "px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                        },
+                        "Start Chatting"
+                    )
+                );
             }
 
-            // Listen for authentication state changes
-            const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
-                if (user) {
-                    setUserId(user.uid);
-                    setIsAuthReady(true);
-                } else {
-                    setUserId(crypto.randomUUID()); // Use a random UUID if not authenticated
-                    setIsAuthReady(true); // Still ready even if anonymous
-                }
-            });
+            // Main chat application rendering
+            return React.createElement(
+                "div",
+                {
+                    className: "flex flex-col h-screen antialiased bg-gray-100 text-gray-900 font-inter p-4 sm:p-6 md:p-8 rounded-lg overflow-hidden"
+                },
+                userId && React.createElement(
+                    "div",
+                    {
+                        className: "bg-blue-500 text-white p-3 rounded-t-lg shadow-md mb-4 text-center"
+                    },
+                    React.createElement(
+                        "span",
+                        {
+                            className: "font-semibold"
+                        },
+                        "Your User ID: "
+                    ),
+                    React.createElement(
+                        "span",
+                        {
+                            className: "break-all"
+                        },
+                        userId
+                    ),
+                    React.createElement(
+                        "span",
+                        {
+                            className: "ml-4 font-semibold"
+                        },
+                        " | Your Name: "
+                    ),
+                    React.createElement(
+                        "span",
+                        {
+                            className: "font-semibold"
+                        },
+                        userName
+                    ),
+                     React.createElement(
+                        "button",
+                        {
+                            onClick: () => {
+                                setUserName(''); // Clear name in state
+                                localStorage.removeItem('chatUserName'); // Clear from localStorage
+                                setNewMessage(''); // Clear any message in input
+                                setMessages([]); // Clear messages to reset view
+                            },
+                            className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
+                        },
+                        "Change Name"
+                    )
+                ),
+                React.createElement(
+                    "div",
+                    {
+                        className: "flex-1 bg-white rounded-lg shadow-md p-4 overflow-y-auto mb-4 custom-scrollbar"
+                    },
+                    messages.length === 0 ?
+                        React.createElement(
+                            "div",
+                            {
+                                className: "text-center text-gray-500 mt-10"
+                            },
+                            "No messages yet. Start the conversation!"
+                        ) :
+                        messages.map(msg => {
+                            // Determine if the message is from the current user
+                            const isCurrentUser = msg.userId === userId;
 
-            // Cleanup function for auth listener
-            return () => unsubscribeAuth();
-        } catch (error) {
-            console.error("Failed to initialize Firebase:", error);
+                            // Define class strings for message bubble styling
+                            const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm";
+                            const messageBubbleUserClasses = isCurrentUser
+                                ? "bg-blue-600 text-white rounded-br-none"
+                                : "bg-gray-200 text-gray-800 rounded-bl-none";
+                            const messageBubbleCombinedClasses = `${messageBubbleBaseClasses} ${messageBubbleUserClasses}`;
+
+                            return React.createElement(
+                                "div",
+                                {
+                                    key: msg.id,
+                                    className: `flex mb-3 ${isCurrentUser ? 'justify-end' : 'justify-start'}`
+                                },
+                                React.createElement(
+                                    "div",
+                                    {
+                                        className: messageBubbleCombinedClasses
+                                    },
+                                    React.createElement(
+                                        "div",
+                                        {
+                                            className: "font-bold text-xs mb-1"
+                                        },
+                                        isCurrentUser ? 'You' : (msg.userName || msg.userId) // Display name or ID
+                                    ),
+                                    React.createElement(
+                                        "p",
+                                        {
+                                            className: "text-sm"
+                                        },
+                                        msg.text
+                                    ),
+                                    msg.timestamp && React.createElement(
+                                        "div",
+                                        {
+                                            className: "text-right text-xs mt-1 opacity-75"
+                                        },
+                                        new Date(msg.timestamp.toMillis()).toLocaleTimeString()
+                                    )
+                                )
+                            );
+                        })
+                ),
+                React.createElement(
+                    "div",
+                    {
+                        className: "flex items-center space-x-3 bg-white p-4 rounded-lg shadow-md"
+                    },
+                    React.createElement(
+                        "input",
+                        {
+                            type: "text",
+                            value: newMessage,
+                            onChange: e => setNewMessage(e.target.value),
+                            onKeyPress: handleKeyPress,
+                            placeholder: "Type your message...",
+                            className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200",
+                            disabled: !isAuthReady
+                        }
+                    ),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: sendMessage,
+                            className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                            disabled: !isAuthReady || newMessage.trim() === ''
+                        },
+                        "Send"
+                    )
+                )
+            );
         }
-    }, []); // Empty dependency array means this runs once on mount
 
-    // Set up real-time listener for messages from Firestore
-    useEffect(() => {
-        // Ensure db and userId are available and authentication is ready
-        if (db && isAuthReady) {
-            // Define the collection path for public data
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const chatCollectionRef = collection(db, `artifacts/${appId}/public/data/messages`);
-
-            // Create a query to order messages by timestamp
-            // Note: orderBy is commented out as per instructions to avoid potential index issues.
-            // Data will be sorted in memory.
-            const q = query(chatCollectionRef /*, orderBy('timestamp', 'asc') */);
-
-            // Subscribe to real-time updates
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                const fetchedMessages = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                // Sort messages by timestamp in memory
-                fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
-                setMessages(fetchedMessages);
-            }, (error) => {
-                console.error("Error fetching messages:", error);
-            });
-
-            // Cleanup function for snapshot listener
-            return () => unsubscribe();
-        }
-    }, [db, isAuthReady]); // Re-run when db or isAuthReady changes
-
-    // Function to send a new message
-    const sendMessage = async () => {
-        if (newMessage.trim() === '' || !db || !userId) return;
-
-        try {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            // Add a new document to the 'messages' collection
-            await addDoc(collection(db, `artifacts/${appId}/public/data/messages`), {
-                text: newMessage,
-                userId: userId,
-                timestamp: serverTimestamp() // Firestore server timestamp for consistency
-            });
-            setNewMessage(''); // Clear the input field after sending
-        } catch (error) {
-            console.error("Error sending message:", error);
-        }
-    };
-
-    // Handle key press for sending message (e.g., Enter key)
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    };
-
-    return (
-        <div className="flex flex-col h-screen antialiased bg-gray-100 text-gray-900 font-inter p-4 sm:p-6 md:p-8 rounded-lg overflow-hidden">
-            {/* User ID display */}
-            {userId && (
-                <div className="bg-blue-500 text-white p-3 rounded-t-lg shadow-md mb-4 text-center">
-                    <span className="font-semibold">Your User ID:</span> <span className="break-all">{userId}</span>
-                </div>
-            )}
-
-            {/* Chat messages display area */}
-            <div className="flex-1 bg-white rounded-lg shadow-md p-4 overflow-y-auto mb-4 custom-scrollbar">
-                {messages.length === 0 ? (
-                    <div className="text-center text-gray-500 mt-10">No messages yet. Start the conversation!</div>
-                ) : (
-                    messages.map((msg) => (
-                        <div
-                            key={msg.id}
-                            className={`flex mb-3 ${msg.userId === userId ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div
-                                className={`rounded-xl p-3 max-w-[80%] break-words shadow-sm ${
-                                    msg.userId === userId
-                                        ? 'bg-blue-600 text-white rounded-br-none'
-                                        : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                                }`}
-                            >
-                                <div className="font-bold text-xs mb-1">
-                                    {msg.userId === userId ? 'You' : msg.userId}
-                                </div>
-                                <p className="text-sm">{msg.text}</p>
-                                {msg.timestamp && (
-                                    <div className="text-right text-xs mt-1 opacity-75">
-                                        {new Date(msg.timestamp.toMillis()).toLocaleTimeString()}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Message input and send button */}
-            <div className="flex items-center space-x-3 bg-white p-4 rounded-lg shadow-md">
-                <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Type your message..."
-                    className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                    disabled={!isAuthReady} // Disable input until auth is ready
-                />
-                <button
-                    onClick={sendMessage}
-                    className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!isAuthReady || newMessage.trim() === ''} // Disable button until auth is ready and message is not empty
-                >
-                    Send
-                </button>
-            </div>
-
-            {/* Tailwind CSS CDN */}
-            <script src="https://cdn.tailwindcss.com"></script>
-            {/* Custom CSS for scrollbar (for better aesthetics) */}
-            <style>
-                {`
-                .font-inter {
-                    font-family: 'Inter', sans-serif;
-                }
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
-                `}
-            </style>
-        </div>
-    );
-}
-
-export default App; // Export the App component as default
+        // Render the App component into the root div
+        ReactDOM.render(
+            React.createElement(App, null),
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
