@@ -156,7 +156,7 @@
         //    f. Toggle the "Enable" button to ON.
         //    g. Click "Save".
         //
-        // 2. **SET UP FIRESTORE SECURITY RULES (UPDATED FOR CHAT TABS AND CALLS)**
+        // 2. **SET UP FIRESTORE SECURITY RULES (UPDATED FOR CHAT TABS AND CALL ROOMS)**
         //    This resolves "Missing or insufficient permissions" errors.
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
@@ -180,10 +180,14 @@
         //          allow create, delete: if request.auth != null;
         //        }
         //
-        //        // NEW: Rules for video call signaling data
-        //        // {chatName} refers to the active chat tab being used as a call ID
-        //        match /artifacts/{appId}/public/data/calls/{chatName} {
-        //          allow read, write: if request.auth != null; // Allows any authenticated user to exchange call data
+        //        // NEW: Rules for video call signaling data in 'call_rooms' collection
+        //        // {chatName} refers to the active chat tab being used for call rooms
+        //        // {roomId} is the unique ID for each active call room
+        //        match /artifacts/{appId}/public/data/call_rooms/{chatName}/{roomId} {
+        //          allow create: if request.auth != null; // Any authenticated user can create a new call room
+        //          allow read, write: if request.auth != null; // Any authenticated user can read/write to a room
+        //          // Only the original caller of the room can delete it
+        //          allow delete: if request.auth != null && resource.data.callerId == request.auth.uid;
         //        }
         //      }
         //    }
@@ -196,7 +200,7 @@
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc, getDoc, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
         // Main App component for the chat application (inlined)
@@ -225,7 +229,11 @@
             const [inCall, setInCall] = React.useState(false); // True if a call is active (connecting or connected)
             const [callInitiated, setCallInitiated] = React.useState(false); // True if *this user* initiated the call
             const [callOfferReceived, setCallOfferReceived] = React.useState(false); // True if an offer is waiting to be answered
-            const [isVideoEnabled, setIsVideoEnabled] = React.useState(true); // NEW: State for video toggle
+            const [isVideoEnabled, setIsVideoEnabled] = React.useState(true); // State for video toggle
+
+            // NEW: State for call rooms in the waiting area
+            const [activeCallRooms, setActiveCallRooms] = React.useState([]);
+            const [currentRoomId, setCurrentRoomId] = React.useState(null); // The ID of the room the user is currently in
 
 
             // Initialize Firebase and handle authentication
@@ -309,68 +317,62 @@
                 }
             }, [db, isAuthReady, activeChatTab]);
 
-            // Effect for WebRTC signaling via Firestore
+            // NEW: Effect for listening to active call rooms in the current chat tab
             React.useEffect(() => {
-                if (!db || !isAuthReady || !activeChatTab || !userId) return;
+                if (!db || !isAuthReady || !activeChatTab) {
+                    setActiveCallRooms([]);
+                    return;
+                }
 
-                const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
+                const callRoomsCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}`);
+                const q = query(callRoomsCollectionRef);
 
-                const unsubscribeCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
-                    const callData = snapshot.data();
-                    if (!callData) {
-                        // Call document deleted, means call ended or never started.
-                        if (inCall) {
-                            console.log("Call document removed by other party, ending call.");
-                            endCall(false); // End call, but don't delete doc again as other side did it
-                        }
-                        setCallOfferReceived(false);
-                        return;
+                const unsubscribeCallRooms = onSnapshot(q, (snapshot) => {
+                    const fetchedRooms = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    setActiveCallRooms(fetchedRooms);
+                    console.log("Fetched Active Call Rooms:", fetchedRooms);
+
+                    // Check for an incoming offer for this user
+                    const incomingOffer = fetchedRooms.find(room =>
+                        room.offer && !room.answer && room.callerId !== userId && !room.answererId
+                    );
+                    setCallOfferReceived(!!incomingOffer);
+
+                    // If we are currently in a call and our room has been deleted by other party
+                    if (inCall && currentRoomId) {
+                         const currentRoomStillExists = fetchedRooms.some(room => room.id === currentRoomId);
+                         if (!currentRoomStillExists) {
+                             console.log("Current call room removed by other party. Ending call.");
+                             endCall(false); // End call, but don't delete doc again
+                         }
                     }
 
-                    // Process offer
-                    // Only process if we are not already in a call, haven't initiated one, and haven't received an offer yet
-                    if (callData.offer && callData.offer.type === 'offer' && !inCall && !callInitiated && !callOfferReceived) {
-                        setCallOfferReceived(true);
-                        console.log("Call offer received. Caller ID:", callData.callerId);
-                        // If a peerConnection is not yet established for answering (e.g. from a previous failed attempt), instantiate it
-                        if (!peerConnection) {
-                             try {
-                                 const pc = new RTCPeerConnection({
-                                     iceServers: [
-                                         { urls: 'stun:stun.l.google.com:19302' },
-                                     ]
-                                 });
-                                 setPeerConnection(pc);
+                }, (error) => {
+                    console.error("Error listening to active call rooms:", error);
+                });
 
-                                 // Listen for remote tracks (important for answerer to get remote video)
-                                 pc.ontrack = (event) => {
-                                     if (event.streams && event.streams[0]) {
-                                         console.log("Remote stream received (answerer setup):", event.streams[0]);
-                                         setRemoteStream(event.streams[0]);
-                                     } else {
-                                         console.warn("ontrack event fired without streams[0]. (answerer setup)", event);
-                                     }
-                                 };
+                return () => unsubscribeCallRooms();
+            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId]);
 
-                                 // Gather ICE candidates (important for answerer to send candidates back)
-                                 pc.onicecandidate = async (event) => {
-                                     if (event.candidate) {
-                                         console.log("New ICE candidate generated (answerer setup):", event.candidate);
-                                         await setDoc(callDocRef, {
-                                             iceCandidates: (await getDoc(callDocRef)).data()?.iceCandidates ? [...(await getDoc(callDocRef)).data().iceCandidates, { candidate: event.candidate.toJSON(), senderId: userId }] : [{ candidate: event.candidate.toJSON(), senderId: userId }]
-                                         }, { merge: true });
-                                         console.log("Sent ICE candidate to Firestore (answerer setup).");
-                                     }
-                                 };
-                                 // Now process the offer
-                                 console.log("Setting remote description from received offer (answerer setup)...");
-                                 await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-                                 console.log("Remote description set from received offer (answerer setup).");
-                             } catch (err) {
-                                 console.error("Error setting up PeerConnection for incoming offer:", err.name, err.message, err.stack);
-                                 setCallOfferReceived(false); // Reset to allow retrying
-                             }
+
+            // Effect for WebRTC signaling via Firestore for the *current* call room
+            React.useEffect(() => {
+                if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
+
+                const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${currentRoomId}`);
+
+                const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
+                    const callData = snapshot.data();
+                    if (!callData) {
+                        // Call document deleted while we are in it
+                        if (inCall) {
+                            console.log("Current call document deleted. Ending call.");
+                            endCall(false); // End call, but don't delete doc again as other side did it
                         }
+                        return;
                     }
 
                     // Process answer if we initiated the call and are waiting for an answer
@@ -389,6 +391,7 @@
                     if (callData.iceCandidates && peerConnection) {
                         for (const candidate of callData.iceCandidates) {
                             // Ensure candidate is from the other peer and has not been added yet (basic check)
+                            // Note: This basic check prevents re-adding but might not be fully robust for all scenarios.
                             if (candidate.senderId !== userId && !peerConnection.remoteDescription?.candidates?.some(c => c.candidate === candidate.candidate.candidate)) {
                                 const iceCandidate = new RTCIceCandidate(candidate.candidate);
                                 try {
@@ -401,18 +404,11 @@
                         }
                     }
                 }, (error) => {
-                    console.error("Error listening to call signaling:", error.name, error.message, error.stack);
+                    console.error("Error listening to current call signaling:", error.name, error.message, error.stack);
                 });
 
-                return () => {
-                    unsubscribeCallSignaling();
-                    // Cleanup call document if this user initiated it and disconnects
-                    if (callInitiated && db && activeChatTab) {
-                        const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
-                        deleteDoc(callDocRef).catch(e => console.error("Error cleaning up call doc on unmount:", e));
-                    }
-                };
-            }, [db, isAuthReady, activeChatTab, userId, peerConnection, inCall, callInitiated, callOfferReceived]); // Dependencies for signaling effect
+                return () => unsubscribeCurrentCallSignaling();
+            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall]); // Dependencies for signaling effect
 
             // Function to send a new message
             const sendMessage = async () => {
@@ -441,38 +437,31 @@
                 }
             };
 
-            // Function to start a video call
-            const startCall = async () => {
+            // NEW: Function to create a new call room
+            const createCall = async () => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
-                    console.error("Cannot start call: Firebase not ready or tab not selected.");
+                    console.error("Cannot create call: Firebase not ready or tab not selected.");
                     return;
                 }
                 if (bannedUsers.includes(userId)) {
-                    alert('You are banned from starting calls in this chat.');
+                    alert('You are banned from creating calls in this chat.');
                     return;
                 }
                 if (inCall) {
-                    console.warn("Already in a call.");
-                    return;
-                }
-                if (callInitiated) { // Prevent multiple initiation clicks
-                    console.warn("Call already being initiated. Please wait.");
-                    return;
-                }
-                if (callOfferReceived) { // If an offer is already pending, try to answer it instead
-                    console.log("Incoming call offer detected. Attempting to answer instead of initiating new call.");
-                    answerCall(); // Route to answerCall if an offer is present
+                    console.warn("Already in a call. Cannot create a new one.");
                     return;
                 }
 
                 setCallInitiated(true); // Indicate this user is initiating
-                console.log("startCall: Attempting to get user media. Video Enabled:", isVideoEnabled);
+                const newRoomId = crypto.randomUUID();
+                setCurrentRoomId(newRoomId); // Set the room ID this user is creating/joining
+                console.log("createCall: Attempting to get user media. Video Enabled:", isVideoEnabled);
 
                 let stream;
                 let pc;
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true }); // Use isVideoEnabled
-                    console.log("startCall: Local stream obtained successfully.");
+                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
+                    console.log("createCall: Local stream obtained successfully.");
                     setLocalStream(stream);
 
                     pc = new RTCPeerConnection({
@@ -480,67 +469,63 @@
                             { urls: 'stun:stun.l.google.com:19302' }, // Google's public STUN server
                         ]
                     });
-                    console.log("startCall: RTCPeerConnection created.");
-                    setPeerConnection(pc); // Set state here
+                    console.log("createCall: RTCPeerConnection created.");
+                    setPeerConnection(pc);
 
-                    // Add local tracks to peer connection
                     stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("startCall: Local tracks added to peer connection.");
+                    console.log("createCall: Local tracks added to peer connection.");
 
-
-                    // Listen for remote tracks
                     pc.ontrack = (event) => {
                         if (event.streams && event.streams[0]) {
-                            console.log("startCall: Remote stream received:", event.streams[0]);
+                            console.log("createCall: Remote stream received:", event.streams[0]);
                             setRemoteStream(event.streams[0]);
                         } else {
-                            console.warn("startCall: ontrack event fired without streams[0].", event);
+                            console.warn("createCall: ontrack event fired without streams[0].", event);
                         }
                     };
 
-                    // Gather ICE candidates
-                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
+                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${newRoomId}`);
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
-                            console.log("startCall: New ICE candidate generated:", event.candidate);
+                            console.log("createCall: New ICE candidate generated:", event.candidate);
                             try {
                                 const currentCallDoc = (await getDoc(callDocRef)).data();
                                 const currentCandidates = currentCallDoc?.iceCandidates || [];
                                 await setDoc(callDocRef, {
                                     iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
                                 }, { merge: true });
-                                console.log("startCall: Sent ICE candidate to Firestore.");
+                                console.log("createCall: Sent ICE candidate to Firestore.");
                             } catch (e) {
-                                console.error("startCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                                console.error("createCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
                             }
                         } else {
-                            console.log("startCall: ICE gathering complete.");
+                            console.log("createCall: ICE gathering complete.");
                         }
                     };
 
-                    // Create offer
-                    console.log("startCall: Creating SDP offer...");
+                    console.log("createCall: Creating SDP offer...");
                     const offer = await pc.createOffer();
-                    console.log("startCall: SDP offer created.");
+                    console.log("createCall: SDP offer created.");
                     await pc.setLocalDescription(offer);
-                    console.log("startCall: Local description set (offer).");
+                    console.log("createCall: Local description set (offer).");
 
-                    // Set 'inCall' to true now that local stream is ready and offer is being sent
-                    setInCall(true);
+                    setInCall(true); // Now that local stream is ready and offer is being sent
 
-                    // Set call data in Firestore. Clear previous call data.
                     await setDoc(callDocRef, {
                         offer: offer,
                         callerId: userId,
-                        answer: null, // Ensure old answer is cleared
-                        iceCandidates: [], // Start with an empty array for new candidates
-                        isVideoCall: isVideoEnabled // NEW: Store whether it's a video call
-                    }, { merge: true });
-                    console.log("startCall: Call offer sent to Firestore.");
+                        callerName: userName || 'Anonymous', // Store caller's name
+                        answer: null,
+                        answererId: null,
+                        iceCandidates: [],
+                        createdAt: serverTimestamp(),
+                        isVideoCall: isVideoEnabled
+                    });
+                    console.log(`createCall: Call room ${newRoomId} created and offer sent to Firestore.`);
 
                 } catch (error) {
-                    console.error("startCall: Error during call process:", error.name, error.message, error.stack);
-                    alert(`Failed to start video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    console.error("createCall: Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to create video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
                     // Clean up if an error occurs during initiation
                     if (stream) stream.getTracks().forEach(track => track.stop());
                     if (pc) pc.close();
@@ -549,137 +534,120 @@
                     setPeerConnection(null);
                     setInCall(false);
                     setCallInitiated(false);
-                    setCallOfferReceived(false); // Reset in case offer was pending from a failed previous attempt
-                    // Attempt to clean up call document in Firestore if it was partially created
-                    if (db && activeChatTab) {
+                    setCurrentRoomId(null); // Clear room ID
+                    // Attempt to clean up call room document in Firestore if it was partially created
+                    if (db && activeChatTab && newRoomId) {
                         try {
-                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`));
-                            console.log("startCall: Cleaned up failed call document.");
+                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${newRoomId}`));
+                            console.log("createCall: Cleaned up failed call document.");
                         } catch (e) {
-                            console.error("startCall: Error cleaning up failed call document:", e);
+                            console.error("createCall: Error cleaning up failed call document:", e);
                         }
                     }
                 }
             };
 
-            // Function to answer an incoming call
-            const answerCall = async () => {
+            // NEW: Function to join an existing call room
+            const joinCall = async (roomId, offerData) => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
-                    console.error("answerCall: Cannot answer call: Firebase not ready or tab not selected.");
+                    console.error("joinCall: Cannot join call: Firebase not ready or tab not selected.");
                     return;
                 }
                 if (bannedUsers.includes(userId)) {
-                    alert('You are banned from answering calls in this chat.');
+                    alert('You are banned from joining calls in this chat.');
                     return;
                 }
                 if (inCall) {
-                    console.warn("answerCall: Already in a call.");
-                    return;
-                }
-                if (!callOfferReceived && !peerConnection) { // Ensure there's an offer or a peerConnection from the listener
-                    console.warn("answerCall: No call offer currently received to answer or peer connection not setup by listener.");
-                    alert("No incoming call detected or connection issue. Please try again.");
+                    console.warn("joinCall: Already in a call. Cannot join another.");
                     return;
                 }
 
-                setInCall(true);
-                setCallOfferReceived(false); // Reset offer received state
-                console.log("answerCall: Attempting to get user media for answering call. Video Enabled:", isVideoEnabled);
+                setCurrentRoomId(roomId); // Set the room ID this user is joining
+                setInCall(true); // Show video UI
+                console.log(`joinCall: Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
 
                 let stream;
-                let pc = peerConnection; // Use existing peerConnection from listener if available
+                let pc;
                 try {
-                    // Request media based on current isVideoEnabled state
-                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true }); // Use isVideoEnabled
-                    console.log("answerCall: Local stream obtained for answering call.");
+                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
+                    console.log("joinCall: Local stream obtained for joining call.");
                     setLocalStream(stream);
 
-                    // If peerConnection was not set by the signaling listener, create it now
-                    if (!pc) {
-                        console.log("answerCall: PeerConnection not set by listener, creating it now.");
-                        pc = new RTCPeerConnection({
-                            iceServers: [
-                                { urls: 'stun:stun.l.google.com:19302' },
-                            ]
-                        });
-                        setPeerConnection(pc);
+                    pc = new RTCPeerConnection({
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                        ]
+                    });
+                    console.log("joinCall: RTCPeerConnection created for joining.");
+                    setPeerConnection(pc);
 
-                        // Set up event handlers if this is a new PC instance
-                        pc.ontrack = (event) => {
-                            if (event.streams && event.streams[0]) {
-                                console.log("answerCall: Remote stream received (new PC):", event.streams[0]);
-                                setRemoteStream(event.streams[0]);
-                            }
-                        };
-                        const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
-                        pc.onicecandidate = async (event) => {
-                            if (event.candidate) {
-                                console.log("answerCall: New ICE candidate generated (new PC):", event.candidate);
-                                try {
-                                    const currentCallDoc = (await getDoc(callDocRef)).data();
-                                    const currentCandidates = currentCallDoc?.iceCandidates || [];
-                                    await setDoc(callDocRef, {
-                                        iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
-                                    }, { merge: true });
-                                    console.log("answerCall: Sent ICE candidate to Firestore (new PC).");
-                                } catch (e) {
-                                    console.error("answerCall: Error sending ICE candidate to Firestore (new PC):", e.name, e.message, e.stack);
-                                }
-                            }
-                        };
-                    }
-
-
-                    // Add local tracks to peer connection
                     stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("answerCall: Local tracks added to peer connection for answering.");
+                    console.log("joinCall: Local tracks added to peer connection for joining.");
 
-                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`);
-                    const callData = (await getDoc(callDocRef)).data();
-                    if (!callData || !callData.offer) {
-                        console.error("answerCall: No valid offer to answer, call might have ended.");
-                        endCall();
-                        return;
-                    }
+                    pc.ontrack = (event) => {
+                        if (event.streams && event.streams[0]) {
+                            console.log("joinCall: Remote stream received:", event.streams[0]);
+                            setRemoteStream(event.streams[0]);
+                        } else {
+                            console.warn("joinCall: ontrack event fired without streams[0].", event);
+                        }
+                    };
 
-                    console.log("answerCall: Setting remote description from offer...");
-                    // Only set remote description if it hasn't been set yet by the signaling listener
-                    if (pc.remoteDescription?.type !== 'offer') {
-                         await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-                         console.log("answerCall: Remote description set from offer.");
-                    } else {
-                         console.log("answerCall: Remote description already set to offer by listener.");
-                    }
+                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${roomId}`);
+                    pc.onicecandidate = async (event) => {
+                        if (event.candidate) {
+                            console.log("joinCall: New ICE candidate generated:", event.candidate);
+                            try {
+                                const currentCallDoc = (await getDoc(callDocRef)).data();
+                                const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                await setDoc(callDocRef, {
+                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                }, { merge: true });
+                                console.log("joinCall: Sent ICE candidate to Firestore.");
+                            } catch (e) {
+                                console.error("joinCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                            }
+                        } else {
+                            console.log("joinCall: ICE gathering complete.");
+                        }
+                    };
 
+                    console.log("joinCall: Setting remote description from offer received from room data.");
+                    await pc.setRemoteDescription(new RTCSessionDescription(offerData)); // Use the offer passed from the room list
+                    console.log("joinCall: Remote description set from offer.");
 
-                    console.log("answerCall: Creating SDP answer...");
+                    console.log("joinCall: Creating SDP answer...");
                     const answer = await pc.createAnswer();
-                    console.log("answerCall: SDP answer created.");
+                    console.log("joinCall: SDP answer created.");
                     await pc.setLocalDescription(answer);
-                    console.log("answerCall: Local description set (answer).");
+                    console.log("joinCall: Local description set (answer).");
 
-                    // Set answer in Firestore.
-                    await setDoc(callDocRef, { answer: answer, answererId: userId }, { merge: true });
-                    console.log("answerCall: Call answer sent to Firestore.");
+                    // Set answer and answererId in Firestore for the room
+                    await setDoc(callDocRef, {
+                        answer: answer,
+                        answererId: userId,
+                        answererName: userName || 'Anonymous' // Store answerer's name
+                    }, { merge: true });
+                    console.log("joinCall: Call answer sent to Firestore.");
 
                     // Add any existing ICE candidates from the offerer that arrived before our PC was ready
-                    if (callData.iceCandidates) {
-                        console.log("answerCall: Adding pre-existing ICE candidates from offerer.");
-                        for (const candidate of callData.iceCandidates) {
-                            if (candidate.senderId !== userId) { // Only add candidates from the other peer
+                    if (offerData.iceCandidates) { // Note: offerData here would ideally be the full room data
+                        console.log("joinCall: Adding pre-existing ICE candidates from offerer.");
+                        for (const candidate of offerData.iceCandidates) {
+                            if (candidate.senderId !== userId) {
                                 try {
                                     await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
-                                    console.log("answerCall: Added pre-existing ICE candidate during answer.");
+                                    console.log("joinCall: Added pre-existing ICE candidate during answer.");
                                 } catch (e) {
-                                    console.error("answerCall: Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
+                                    console.error("joinCall: Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
                                 }
                             }
                         }
                     }
 
                 } catch (error) {
-                    console.error("answerCall: Error during call process:", error.name, error.message, error.stack);
-                    alert(`Failed to answer video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    console.error("joinCall: Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to join video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
                     // Clean up
                     if (stream) stream.getTracks().forEach(track => track.stop());
                     if (pc) pc.close();
@@ -688,10 +656,11 @@
                     setPeerConnection(null);
                     setInCall(false);
                     setCallInitiated(false);
-                    setCallOfferReceived(false);
-                    // No need to delete call doc here, as the caller should manage it.
+                    setCurrentRoomId(null); // Clear room ID
+                    // Do NOT delete the call room here, as someone else created it.
                 }
             };
+
 
             // Function to end the current call
             const endCall = async (deleteDocFromFirestore = true) => {
@@ -725,15 +694,23 @@
                 setCallInitiated(false);
                 setCallOfferReceived(false);
                 setIsVideoEnabled(true); // Reset video to enabled for next call
+                setCurrentRoomId(null); // IMPORTANT: Clear current room ID when call ends
 
-                // Only delete the Firestore document if explicitly requested (e.g., user clicked "End Call" on initiating side)
-                if (deleteDocFromFirestore && db && activeChatTab) {
-                    try {
-                        console.log(`endCall: Deleting call document for ${activeChatTab}.`);
-                        await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/calls/${activeChatTab}`));
-                        console.log("endCall: Call document deleted from Firestore.");
-                    } catch (e) {
-                        console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
+
+                // Only delete the Firestore document if explicitly requested AND this user is the caller
+                // This prevents the answerer from deleting the room created by the caller.
+                if (deleteDocFromFirestore && db && activeChatTab && userId) {
+                    const roomToDelete = activeCallRooms.find(room => room.id === currentRoomId && room.callerId === userId);
+                    if (roomToDelete) {
+                        try {
+                            console.log(`endCall: Deleting call document for ${activeChatTab}/${roomToDelete.id} (as caller).`);
+                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${roomToDelete.id}`));
+                            console.log("endCall: Call document deleted from Firestore.");
+                        } catch (e) {
+                            console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
+                        }
+                    } else {
+                        console.log("endCall: Not the caller, not deleting call document from Firestore.");
                     }
                 }
                 console.log("endCall: Call ended successfully.");
@@ -846,7 +823,7 @@
                 setMessages([]);
                 setBannedUsers([]);
                 // Also end any active call when changing tabs
-                if (inCall) endCall(true); // Ensure Firestore doc is deleted
+                if (inCall) endCall(true); // Ensure Firestore doc is deleted if this user was caller
             };
 
             // Render loading screen if Firebase is not yet initialized
@@ -1132,15 +1109,74 @@
                         React.createElement(
                             "p",
                             { className: "text-white mt-4" },
-                            callInitiated ? "Calling..." : (callOfferReceived ? "Incoming call..." : "Connecting...")
+                            callInitiated ? "Waiting for someone to join..." : "In a call."
                         )
                     )
-                ) : ( // Show chat UI when not in call
+                ) : ( // Show chat UI and waiting room when not in call
                     React.createElement(
                         "div",
                         {
                             className: "flex-1 bg-white rounded-lg shadow-md p-4 overflow-y-auto mb-4 custom-scrollbar"
                         },
+                        React.createElement(
+                            "h3",
+                            { className: "text-xl font-bold text-gray-800 mb-4" },
+                            `Active Calls in ${activeChatTab} Chat:`
+                        ),
+                        activeCallRooms.length === 0 ?
+                            React.createElement(
+                                "p",
+                                { className: "text-center text-gray-500 mb-4" },
+                                "No active calls. Be the first to create one!"
+                            ) :
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3 mb-6" },
+                                activeCallRooms.map(room => {
+                                    const isRoomFull = room.answererId !== null;
+                                    const isMyCall = room.callerId === userId;
+                                    const statusText = isRoomFull ? `In Progress (${room.callerName} & ${room.answererName || 'Unknown'})` : `Waiting for Answer (${room.callerName || 'Unknown'})`;
+                                    const joinButtonText = isMyCall ? "My Call (Waiting)" : (isRoomFull ? "Full" : "Join Call");
+
+                                    return React.createElement(
+                                        "li",
+                                        {
+                                            key: room.id,
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm"
+                                        },
+                                        React.createElement(
+                                            "div",
+                                            null,
+                                            React.createElement(
+                                                "p",
+                                                { className: "font-medium text-gray-700" },
+                                                `Room ID: ${room.id.substring(0, 8)}... `
+                                                + (room.isVideoCall ? ' (Video Call)' : ' (Audio Call)')
+                                            ),
+                                            React.createElement(
+                                                "p",
+                                                { className: "text-sm text-gray-600" },
+                                                statusText
+                                            )
+                                        ),
+                                        React.createElement(
+                                            "button",
+                                            {
+                                                onClick: () => joinCall(room.id, room.offer), // Pass offer data
+                                                className: `ml-4 px-4 py-2 ${isRoomFull || isMyCall ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition duration-200`,
+                                                disabled: isRoomFull || isMyCall
+                                            },
+                                            joinButtonText
+                                        )
+                                    );
+                                })
+                            ),
+
+                        React.createElement(
+                            "h3",
+                            { className: "text-xl font-bold text-gray-800 mb-4 mt-6" },
+                            "Chat Messages:"
+                        ),
                         messages.length === 0 ?
                             React.createElement(
                                 "div",
@@ -1232,11 +1268,11 @@
                         React.createElement(
                             "button",
                             {
-                                onClick: startCall,
+                                onClick: createCall, // Changed to createCall
                                 className: "px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                                disabled: !isAuthReady || bannedUsers.includes(userId) || callInitiated
+                                disabled: !isAuthReady || bannedUsers.includes(userId) || inCall || callInitiated
                             },
-                            callInitiated ? "Calling..." : (callOfferReceived ? "Incoming Call" : "Start Video Call")
+                            callInitiated ? "Creating Call..." : "Create New Call"
                         ),
                         React.createElement( // Video toggle checkbox
                             "div",
