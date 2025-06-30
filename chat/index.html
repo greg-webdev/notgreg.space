@@ -183,7 +183,7 @@
         //        // NEW: Rules for video call signaling data in 'call_rooms' collection
         //        // {chatName} refers to the active chat tab being used for call rooms
         //        // {roomId} is the unique ID for each active call room
-        //        match /artifacts/{appId}/public/data/call_rooms/{chatName}/{roomId} {
+        //        match /artifacts/{appId}/public/data/chat_tabs_calls/{chatName}/call_rooms/{roomId} {
         //          allow create: if request.auth != null; // Any authenticated user can create a new call room
         //          allow read, write: if request.auth != null; // Any authenticated user can read/write to a room
         //          // Only the original caller of the room can delete it
@@ -324,7 +324,8 @@
                     return;
                 }
 
-                const callRoomsCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}`);
+                // FIXED: Changed path to include 'chat_tabs_calls' collection
+                const callRoomsCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/call_rooms`);
                 const q = query(callRoomsCollectionRef);
 
                 const unsubscribeCallRooms = onSnapshot(q, (snapshot) => {
@@ -335,9 +336,9 @@
                     setActiveCallRooms(fetchedRooms);
                     console.log("Fetched Active Call Rooms:", fetchedRooms);
 
-                    // Check for an incoming offer for this user
+                    // Check for an incoming offer for this user (only if not already in a call)
                     const incomingOffer = fetchedRooms.find(room =>
-                        room.offer && !room.answer && room.callerId !== userId && !room.answererId
+                        room.offer && !room.answer && room.callerId !== userId && !room.answererId && !inCall
                     );
                     setCallOfferReceived(!!incomingOffer);
 
@@ -362,7 +363,8 @@
             React.useEffect(() => {
                 if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
 
-                const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${currentRoomId}`);
+                // FIXED: Changed path to include 'chat_tabs_calls' collection
+                const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/${currentRoomId}`);
 
                 const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
                     const callData = snapshot.data();
@@ -484,7 +486,8 @@
                         }
                     };
 
-                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${newRoomId}`);
+                    // FIXED: Changed path to include 'chat_tabs_calls' collection
+                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/${newRoomId}`);
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
                             console.log("createCall: New ICE candidate generated:", event.candidate);
@@ -538,7 +541,8 @@
                     // Attempt to clean up call room document in Firestore if it was partially created
                     if (db && activeChatTab && newRoomId) {
                         try {
-                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${newRoomId}`));
+                            // FIXED: Changed path to include 'chat_tabs_calls' collection
+                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/${newRoomId}`));
                             console.log("createCall: Cleaned up failed call document.");
                         } catch (e) {
                             console.error("createCall: Error cleaning up failed call document:", e);
@@ -593,7 +597,8 @@
                         }
                     };
 
-                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${roomId}`);
+                    // FIXED: Changed path to include 'chat_tabs_calls' collection
+                    const callDocRef = doc(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/${roomId}`);
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
                             console.log("joinCall: New ICE candidate generated:", event.candidate);
@@ -703,8 +708,8 @@
                     const roomToDelete = activeCallRooms.find(room => room.id === currentRoomId && room.callerId === userId);
                     if (roomToDelete) {
                         try {
-                            console.log(`endCall: Deleting call document for ${activeChatTab}/${roomToDelete.id} (as caller).`);
-                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/call_rooms/${activeChatTab}/${roomToDelete.id}`));
+                            // FIXED: Changed path to include 'chat_tabs_calls' collection
+                            await deleteDoc(doc(db, `artifacts/${window.__app_id}/public/data/chat_tabs_calls/${activeChatTab}/${roomToDelete.id}`));
                             console.log("endCall: Call document deleted from Firestore.");
                         } catch (e) {
                             console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
