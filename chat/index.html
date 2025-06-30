@@ -147,42 +147,23 @@
         //    }
         //    Remember to click "Publish" after making changes to your rules.
         //
-        // 3. **CRITICAL: SET UP FIREBASE STORAGE SECURITY RULES (NEW!)**
-        //    This allows files to be uploaded and downloaded. If this is not set correctly, uploads will fail.
-        //    Steps:
-        //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
-        //    b. Select your project ("chatv1-5432a").
-        //    c. In the left navigation bar, under "Build", click on "Storage".
-        //    d. Go to the "Rules" tab.
-        //    e. **REPLACE** the existing rules with the following, then click "Publish":
-        //
-        //    rules_version = '2';
-        //    service firebase.storage {
-        //      match /b/{bucket}/o {
-        //        // Files for chat tabs
-        //        // {chatName} will be 'main', 'games', or 'memes'
-        //        match /artifacts/{appId}/public/data/chats/{chatName}/files/{allPaths=**} {
-        //          allow read, write: if request.auth != null; // Authenticated users can read/write files
-        //        }
-        //      }
-        //    }
-        //    Remember to click "Publish" after making changes to your rules.
+        // NOTE: Firebase Storage rules are no longer needed as file upload functionality has been removed.
         // ====================================================================================
 
 
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // NOTE: Removed Storage imports as file upload functionality is no longer needed.
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // NEW: Import Firebase Storage modules
-        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
 
         // Main App component for the chat application (inlined)
         function App() {
             // State variables
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
-            const [storage, setStorage] = React.useState(null); // NEW: Storage instance
+            // Removed storage state
             const [userId, setUserId] = React.useState(null);
             const [messages, setMessages] = React.useState([]);
             const [newMessage, setNewMessage] = React.useState('');
@@ -193,9 +174,11 @@
             const [showAdminPasswordScreen, setShowAdminPasswordScreen] = React.useState(false);
             const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
             const [showUnbanPage, setShowUnbanPage] = React.useState(false); // State for unban page visibility
+
+            // New state for active chat tab, initialized from localStorage or null
             const [activeChatTab, setActiveChatTab] = React.useState(localStorage.getItem('activeChatTab') || null);
-            const [uploadingFile, setUploadingFile] = React.useState(false); // NEW: Uploading state
-            const fileInputRef = React.useRef(null); // NEW: Ref for file input element
+
+            // Removed uploadingFile state and fileInputRef
 
 
             // Initialize Firebase and handle authentication
@@ -204,12 +187,11 @@
                     const app = initializeApp(parsedFirebaseConfig);
                     const firestoreDb = getFirestore(app);
                     const firebaseAuth = getAuth(app);
-                    const firebaseStorage = getStorage(app); // NEW: Initialize Storage
+                    // Removed Firebase Storage initialization
 
                     setDb(firestoreDb);
                     setAuth(firebaseAuth);
-                    setStorage(firebaseStorage); // NEW: Set storage instance
-                    console.log("Firebase Storage initialized:", firebaseStorage); // Log storage instance
+                    // Removed setStorage
 
                     signInAnonymously(firebaseAuth)
                         .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
@@ -284,16 +266,13 @@
 
             // Function to send a new message
             const sendMessage = async () => {
-                // Prevent sending if user is banned or file is uploading
+                // Prevent sending if user is banned
                 if (bannedUsers.includes(userId)) {
                     alert('You are banned from sending messages in this chat.');
                     setNewMessage('');
                     return;
                 }
-                if (uploadingFile) {
-                    alert('Please wait for the file to finish uploading.');
-                    return;
-                }
+                // Removed uploadingFile check
 
                 if (newMessage.trim() === '' || !db || !userId || !activeChatTab) return;
 
@@ -310,70 +289,6 @@
                 }
             };
 
-            // NEW: Function to handle file uploads
-            const handleFileUpload = async (e) => {
-                if (!db || !storage || !userId || !activeChatTab) {
-                    alert("Chat not ready for file upload. Please wait or check connection.");
-                    return;
-                }
-                if (bannedUsers.includes(userId)) {
-                    alert('You are banned from sending messages or files in this chat.');
-                    return;
-                }
-
-                const file = e.target.files[0];
-                if (!file) return;
-
-                setUploadingFile(true); // Set uploading state to true
-
-                // Generate a unique file path using user ID, timestamp, and original file name
-                const filePath = `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/files/${userId}_${Date.now()}_${file.name}`;
-                const storageRef = ref(storage, filePath);
-                const uploadTask = uploadBytesResumable(storageRef, file);
-
-                uploadTask.on('state_changed',
-                    (snapshot) => {
-                        // Progress function (optional)
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        console.log('Upload is ' + progress + '% done');
-                        // You could update a UI progress bar here if you wanted
-                    },
-                    (error) => {
-                        // Error function
-                        console.error("File upload failed:", error);
-                        alert("File upload failed: " + error.message);
-                        setUploadingFile(false);
-                    },
-                    () => {
-                        // Complete function
-                        getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
-                            console.log('File available at', downloadURL);
-                            // Send message to Firestore with file info
-                            try {
-                                await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
-                                    fileInfo: {
-                                        url: downloadURL,
-                                        name: file.name,
-                                        type: file.type,
-                                        size: file.size,
-                                        storagePath: filePath // Store storage path for potential future deletion
-                                    },
-                                    userId: userId,
-                                    userName: userName || 'Anonymous',
-                                    timestamp: serverTimestamp()
-                                });
-                                setUploadingFile(false); // Reset uploading state
-                                fileInputRef.current.value = ''; // Clear file input
-                            } catch (firestoreError) {
-                                console.error("Error sending file message to Firestore:", firestoreError);
-                                alert("Failed to log file to chat: " + firestoreError.message);
-                                setUploadingFile(false);
-                            }
-                        });
-                    }
-                );
-            };
-
             // Function to delete a message (only for admin)
             const deleteMessage = async (messageId) => {
                 if (!db || !isAdmin || !activeChatTab) {
@@ -382,20 +297,7 @@
                 }
                 try {
                     const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`, messageId);
-                    const messageDoc = (await getDoc(messageRef)).data(); // Fetch the message to get fileInfo
-
-                    // If the message contains fileInfo, attempt to delete the file from Storage
-                    if (messageDoc && messageDoc.fileInfo && messageDoc.fileInfo.storagePath && storage) {
-                        const fileToDeleteRef = ref(storage, messageDoc.fileInfo.storagePath);
-                        try {
-                            await deleteObject(fileToDeleteRef);
-                            console.log("Associated file deleted from Storage.");
-                        } catch (storageError) {
-                            console.error("Error deleting associated file from Storage:", storageError);
-                            // Log the error but continue to delete the Firestore message
-                        }
-                    }
-
+                    // Removed logic for deleting associated file from Storage
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
                 } catch (error) {
@@ -767,56 +669,11 @@
                                         },
                                         isCurrentUser ? 'You' : (msg.userName || msg.userId)
                                     ),
-                                    // Conditional rendering for file or text message content
-                                    msg.fileInfo ? (
-                                        msg.fileInfo.type && msg.fileInfo.type.startsWith('image/') ? (
-                                            React.createElement(
-                                                "div",
-                                                { className: "flex flex-col items-center" },
-                                                React.createElement("img", {
-                                                    src: msg.fileInfo.url,
-                                                    alt: msg.fileInfo.name,
-                                                    className: "max-w-full h-auto rounded-lg mb-2",
-                                                    style: { maxHeight: '200px', objectFit: 'contain' } // Limit image preview size
-                                                }),
-                                                React.createElement(
-                                                    "a",
-                                                    {
-                                                        href: msg.fileInfo.url,
-                                                        target: "_blank",
-                                                        rel: "noopener noreferrer",
-                                                        className: "text-xs underline" + (isCurrentUser ? " text-blue-200" : " text-blue-700")
-                                                    },
-                                                    `Download ${msg.fileInfo.name} (${(msg.fileInfo.size / 1024).toFixed(2)} KB)`
-                                                )
-                                            )
-                                        ) : (
-                                            React.createElement(
-                                                "div",
-                                                { className: "flex flex-col items-start" },
-                                                React.createElement(
-                                                    "a",
-                                                    {
-                                                        href: msg.fileInfo.url,
-                                                        target: "_blank",
-                                                        rel: "noopener noreferrer",
-                                                        className: "text-sm underline" + (isCurrentUser ? " text-blue-200" : " text-blue-700")
-                                                    },
-                                                    `File: ${msg.fileInfo.name}`
-                                                ),
-                                                React.createElement(
-                                                    "span",
-                                                    { className: "text-xs opacity-80" + (isCurrentUser ? " text-blue-200" : " text-gray-600") },
-                                                    `${(msg.fileInfo.size / 1024).toFixed(2)} KB`
-                                                )
-                                            )
-                                        )
-                                    ) : (
-                                        React.createElement(
-                                            "p",
-                                            { className: "text-sm" },
-                                            msg.text
-                                        )
+                                    // Always render as text, as fileInfo is no longer sent
+                                    React.createElement(
+                                        "p",
+                                        { className: "text-sm" },
+                                        msg.text
                                     ),
                                     React.createElement(
                                         "div",
@@ -872,35 +729,16 @@
                             onKeyPress: handleKeyPress,
                             placeholder: `Type your message in ${activeChatTab} chat...`,
                             className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200",
-                            disabled: !isAuthReady || bannedUsers.includes(userId) || uploadingFile
+                            disabled: !isAuthReady || bannedUsers.includes(userId)
                         }
                     ),
-                    // NEW: File input button
-                    React.createElement(
-                        "input",
-                        {
-                            type: "file",
-                            ref: fileInputRef,
-                            onChange: handleFileUpload,
-                            className: "hidden", // Hide the actual file input
-                            id: "file-upload-input",
-                            disabled: !isAuthReady || bannedUsers.includes(userId) || uploadingFile
-                        }
-                    ),
-                    React.createElement(
-                        "label",
-                        {
-                            htmlFor: "file-upload-input",
-                            className: `px-4 py-3 bg-gray-400 text-white font-semibold rounded-xl shadow-md hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-200 cursor-pointer ${(!isAuthReady || bannedUsers.includes(userId) || uploadingFile) ? 'opacity-50 cursor-not-allowed' : ''}`
-                        },
-                        uploadingFile ? "Uploading..." : "Attach File"
-                    ),
+                    <!-- Removed file input and attach file button -->
                     React.createElement(
                         "button",
                         {
                             onClick: sendMessage,
                             className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
-                            disabled: !isAuthReady || newMessage.trim() === '' || bannedUsers.includes(userId) || uploadingFile
+                            disabled: !isAuthReady || newMessage.trim() === '' || bannedUsers.includes(userId)
                         },
                         "Send"
                     ),
