@@ -371,54 +371,51 @@
                 if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
 
                 const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                // FIXED: Direct document reference using the full path string
                 const callDocRef = doc(db, `${callRoomsCollectionPath}/${currentRoomId}`);
 
                 const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
                     const callData = snapshot.data();
+                    console.log(`[Signaling Listener] Received update for room ${currentRoomId}:`, callData);
+
                     if (!callData) {
-                        // Call document deleted while we are in it
                         if (inCall) {
-                            console.log("Current call document deleted. Ending call.");
-                            endCall(false); // End call, but don't delete doc again as other side did it
+                            console.log("[Signaling Listener] Current call document deleted. Ending call.");
+                            endCall(false);
                         }
                         return;
                     }
 
-                    // Process answer if we initiated the call and are waiting for an answer
                     if (callData.answer && callData.answer.type === 'answer' && peerConnection && peerConnection.remoteDescription?.type !== 'answer' && callData.answererId !== userId) {
+                        console.log("[Signaling Listener] Attempting to set remote description from answer.");
                         try {
-                            console.log("Attempting to set remote description from answer.");
                             await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.answer));
-                            setInCall(true); // Call is now connected
-                            console.log("Call answer received and set.");
+                            setInCall(true);
+                            console.log("[Signaling Listener] Call answer received and set.");
                         } catch (e) {
-                            console.error("Error setting remote description from answer:", e.name, e.message, e.stack);
+                            console.error("[Signaling Listener] Error setting remote description from answer:", e.name, e.message, e.stack);
                         }
                     }
 
-                    // Process ICE candidates
                     if (callData.iceCandidates && peerConnection) {
                         for (const candidate of callData.iceCandidates) {
-                            // Ensure candidate is from the other peer and has not been added yet (basic check)
-                            // Note: This basic check prevents re-adding but might not be fully robust for all scenarios.
                             if (candidate.senderId !== userId && !peerConnection.remoteDescription?.candidates?.some(c => c.candidate === candidate.candidate.candidate)) {
                                 const iceCandidate = new RTCIceCandidate(candidate.candidate);
+                                console.log("[Signaling Listener] Adding received ICE candidate:", iceCandidate);
                                 try {
                                     await peerConnection.addIceCandidate(iceCandidate);
-                                    console.log("Added ICE candidate:", iceCandidate);
+                                    console.log("[Signaling Listener] Added ICE candidate successfully.");
                                 } catch (e) {
-                                    console.error("Error adding ICE candidate:", e.name, e.message, e.stack);
+                                    console.error("[Signaling Listener] Error adding ICE candidate:", e.name, e.message, e.stack);
                                 }
                             }
                         }
                     }
                 }, (error) => {
-                    console.error("Error listening to current call signaling:", error.name, error.message, error.stack);
+                    console.error("[Signaling Listener] Error listening to current call signaling:", error.name, error.message, error.stack);
                 });
 
                 return () => unsubscribeCurrentCallSignaling();
-            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall, getChatTabCallRoomsCollectionPath]); // Dependencies for signaling effect
+            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall, getChatTabCallRoomsCollectionPath]);
 
             // Function to send a new message
             const sendMessage = async () => {
@@ -450,7 +447,7 @@
             // NEW: Function to create a new call room
             const createCall = async () => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
-                    console.error("Cannot create call: Firebase not ready or tab not selected.");
+                    console.error("[createCall] Cannot create call: Firebase not ready or tab not selected.");
                     return;
                 }
                 if (bannedUsers.includes(userId)) {
@@ -458,88 +455,97 @@
                     return;
                 }
                 if (inCall) {
-                    console.warn("Already in a call. Cannot create a new one.");
+                    console.warn("[createCall] Already in a call. Cannot create a new one.");
                     return;
                 }
 
-                setCallInitiated(true); // Indicate this user is initiating
+                setCallInitiated(true);
                 const newRoomId = crypto.randomUUID();
-                setCurrentRoomId(newRoomId); // Set the room ID this user is creating/joining
-                console.log("createCall: Attempting to get user media. Video Enabled:", isVideoEnabled);
+                setCurrentRoomId(newRoomId);
+                console.log("[createCall] Attempting to get user media. Video Enabled:", isVideoEnabled);
 
                 let stream;
                 let pc;
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
-                    console.log("createCall: Local stream obtained successfully.");
+                    console.log("[createCall] Local stream obtained successfully:", stream);
                     setLocalStream(stream);
+
+                    // Ensure tracks are enabled
+                    stream.getTracks().forEach(track => {
+                        track.enabled = true; // Explicitly enable track
+                        console.log(`[createCall] Added local ${track.kind} track to peer connection, enabled: ${track.enabled}`);
+                    });
 
                     pc = new RTCPeerConnection({
                         iceServers: [
-                            { urls: 'stun:stun.l.google.com:19302' }, // Google's public STUN server
+                            { urls: 'stun:stun.l.google.com:19302' },
                         ]
                     });
-                    console.log("createCall: RTCPeerConnection created.");
+                    console.log("[createCall] RTCPeerConnection created:", pc);
                     setPeerConnection(pc);
 
-                    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("createCall: Local tracks added to peer connection.");
+                    // Add local tracks to peer connection
+                    stream.getTracks().forEach(track => {
+                        pc.addTrack(track, stream);
+                        console.log(`[createCall] Added local ${track.kind} track to peer connection.`);
+                    });
+
 
                     pc.ontrack = (event) => {
+                        console.log("[createCall] ontrack event fired:", event);
                         if (event.streams && event.streams[0]) {
-                            console.log("createCall: Remote stream received:", event.streams[0]);
+                            console.log("[createCall] Remote stream received:", event.streams[0]);
                             setRemoteStream(event.streams[0]);
                         } else {
-                            console.warn("createCall: ontrack event fired without streams[0].", event);
+                            console.warn("[createCall] ontrack event fired without streams[0].", event);
                         }
                     };
 
                     const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                    // FIXED: Direct document reference using the full path string
                     const callDocRef = doc(db, `${callRoomsCollectionPath}/${newRoomId}`);
 
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
-                            console.log("createCall: New ICE candidate generated:", event.candidate);
+                            console.log("[createCall] New ICE candidate generated:", event.candidate);
                             try {
                                 const currentCallDoc = (await getDoc(callDocRef)).data();
                                 const currentCandidates = currentCallDoc?.iceCandidates || [];
                                 await setDoc(callDocRef, {
                                     iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
                                 }, { merge: true });
-                                console.log("createCall: Sent ICE candidate to Firestore.");
+                                console.log("[createCall] Sent ICE candidate to Firestore.");
                             } catch (e) {
-                                console.error("createCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                                console.error("[createCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
                             }
                         } else {
-                            console.log("createCall: ICE gathering complete.");
+                            console.log("[createCall] ICE gathering complete.");
                         }
                     };
 
-                    console.log("createCall: Creating SDP offer...");
+                    console.log("[createCall] Creating SDP offer...");
                     const offer = await pc.createOffer();
-                    console.log("createCall: SDP offer created.");
+                    console.log("[createCall] SDP offer created:", offer);
                     await pc.setLocalDescription(offer);
-                    console.log("createCall: Local description set (offer).");
+                    console.log("[createCall] Local description set (offer).");
 
-                    setInCall(true); // Now that local stream is ready and offer is being sent
+                    setInCall(true);
 
                     await setDoc(callDocRef, {
                         offer: offer,
                         callerId: userId,
-                        callerName: userName || 'Anonymous', // Store caller's name
+                        callerName: userName || 'Anonymous',
                         answer: null,
                         answererId: null,
                         iceCandidates: [],
                         createdAt: serverTimestamp(),
                         isVideoCall: isVideoEnabled
                     });
-                    console.log(`createCall: Call room ${newRoomId} created and offer sent to Firestore.`);
+                    console.log(`[createCall] Call room ${newRoomId} created and offer sent to Firestore.`);
 
                 } catch (error) {
-                    console.error("createCall: Error during call process:", error.name, error.message, error.stack);
+                    console.error("[createCall] Error during call process:", error.name, error.message, error.stack);
                     alert(`Failed to create video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
-                    // Clean up if an error occurs during initiation
                     if (stream) stream.getTracks().forEach(track => track.stop());
                     if (pc) pc.close();
                     setLocalStream(null);
@@ -547,16 +553,14 @@
                     setPeerConnection(null);
                     setInCall(false);
                     setCallInitiated(false);
-                    setCurrentRoomId(null); // Clear room ID
-                    // Attempt to clean up call room document in Firestore if it was partially created
+                    setCurrentRoomId(null);
                     if (db && activeChatTab && newRoomId) {
                         try {
                             const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                            // FIXED: Direct document reference using the full path string
                             await deleteDoc(doc(db, `${callRoomsCollectionPath}/${newRoomId}`));
-                            console.log("createCall: Cleaned up failed call document.");
+                            console.log("[createCall] Cleaned up failed call document.");
                         } catch (e) {
-                            console.error("createCall: Error cleaning up failed call document:", e);
+                            console.error("[createCall] Error cleaning up failed call document:", e);
                         }
                     }
                 }
@@ -565,7 +569,7 @@
             // NEW: Function to join an existing call room
             const joinCall = async (roomId, offerData) => {
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
-                    console.error("joinCall: Cannot join call: Firebase not ready or tab not selected.");
+                    console.error("[joinCall] Cannot join call: Firebase not ready or tab not selected.");
                     return;
                 }
                 if (bannedUsers.includes(userId)) {
@@ -573,100 +577,105 @@
                     return;
                 }
                 if (inCall) {
-                    console.warn("joinCall: Already in a call. Cannot join another.");
+                    console.warn("[joinCall] Already in a call. Cannot join another.");
                     return;
                 }
 
-                setCurrentRoomId(roomId); // Set the room ID this user is joining
-                setInCall(true); // Show video UI
-                console.log(`joinCall: Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
+                setCurrentRoomId(roomId);
+                setInCall(true);
+                console.log(`[joinCall] Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
 
                 let stream;
                 let pc;
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
-                    console.log("joinCall: Local stream obtained for joining call.");
+                    console.log("[joinCall] Local stream obtained for joining call:", stream);
                     setLocalStream(stream);
+
+                    // Ensure tracks are enabled
+                    stream.getTracks().forEach(track => {
+                        track.enabled = true; // Explicitly enable track
+                        console.log(`[joinCall] Added local ${track.kind} track to peer connection, enabled: ${track.enabled}`);
+                    });
 
                     pc = new RTCPeerConnection({
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
                         ]
                     });
-                    console.log("joinCall: RTCPeerConnection created for joining.");
+                    console.log("[joinCall] RTCPeerConnection created for joining:", pc);
                     setPeerConnection(pc);
 
-                    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                    console.log("joinCall: Local tracks added to peer connection for joining.");
+                    stream.getTracks().forEach(track => {
+                        pc.addTrack(track, stream);
+                        console.log(`[joinCall] Added local ${track.kind} track to peer connection for joining.`);
+                    });
 
                     pc.ontrack = (event) => {
+                        console.log("[joinCall] ontrack event fired:", event);
                         if (event.streams && event.streams[0]) {
-                            console.log("joinCall: Remote stream received:", event.streams[0]);
+                            console.log("[joinCall] Remote stream received:", event.streams[0]);
                             setRemoteStream(event.streams[0]);
                         } else {
-                            console.warn("joinCall: ontrack event fired without streams[0].", event);
+                            console.warn("[joinCall] ontrack event fired without streams[0].", event);
                         }
                     };
 
                     const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                    // FIXED: Direct document reference using the full path string
                     const callDocRef = doc(db, `${callRoomsCollectionPath}/${roomId}`);
 
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
-                            console.log("joinCall: New ICE candidate generated:", event.candidate);
+                            console.log("[joinCall] New ICE candidate generated:", event.candidate);
                             try {
                                 const currentCallDoc = (await getDoc(callDocRef)).data();
                                 const currentCandidates = currentCallDoc?.iceCandidates || [];
                                 await setDoc(callDocRef, {
                                     iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
                                 }, { merge: true });
-                                console.log("joinCall: Sent ICE candidate to Firestore.");
+                                console.log("[joinCall] Sent ICE candidate to Firestore.");
                             } catch (e) {
-                                console.error("joinCall: Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                                console.error("[joinCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
                             }
                         } else {
-                            console.log("joinCall: ICE gathering complete.");
+                            console.log("[joinCall] ICE gathering complete.");
                         }
                     };
 
-                    console.log("joinCall: Setting remote description from offer received from room data.");
-                    await pc.setRemoteDescription(new RTCSessionDescription(offerData)); // Use the offer passed from the room list
-                    console.log("joinCall: Remote description set from offer.");
+                    console.log("[joinCall] Setting remote description from offer received from room data.");
+                    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+                    console.log("[joinCall] Remote description set from offer.");
 
-                    console.log("joinCall: Creating SDP answer...");
+                    console.log("[joinCall] Creating SDP answer...");
                     const answer = await pc.createAnswer();
-                    console.log("joinCall: SDP answer created.");
+                    console.log("[joinCall] SDP answer created:", answer);
                     await pc.setLocalDescription(answer);
-                    console.log("joinCall: Local description set (answer).");
+                    console.log("[joinCall] Local description set (answer).");
 
-                    // Set answer and answererId in Firestore for the room
                     await setDoc(callDocRef, {
                         answer: answer,
                         answererId: userId,
-                        answererName: userName || 'Anonymous' // Store answerer's name
+                        answererName: userName || 'Anonymous'
                     }, { merge: true });
-                    console.log("joinCall: Call answer sent to Firestore.");
+                    console.log("[joinCall] Call answer sent to Firestore.");
 
-                    // Add any existing ICE candidates from the offerer that arrived before our PC was ready
-                    if (offerData.iceCandidates) { // Note: offerData here would ideally be the full room data
-                        console.log("joinCall: Adding pre-existing ICE candidates from offerer.");
+                    if (offerData.iceCandidates) {
+                        console.log("[joinCall] Adding pre-existing ICE candidates from offerer.");
                         for (const candidate of offerData.iceCandidates) {
                             if (candidate.senderId !== userId) {
                                 try {
                                     await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
-                                    console.log("joinCall: Added pre-existing ICE candidate during answer.");
+                                    console.log("[joinCall] Added pre-existing ICE candidate during answer.");
                                 } catch (e) {
-                                    console.error("joinCall: Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
+                                    console.error("[joinCall] Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
                                 }
                             }
                         }
                     }
 
                 } catch (error) {
-                    console.error("joinCall: Error during call process:", error.name, error.message, error.stack);
+                    console.error("[joinCall] Error during call process:", error.name, error.message, error.stack);
                     alert(`Failed to join video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
-                    // Clean up
                     if (stream) stream.getTracks().forEach(track => track.stop());
                     if (pc) pc.close();
                     setLocalStream(null);
@@ -674,65 +683,73 @@
                     setPeerConnection(null);
                     setInCall(false);
                     setCallInitiated(false);
-                    setCurrentRoomId(null); // Clear room ID
-                    // Do NOT delete the call room here, as someone else created it.
+                    setCurrentRoomId(null);
                 }
             };
 
 
             // Function to end the current call
-            const endCall = async (deleteDocFromFirestore = true) => {
-                console.log("endCall: Attempting to end call. Delete doc:", deleteDocFromFirestore);
+            const endCall = async (callerInitiatedEnd = true) => { // Renamed parameter for clarity
+                console.log("[endCall] Attempting to end call. Caller initiated:", callerInitiatedEnd, "isAdmin:", isAdmin);
 
-                // Stop local tracks
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
-                        console.log("endCall: Stopping local track:", track);
+                        console.log(`[endCall] Stopping local track: ${track.kind} (id: ${track.id})`);
                         track.stop();
                     });
+                    setLocalStream(null);
                 }
-                // Stop remote tracks (if they exist and are not already stopped)
                 if (remoteStream) {
                     remoteStream.getTracks().forEach(track => {
-                        console.log("endCall: Stopping remote track:", track);
+                        console.log(`[endCall] Stopping remote track: ${track.kind} (id: ${track.id})`);
                         track.stop();
                     });
+                    setRemoteStream(null);
                 }
-                // Close peer connection
                 if (peerConnection) {
-                    console.log("endCall: Closing peer connection.");
+                    console.log("[endCall] Closing peer connection.");
                     peerConnection.close();
+                    setPeerConnection(null);
                 }
 
-                // Reset states
-                setLocalStream(null);
-                setRemoteStream(null);
-                setPeerConnection(null);
                 setInCall(false);
                 setCallInitiated(false);
                 setCallOfferReceived(false);
-                setIsVideoEnabled(true); // Reset video to enabled for next call
-                setCurrentRoomId(null); // IMPORTANT: Clear current room ID when call ends
+                setIsVideoEnabled(true);
+                const prevRoomId = currentRoomId;
+                setCurrentRoomId(null);
 
 
-                // Only delete the Firestore document if explicitly requested AND this user is the caller
-                // This prevents the answerer from deleting the room created by the caller.
-                if (deleteDocFromFirestore && db && activeChatTab && userId) {
-                    const roomToDelete = activeCallRooms.find(room => room.id === currentRoomId && room.callerId === userId);
-                    if (roomToDelete) {
+                if (db && activeChatTab && userId && prevRoomId) {
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                    const roomRef = doc(db, `${callRoomsCollectionPath}/${prevRoomId}`);
+                    const roomSnapshot = await getDoc(roomRef);
+                    const roomData = roomSnapshot.data();
+
+                    if (isAdmin) {
+                        // Admin can always force-end the call by deleting the document
+                        console.log(`[endCall] Admin ${userId} is force-ending call for room ${prevRoomId}.`);
                         try {
-                            const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                            // FIXED: Direct document reference using the full path string
-                            await deleteDoc(doc(db, `${callRoomsCollectionPath}/${roomToDelete.id}`));
-                            console.log("endCall: Call document deleted from Firestore.");
+                            await deleteDoc(roomRef);
+                            console.log("[endCall] Call document deleted by admin.");
                         } catch (e) {
-                            console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
+                            console.error("[endCall] Admin: Error deleting call document:", e.name, e.message, e.stack);
+                        }
+                    } else if (callerInitiatedEnd && roomData && roomData.callerId === userId) {
+                        // Non-admin callers can delete the document if they initiated the end
+                        console.log(`[endCall] Caller ${userId} is ending call for room ${prevRoomId}.`);
+                        try {
+                            await deleteDoc(roomRef);
+                            console.log("[endCall] Call document deleted by caller.");
+                        } catch (e) {
+                            console.error("[endCall] Caller: Error deleting call document:", e.name, e.message, e.stack);
                         }
                     } else {
-                        console.log("endCall: Not the caller, not deleting call document from Firestore.");
+                        console.log("[endCall] User is not the caller and not an admin. Not deleting Firestore document.");
+                        // If a non-caller/non-admin leaves, the room remains open unless the caller or admin ends it.
                     }
                 }
-                console.log("endCall: Call ended successfully.");
+                console.log("[endCall] Call ended successfully locally.");
             };
 
 
@@ -841,8 +858,7 @@
                 localStorage.setItem('activeChatTab', tabName);
                 setMessages([]);
                 setBannedUsers([]);
-                // Also end any active call when changing tabs
-                if (inCall) endCall(true); // Ensure Firestore doc is deleted if this user was caller
+                if (inCall) endCall(true);
             };
 
             // Render loading screen if Firebase is not yet initialized
@@ -854,7 +870,6 @@
                 );
             }
 
-            // Conditional rendering: Show tab selection, name input, admin password, or unban page
             if (!activeChatTab) {
                 return React.createElement(
                     "div",
@@ -938,7 +953,6 @@
                 );
             }
 
-            // Conditional rendering for the Unban Page Modal
             if (showUnbanPage) {
                 return React.createElement(
                     "div",
@@ -1001,13 +1015,12 @@
                 );
             }
 
-            // Main chat application rendering (now full screen)
             return React.createElement(
                 "div",
                 {
                     className: "flex flex-col h-screen antialiased bg-gray-100 text-gray-900 font-inter w-full"
                 },
-                React.createElement( // Tab Selection at the top of the chat
+                React.createElement(
                     "div",
                     { className: "flex justify-around bg-white p-3 rounded-t-lg shadow-md mb-4" },
                     React.createElement(
@@ -1081,7 +1094,7 @@
                                 setShowAdminPasswordScreen(false);
                                 setShowUnbanPage(false);
                                 setActiveChatTab(null);
-                                if (inCall) endCall(true); // End call when changing name/tab
+                                if (inCall) endCall(true);
                             },
                             className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
                         },
@@ -1089,7 +1102,6 @@
                     )
                 ),
 
-                // Video call UI takes precedence when inCall is true
                 inCall ? (
                     React.createElement(
                         "div",
@@ -1102,15 +1114,15 @@
                                     if (videoElement && localStream) videoElement.srcObject = localStream;
                                 },
                                 autoPlay: true,
-                                muted: true, // Mute local video
-                                className: `w-full max-h-[30vh] object-contain rounded-lg ${localStream && localStream.getVideoTracks().length === 0 ? 'hidden' : ''}` // Hide if no video track
+                                muted: true,
+                                className: `w-full max-h-[30vh] object-contain rounded-lg ${localStream && localStream.getVideoTracks().length === 0 ? 'hidden' : ''}`
                             }),
                             React.createElement("video", {
                                 ref: (videoElement) => {
                                     if (videoElement && remoteStream) videoElement.srcObject = remoteStream;
                                 },
                                 autoPlay: true,
-                                className: `w-full max-h-[50vh] object-contain rounded-lg ${remoteStream && remoteStream.getVideoTracks().length === 0 ? 'hidden' : ''}` // Hide if no video track
+                                className: `w-full max-h-[50vh] object-contain rounded-lg ${remoteStream && remoteStream.getVideoTracks().length === 0 ? 'hidden' : ''}`
                             }),
                             React.createElement(
                                 "div",
@@ -1118,7 +1130,7 @@
                                 React.createElement(
                                     "button",
                                     {
-                                        onClick: () => endCall(true), // Pass true to delete doc
+                                        onClick: () => endCall(true),
                                         className: "bg-red-600 text-white hover:bg-red-700"
                                     },
                                     "End Call"
@@ -1131,7 +1143,7 @@
                             callInitiated ? "Waiting for someone to join..." : "In a call."
                         )
                     )
-                ) : ( // Show chat UI and waiting room when not in call
+                ) : (
                     React.createElement(
                         "div",
                         {
@@ -1181,7 +1193,7 @@
                                         React.createElement(
                                             "button",
                                             {
-                                                onClick: () => joinCall(room.id, room.offer), // Pass offer data
+                                                onClick: () => joinCall(room.id, room.offer),
                                                 className: `ml-4 px-4 py-2 ${isRoomFull || isMyCall ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition duration-200`,
                                                 disabled: isRoomFull || isMyCall
                                             },
@@ -1280,20 +1292,19 @@
                     {
                         className: "flex items-center space-x-3 bg-white p-4 rounded-b-lg shadow-md mt-auto"
                     },
-                    // Video call controls and checkbox
                     !inCall && React.createElement(
                         "div",
-                        { className: "flex items-center space-x-3" }, // Align items vertically
+                        { className: "flex items-center space-x-3" },
                         React.createElement(
                             "button",
                             {
-                                onClick: createCall, // Changed to createCall
+                                onClick: createCall,
                                 className: "px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
                                 disabled: !isAuthReady || bannedUsers.includes(userId) || inCall || callInitiated
                             },
                             callInitiated ? "Creating Call..." : "Create New Call"
                         ),
-                        React.createElement( // Video toggle checkbox
+                        React.createElement(
                             "div",
                             { className: "flex items-center" },
                             React.createElement("input", {
@@ -1321,7 +1332,7 @@
                             onChange: e => setNewMessage(e.target.value),
                             onKeyPress: handleKeyPress,
                             placeholder: `Type your message in ${activeChatTab} chat...`,
-                            className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 ml-3", // Added ml-3 for spacing
+                            className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 ml-3",
                             disabled: !isAuthReady || bannedUsers.includes(userId)
                         }
                     ),
@@ -1346,7 +1357,6 @@
             );
         }
 
-        // Render the App component into the root div
         ReactDOM.render(
             React.createElement(App, null),
             document.getElementById('root')
