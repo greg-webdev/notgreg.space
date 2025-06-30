@@ -40,6 +40,29 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        /* Modal Overlay Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Ensure it's on top */
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* shadow-lg */
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            position: relative;
+        }
     </style>
     <!-- Import React and ReactDOM from CDN as global variables -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
@@ -144,9 +167,9 @@
             const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
             const [nameInput, setNameInput] = React.useState('');
             const [isAdmin, setIsAdmin] = React.useState(userName === 'admin'); // Track admin status
-            // Changed showAdminConfirmScreen to showAdminPasswordScreen for clarity
             const [showAdminPasswordScreen, setShowAdminPasswordScreen] = React.useState(false);
-            const [bannedUsers, setBannedUsers] = React.useState([]); // New state for banned user IDs
+            const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
+            const [showUnbanPage, setShowUnbanPage] = React.useState(false); // New state for unban page visibility
 
 
             // Initialize Firebase and handle authentication
@@ -265,7 +288,7 @@
                 }
             };
 
-            // New: Function to ban a user (only for admin)
+            // Function to ban a user (only for admin)
             const banUser = async (targetUserId) => {
                 if (!db || !isAdmin) {
                     console.warn("Permission denied: Only admin can ban users.");
@@ -276,9 +299,8 @@
                     return;
                 }
                 try {
-                    // Add the targetUserId as a document ID in the banned_users collection
                     const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/banned_users`, targetUserId);
-                    await setDoc(bannedUserRef, { bannedAt: serverTimestamp() }); // Store a timestamp for when they were banned
+                    await setDoc(bannedUserRef, { bannedAt: serverTimestamp() });
                     alert(`User ${targetUserId} has been banned.`);
                     console.log(`User ${targetUserId} banned successfully.`);
                 } catch (error) {
@@ -286,10 +308,27 @@
                 }
             };
 
+            // New: Function to unban a user (only for admin)
+            const unbanUser = async (targetUserId) => {
+                if (!db || !isAdmin) {
+                    console.warn("Permission denied: Only admin can unban users.");
+                    return;
+                }
+                try {
+                    const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/banned_users`, targetUserId);
+                    await deleteDoc(bannedUserRef);
+                    alert(`User ${targetUserId} has been unbanned.`);
+                    console.log(`User ${targetUserId} unbanned successfully.`);
+                } catch (error) {
+                    console.error("Error unbanning user:", error);
+                }
+            };
+
+
             // Handle key press for sending message (e.g., Enter key)
             const handleKeyPress = (e) => {
                 if (e.key === 'Enter') {
-                    if (userName === '') { // If still on initial name screen
+                    if (!userName) { // If still on initial name screen
                         setChatUserName();
                     } else if (showAdminPasswordScreen) { // If on admin password screen
                         handleAdminPassword();
@@ -314,7 +353,6 @@
 
             // Function to handle admin password confirmation
             const handleAdminPassword = () => {
-                // Specific password for admin access
                 const adminPassword = '69$@';
                 if (nameInput.trim() === adminPassword) {
                     setUserName('admin');
@@ -324,7 +362,6 @@
                     setNameInput(''); // Clear input
                     alert('Admin access granted!');
                 } else {
-                    // If wrong password, reset to initial name input
                     setUserName('');
                     localStorage.removeItem('chatUserName');
                     setIsAdmin(false);
@@ -334,7 +371,7 @@
                 }
             };
 
-            // Conditional rendering: Show name input or admin password confirmation
+            // Conditional rendering: Show name input, admin password, or unban page
             if (!userName || showAdminPasswordScreen) {
                 return React.createElement(
                     "div",
@@ -358,11 +395,10 @@
                     React.createElement(
                         "input",
                         {
-                            // Dynamically set type based on which screen is active
-                            type: showAdminPasswordScreen ? "password" : "text",
+                            type: showAdminPasswordScreen ? "password" : "text", // Dynamic type
                             value: nameInput,
                             onChange: e => setNameInput(e.target.value),
-                            onKeyPress: handleKeyPress, // Use generic handleKeyPress
+                            onKeyPress: handleKeyPress,
                             placeholder: showAdminPasswordScreen ? "Admin Password" : "Your Name",
                             className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
                         }
@@ -374,6 +410,69 @@
                             className: "px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                         },
                         showAdminPasswordScreen ? "Confirm Password" : "Start Chatting"
+                    )
+                );
+            }
+
+            // Conditional rendering for the Unban Page Modal
+            if (showUnbanPage) {
+                return React.createElement(
+                    "div",
+                    {
+                        className: "modal-overlay"
+                    },
+                    React.createElement(
+                        "div",
+                        {
+                            className: "modal-content"
+                        },
+                        React.createElement(
+                            "h2",
+                            {
+                                className: "text-2xl font-bold text-gray-800 mb-6 text-center"
+                            },
+                            "Banned Users"
+                        ),
+                        bannedUsers.length === 0 ?
+                            React.createElement(
+                                "p",
+                                { className: "text-center text-gray-500" },
+                                "No users currently banned."
+                            ) :
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3" },
+                                bannedUsers.map(bannedId =>
+                                    React.createElement(
+                                        "li",
+                                        {
+                                            key: bannedId,
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm"
+                                        },
+                                        React.createElement(
+                                            "span",
+                                            { className: "font-medium text-gray-700 break-all" },
+                                            bannedId
+                                        ),
+                                        React.createElement(
+                                            "button",
+                                            {
+                                                onClick: () => unbanUser(bannedId),
+                                                className: "ml-4 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition duration-200"
+                                            },
+                                            "Unban"
+                                        )
+                                    )
+                                )
+                            ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowUnbanPage(false),
+                                className: "mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 w-full"
+                            },
+                            "Back to Chat"
+                        )
                     )
                 );
             }
@@ -427,6 +526,7 @@
                                 setNewMessage(''); // Clear any message in input
                                 setMessages([]); // Clear messages to reset view
                                 setShowAdminPasswordScreen(false); // Ensure admin password screen is hidden
+                                setShowUnbanPage(false); // Ensure unban page is hidden
                             },
                             className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
                         },
@@ -451,7 +551,7 @@
                             const isCurrentUser = msg.userId === userId;
 
                             // Define class strings for message bubble styling
-                            const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col"; // Added flex-col
+                            const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col";
                             const messageBubbleUserClasses = isCurrentUser
                                 ? "bg-blue-600 text-white rounded-br-none"
                                 : "bg-gray-200 text-gray-800 rounded-bl-none";
@@ -473,7 +573,7 @@
                                         {
                                             className: "font-bold text-xs mb-1"
                                         },
-                                        isCurrentUser ? 'You' : (msg.userName || msg.userId) // Display name or ID
+                                        isCurrentUser ? 'You' : (msg.userName || msg.userId)
                                     ),
                                     React.createElement(
                                         "p",
@@ -536,16 +636,25 @@
                             onKeyPress: handleKeyPress,
                             placeholder: "Type your message...",
                             className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200",
-                            disabled: !isAuthReady
+                            disabled: !isAuthReady || bannedUsers.includes(userId) // Disable if not auth ready or banned
                         }
                     ),
                     React.createElement(
                         "button",
                         {
                             onClick: sendMessage,
-                            className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                            disabled: !isAuthReady || newMessage.trim() === '' || bannedUsers.includes(userId) // Disable if not auth ready, empty, or banned
                         },
                         "Send"
+                    ),
+                    isAdmin && React.createElement( // Only show unban tab if admin
+                        "button",
+                        {
+                            onClick: () => setShowUnbanPage(true),
+                            className: "ml-3 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200"
+                        },
+                        "Unban Users"
                     )
                 )
             );
