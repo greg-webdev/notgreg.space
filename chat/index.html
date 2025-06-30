@@ -235,18 +235,11 @@
             const [activeCallRooms, setActiveCallRooms] = React.useState([]);
             const [currentRoomId, setCurrentRoomId] = React.useState(null); // The ID of the room the user is currently in
 
-            // Helper function to build correct Firestore path for call rooms
-            const getChatTabCallRoomsCollectionRef = React.useCallback((firestoreInstance, appId, chatName) => {
-                // Path: artifacts/{appId}/public/data/chat_tabs_calls/{chatName}/call_rooms
-                // collection(db, 'artifacts') -> document(appId) -> collection('public') -> document('data') -> collection('chat_tabs_calls') -> document(chatName) -> collection('call_rooms')
-                const artifactsCollection = collection(firestoreInstance, 'artifacts');
-                const appIdDoc = doc(artifactsCollection, appId);
-                const publicCollection = collection(appIdDoc, 'public');
-                const dataDoc = doc(publicCollection, 'data');
-                const chatTabsCallsCollection = collection(dataDoc, 'chat_tabs_calls');
-                const chatNameDoc = doc(chatTabsCallsCollection, chatName);
-                const callRoomsCollection = collection(chatNameDoc, 'call_rooms');
-                return callRoomsCollection;
+            // Helper function to build correct Firestore path for call rooms collection
+            const getChatTabCallRoomsCollectionPath = React.useCallback((appId, chatName) => {
+                // Returns a string path for the 'call_rooms' collection within a specific chat tab.
+                // Example: artifacts/chatv1-5432a/public/data/chat_tabs_calls/main/call_rooms
+                return `artifacts/${appId}/public/data/chat_tabs_calls/${chatName}/call_rooms`;
             }, []);
 
 
@@ -338,7 +331,8 @@
                     return;
                 }
 
-                const callRoomsCollectionRef = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
+                const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                const callRoomsCollectionRef = collection(db, callRoomsCollectionPath);
                 const q = query(callRoomsCollectionRef);
 
                 const unsubscribeCallRooms = onSnapshot(q, (snapshot) => {
@@ -369,15 +363,15 @@
                 });
 
                 return () => unsubscribeCallRooms();
-            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionRef]);
+            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath]);
 
 
             // Effect for WebRTC signaling via Firestore for the *current* call room
             React.useEffect(() => {
                 if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
 
-                const callRoomsCollection = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
-                const callDocRef = doc(callRoomsCollection, currentRoomId);
+                const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                const callDocRef = doc(collection(db, callRoomsCollectionPath), currentRoomId);
 
                 const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
                     const callData = snapshot.data();
@@ -423,7 +417,7 @@
                 });
 
                 return () => unsubscribeCurrentCallSignaling();
-            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall, getChatTabCallRoomsCollectionRef]); // Dependencies for signaling effect
+            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall, getChatTabCallRoomsCollectionPath]); // Dependencies for signaling effect
 
             // Function to send a new message
             const sendMessage = async () => {
@@ -499,7 +493,8 @@
                         }
                     };
 
-                    const callRoomsCollection = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                    const callRoomsCollection = collection(db, callRoomsCollectionPath);
                     const callDocRef = doc(callRoomsCollection, newRoomId);
 
                     pc.onicecandidate = async (event) => {
@@ -555,8 +550,8 @@
                     // Attempt to clean up call room document in Firestore if it was partially created
                     if (db && activeChatTab && newRoomId) {
                         try {
-                            const callRoomsCollection = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
-                            await deleteDoc(doc(callRoomsCollection, newRoomId));
+                            const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                            await deleteDoc(doc(collection(db, callRoomsCollectionPath), newRoomId));
                             console.log("createCall: Cleaned up failed call document.");
                         } catch (e) {
                             console.error("createCall: Error cleaning up failed call document:", e);
@@ -611,8 +606,8 @@
                         }
                     };
 
-                    const callRoomsCollection = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
-                    const callDocRef = doc(callRoomsCollection, roomId);
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                    const callDocRef = doc(collection(db, callRoomsCollectionPath), roomId);
 
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
@@ -723,8 +718,8 @@
                     const roomToDelete = activeCallRooms.find(room => room.id === currentRoomId && room.callerId === userId);
                     if (roomToDelete) {
                         try {
-                            const callRoomsCollection = getChatTabCallRoomsCollectionRef(db, window.__app_id, activeChatTab);
-                            await deleteDoc(doc(callRoomsCollection, roomToDelete.id));
+                            const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                            await deleteDoc(doc(collection(db, callRoomsCollectionPath), roomToDelete.id));
                             console.log("endCall: Call document deleted from Firestore.");
                         } catch (e) {
                             console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
