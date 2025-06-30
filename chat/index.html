@@ -147,8 +147,8 @@
         //    }
         //    Remember to click "Publish" after making changes to your rules.
         //
-        // 3. **SET UP FIREBASE STORAGE SECURITY RULES (NEW!)**
-        //    This allows files to be uploaded and downloaded.
+        // 3. **CRITICAL: SET UP FIREBASE STORAGE SECURITY RULES (NEW!)**
+        //    This allows files to be uploaded and downloaded. If this is not set correctly, uploads will fail.
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
         //    b. Select your project ("chatv1-5432a").
@@ -160,6 +160,7 @@
         //    service firebase.storage {
         //      match /b/{bucket}/o {
         //        // Files for chat tabs
+        //        // {chatName} will be 'main', 'games', or 'memes'
         //        match /artifacts/{appId}/public/data/chats/{chatName}/files/{allPaths=**} {
         //          allow read, write: if request.auth != null; // Authenticated users can read/write files
         //        }
@@ -208,6 +209,7 @@
                     setDb(firestoreDb);
                     setAuth(firebaseAuth);
                     setStorage(firebaseStorage); // NEW: Set storage instance
+                    console.log("Firebase Storage initialized:", firebaseStorage); // Log storage instance
 
                     signInAnonymously(firebaseAuth)
                         .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
@@ -324,6 +326,7 @@
 
                 setUploadingFile(true); // Set uploading state to true
 
+                // Generate a unique file path using user ID, timestamp, and original file name
                 const filePath = `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/files/${userId}_${Date.now()}_${file.name}`;
                 const storageRef = ref(storage, filePath);
                 const uploadTask = uploadBytesResumable(storageRef, file);
@@ -352,7 +355,8 @@
                                         url: downloadURL,
                                         name: file.name,
                                         type: file.type,
-                                        size: file.size
+                                        size: file.size,
+                                        storagePath: filePath // Store storage path for potential future deletion
                                     },
                                     userId: userId,
                                     userName: userName || 'Anonymous',
@@ -378,9 +382,20 @@
                 }
                 try {
                     const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`, messageId);
-                    // Optionally, if the message contains a file, you might want to delete the file from Storage too.
-                    // This would require storing the file's storage path in the Firestore message document.
-                    // For now, we only delete the message entry in Firestore.
+                    const messageDoc = (await getDoc(messageRef)).data(); // Fetch the message to get fileInfo
+
+                    // If the message contains fileInfo, attempt to delete the file from Storage
+                    if (messageDoc && messageDoc.fileInfo && messageDoc.fileInfo.storagePath && storage) {
+                        const fileToDeleteRef = ref(storage, messageDoc.fileInfo.storagePath);
+                        try {
+                            await deleteObject(fileToDeleteRef);
+                            console.log("Associated file deleted from Storage.");
+                        } catch (storageError) {
+                            console.error("Error deleting associated file from Storage:", storageError);
+                            // Log the error but continue to delete the Firestore message
+                        }
+                    }
+
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
                 } catch (error) {
