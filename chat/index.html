@@ -1,0 +1,213 @@
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+
+// Main App component for the chat application
+function App() {
+    // State variables for Firebase instances, user ID, messages, and new message input
+    const [db, setDb] = useState(null);
+    const [auth, setAuth] = useState(null);
+    const [userId, setUserId] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isAuthReady, setIsAuthReady] = useState(false); // To track if authentication is ready
+
+    // Initialize Firebase and handle authentication
+    useEffect(() => {
+        try {
+            // Retrieve __app_id and __firebase_config from the global scope
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+            // Initialize Firebase app
+            const app = initializeApp(firebaseConfig);
+            const firestoreDb = getFirestore(app);
+            const firebaseAuth = getAuth(app);
+
+            setDb(firestoreDb);
+            setAuth(firebaseAuth);
+
+            // Sign in with custom token if available, otherwise anonymously
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            if (initialAuthToken) {
+                signInWithCustomToken(firebaseAuth, initialAuthToken)
+                    .then(() => console.log("Signed in with custom token"))
+                    .catch(error => {
+                        console.error("Error signing in with custom token:", error);
+                        // Fallback to anonymous sign-in if custom token fails
+                        signInAnonymously(firebaseAuth)
+                            .then(() => console.log("Signed in anonymously (fallback)"))
+                            .catch(err => console.error("Error signing in anonymously:", err));
+                    });
+            } else {
+                signInAnonymously(firebaseAuth)
+                    .then(() => console.log("Signed in anonymously"))
+                    .catch(error => console.error("Error signing in anonymously:", error));
+            }
+
+            // Listen for authentication state changes
+            const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    setIsAuthReady(true);
+                } else {
+                    setUserId(crypto.randomUUID()); // Use a random UUID if not authenticated
+                    setIsAuthReady(true); // Still ready even if anonymous
+                }
+            });
+
+            // Cleanup function for auth listener
+            return () => unsubscribeAuth();
+        } catch (error) {
+            console.error("Failed to initialize Firebase:", error);
+        }
+    }, []); // Empty dependency array means this runs once on mount
+
+    // Set up real-time listener for messages from Firestore
+    useEffect(() => {
+        // Ensure db and userId are available and authentication is ready
+        if (db && isAuthReady) {
+            // Define the collection path for public data
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const chatCollectionRef = collection(db, `artifacts/${appId}/public/data/messages`);
+
+            // Create a query to order messages by timestamp
+            // Note: orderBy is commented out as per instructions to avoid potential index issues.
+            // Data will be sorted in memory.
+            const q = query(chatCollectionRef /*, orderBy('timestamp', 'asc') */);
+
+            // Subscribe to real-time updates
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedMessages = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                // Sort messages by timestamp in memory
+                fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+                setMessages(fetchedMessages);
+            }, (error) => {
+                console.error("Error fetching messages:", error);
+            });
+
+            // Cleanup function for snapshot listener
+            return () => unsubscribe();
+        }
+    }, [db, isAuthReady]); // Re-run when db or isAuthReady changes
+
+    // Function to send a new message
+    const sendMessage = async () => {
+        if (newMessage.trim() === '' || !db || !userId) return;
+
+        try {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Add a new document to the 'messages' collection
+            await addDoc(collection(db, `artifacts/${appId}/public/data/messages`), {
+                text: newMessage,
+                userId: userId,
+                timestamp: serverTimestamp() // Firestore server timestamp for consistency
+            });
+            setNewMessage(''); // Clear the input field after sending
+        } catch (error) {
+            console.error("Error sending message:", error);
+        }
+    };
+
+    // Handle key press for sending message (e.g., Enter key)
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-screen antialiased bg-gray-100 text-gray-900 font-inter p-4 sm:p-6 md:p-8 rounded-lg overflow-hidden">
+            {/* User ID display */}
+            {userId && (
+                <div className="bg-blue-500 text-white p-3 rounded-t-lg shadow-md mb-4 text-center">
+                    <span className="font-semibold">Your User ID:</span> <span className="break-all">{userId}</span>
+                </div>
+            )}
+
+            {/* Chat messages display area */}
+            <div className="flex-1 bg-white rounded-lg shadow-md p-4 overflow-y-auto mb-4 custom-scrollbar">
+                {messages.length === 0 ? (
+                    <div className="text-center text-gray-500 mt-10">No messages yet. Start the conversation!</div>
+                ) : (
+                    messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`flex mb-3 ${msg.userId === userId ? 'justify-end' : 'justify-start'}`}
+                        >
+                            <div
+                                className={`rounded-xl p-3 max-w-[80%] break-words shadow-sm ${
+                                    msg.userId === userId
+                                        ? 'bg-blue-600 text-white rounded-br-none'
+                                        : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                                }`}
+                            >
+                                <div className="font-bold text-xs mb-1">
+                                    {msg.userId === userId ? 'You' : msg.userId}
+                                </div>
+                                <p className="text-sm">{msg.text}</p>
+                                {msg.timestamp && (
+                                    <div className="text-right text-xs mt-1 opacity-75">
+                                        {new Date(msg.timestamp.toMillis()).toLocaleTimeString()}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Message input and send button */}
+            <div className="flex items-center space-x-3 bg-white p-4 rounded-lg shadow-md">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your message..."
+                    className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                    disabled={!isAuthReady} // Disable input until auth is ready
+                />
+                <button
+                    onClick={sendMessage}
+                    className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!isAuthReady || newMessage.trim() === ''} // Disable button until auth is ready and message is not empty
+                >
+                    Send
+                </button>
+            </div>
+
+            {/* Tailwind CSS CDN */}
+            <script src="https://cdn.tailwindcss.com"></script>
+            {/* Custom CSS for scrollbar (for better aesthetics) */}
+            <style>
+                {`
+                .font-inter {
+                    font-family: 'Inter', sans-serif;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 8px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #888;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #555;
+                }
+                `}
+            </style>
+        </div>
+    );
+}
+
+export default App; // Export the App component as default
