@@ -371,7 +371,8 @@
                 if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
 
                 const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                const callDocRef = doc(collection(db, callRoomsCollectionPath), currentRoomId);
+                // FIXED: Direct document reference using the full path string
+                const callDocRef = doc(db, `${callRoomsCollectionPath}/${currentRoomId}`);
 
                 const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
                     const callData = snapshot.data();
@@ -494,8 +495,8 @@
                     };
 
                     const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                    const callRoomsCollection = collection(db, callRoomsCollectionPath);
-                    const callDocRef = doc(callRoomsCollection, newRoomId);
+                    // FIXED: Direct document reference using the full path string
+                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${newRoomId}`);
 
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
@@ -551,7 +552,8 @@
                     if (db && activeChatTab && newRoomId) {
                         try {
                             const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                            await deleteDoc(doc(collection(db, callRoomsCollectionPath), newRoomId));
+                            // FIXED: Direct document reference using the full path string
+                            await deleteDoc(doc(db, `${callRoomsCollectionPath}/${newRoomId}`));
                             console.log("createCall: Cleaned up failed call document.");
                         } catch (e) {
                             console.error("createCall: Error cleaning up failed call document:", e);
@@ -607,7 +609,8 @@
                     };
 
                     const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                    const callDocRef = doc(collection(db, callRoomsCollectionPath), roomId);
+                    // FIXED: Direct document reference using the full path string
+                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${roomId}`);
 
                     pc.onicecandidate = async (event) => {
                         if (event.candidate) {
@@ -719,7 +722,8 @@
                     if (roomToDelete) {
                         try {
                             const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
-                            await deleteDoc(doc(collection(db, callRoomsCollectionPath), roomToDelete.id));
+                            // FIXED: Direct document reference using the full path string
+                            await deleteDoc(doc(db, `${callRoomsCollectionPath}/${roomToDelete.id}`));
                             console.log("endCall: Call document deleted from Firestore.");
                         } catch (e) {
                             console.error("endCall: Error deleting call document:", e.name, e.message, e.stack);
