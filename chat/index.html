@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>bananachat 5000</title>
+    <title>My Website Chat</title>
     <!-- Include Tailwind CSS CDN directly -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -50,26 +50,71 @@
     <div id="root"></div>
 
     <script type="module">
-        // Define the global variables that the React app expects
-        // These will be replaced by the Canvas environment when running there.
-        // For a static site, you would typically hardcode these values or fetch them from a secure source.
-        window.__app_id = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.__firebase_config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // ====================================================================================
+        // IMPORTANT: FIREBASE CONFIGURATION
+        // Your actual Firebase project's configuration, as provided by you.
+        // ====================================================================================
+        window.__firebase_config = JSON.stringify({
+            apiKey: "AIzaSyAanqUBydalRrZhHeAesq9kvsoVow-ApU0",
+            authDomain: "chatv1-5432a.firebaseapp.com",
+            projectId: "chatv1-5432a",
+            storageBucket: "chatv1-5432a.firebasestorage.app",
+            messagingSenderId: "131388808210",
+            appId: "1:131388808210:web:7c71c7bc57fcbba1c40ccb",
+            measurementId: "G-THYHQJS7B9"
+        });
+        // Set __app_id to your Firebase projectId for Firestore pathing
+        window.__app_id = "chatv1-5432a";
         window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Important: For Firestore to work, you MUST set up security rules in your Firebase project console.
-        // For public chat data like this (stored in artifacts/{appId}/public/data/messages),
-        // you would typically set rules that allow read/write for authenticated users.
-        // Example Firestore Security Rules (in your Firebase Console -> Firestore Database -> Rules tab):
+        // Log the Firebase config as a JSON string and then parsed object for debugging
+        console.log("Firebase config string on load:", window.__firebase_config);
+        let parsedFirebaseConfig;
+        try {
+            parsedFirebaseConfig = JSON.parse(window.__firebase_config);
+            console.log("Parsed Firebase config object:", parsedFirebaseConfig);
+        } catch (e) {
+            console.error("Error parsing Firebase config JSON:", e);
+            parsedFirebaseConfig = {}; // Ensure it's an empty object if parsing fails
+        }
+
+        // ====================================================================================
+        // IMPORTANT: FIREBASE AUTHENTICATION AND FIRESTORE RULES
+        // To resolve "auth/configuration-not-found" errors (which indicate an Authentication setup issue)
+        // and "Missing or insufficient permissions" (which indicate Firestore rules issues):
         //
-        // rules_version = '2';
-        // service cloud.firestore {
-        //   match /databases/{database}/documents {
-        //     match /artifacts/{appId}/public/data/messages/{document=**} {
-        //       allow read, write: if request.auth != null;
-        //     }
-        //   }
-        // }
+        // 1. **CRITICAL: ENABLE ANONYMOUS AUTHENTICATION IN FIREBASE CONSOLE**
+        //    This app uses anonymous sign-in by default. If this method is not enabled,
+        //    Firebase Auth will fail to initialize, leading to "auth/configuration-not-found".
+        //    Steps:
+        //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
+        //    b. Select your project ("chatv1-5432a").
+        //    c. In the left navigation bar, under "Build", click on "Authentication".
+        //    d. Go to the "Sign-in method" tab.
+        //    e. Find "Anonymous" in the list and click the pencil icon to edit it.
+        //    f. Toggle the "Enable" button to ON.
+        //    g. Click "Save".
+        //
+        // 2. **SET UP FIRESTORE SECURITY RULES**
+        //    This resolves "Missing or insufficient permissions" errors.
+        //    Steps:
+        //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
+        //    b. Select your project ("chatv1-5432a").
+        //    c. In the left navigation bar, under "Build", click on "Firestore Database".
+        //    d. Go to the "Rules" tab.
+        //    e. Replace the existing rules with the following, then click "Publish":
+        //
+        //    rules_version = '2';
+        //    service cloud.firestore {
+        //      match /databases/{database}/documents {
+        //        // This path must match exactly where your messages are stored.
+        //        // window.__app_id is used here, which you've set to "chatv1-5432a"
+        //        match /artifacts/{appId}/public/data/messages/{document=**} {
+        //          allow read, write: if request.auth != null; // Allows any authenticated user (including anonymous)
+        //        }
+        //      }
+        //    }
+        // ====================================================================================
 
 
         // Import Firebase modules from CDN
@@ -93,8 +138,8 @@
             // Initialize Firebase and handle authentication
             React.useEffect(() => {
                 try {
-                    // Initialize Firebase app
-                    const app = initializeApp(window.__firebase_config);
+                    // Initialize Firebase app with the parsed configuration
+                    const app = initializeApp(parsedFirebaseConfig);
                     const firestoreDb = getFirestore(app);
                     const firebaseAuth = getAuth(app);
 
@@ -104,17 +149,19 @@
                     // Sign in with custom token if available, otherwise anonymously
                     if (window.__initial_auth_token) {
                         signInWithCustomToken(firebaseAuth, window.__initial_auth_token)
-                            .then(() => console.log("Signed in with custom token"))
+                            .then((userCredential) => {
+                                console.log("Signed in with custom token:", userCredential.user.uid);
+                            })
                             .catch(error => {
                                 console.error("Error signing in with custom token:", error);
                                 // Fallback to anonymous sign-in if custom token fails
                                 signInAnonymously(firebaseAuth)
-                                    .then(() => console.log("Signed in anonymously (fallback)"))
-                                    .catch(err => console.error("Error signing in anonymously:", err));
+                                    .then((userCredential) => console.log("Signed in anonymously (fallback):", userCredential.user.uid))
+                                    .catch(err => console.error("Error signing in anonymously (fallback):", err));
                             });
                     } else {
                         signInAnonymously(firebaseAuth)
-                            .then(() => console.log("Signed in anonymously"))
+                            .then((userCredential) => console.log("Signed in anonymously:", userCredential.user.uid))
                             .catch(error => console.error("Error signing in anonymously:", error));
                     }
 
@@ -123,16 +170,23 @@
                         if (user) {
                             setUserId(user.uid);
                             setIsAuthReady(true);
+                            console.log("Auth state changed: User is authenticated. User ID:", user.uid, "isAuthReady:", true);
                         } else {
-                            setUserId(crypto.randomUUID()); // Use a random UUID if not authenticated
-                            setIsAuthReady(true); // Still ready even if anonymous
+                            // Only set userId to random UUID if auth failed or user is not found,
+                            // AND only if isAuthReady hasn't already been set by a successful auth.
+                            // The anonymous sign-in ensures a user always exists for this app's purpose.
+                            if (!userId) { // Check if userId is not already set by a successful login
+                                setUserId(crypto.randomUUID());
+                            }
+                            setIsAuthReady(true); // Always set to true once auth state is determined
+                            console.log("Auth state changed: User is NOT authenticated. (Anonymous expected). isAuthReady:", true);
                         }
                     });
 
                     // Cleanup function for auth listener
                     return () => unsubscribeAuth();
                 } catch (error) {
-                    console.error("Failed to initialize Firebase:", error);
+                    console.error("Failed to initialize Firebase app or auth:", error);
                 }
             }, []); // Empty dependency array means this runs once on mount
 
