@@ -742,9 +742,10 @@
 
 
             // Function to end the current call
-            const endCall = async (callerInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Added forceRoomId and forceChatTab
-                console.log("[endCall] Attempting to end call. Caller initiated:", callerInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
+            const endCall = async (localUserInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Renamed parameter for clarity
+                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
 
+                // Stop local and remote media tracks
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
                         console.log(`[endCall] Stopping local track: ${track.kind} (id: ${track.id})`);
@@ -759,6 +760,7 @@
                     });
                     setRemoteStream(null);
                 }
+                // Close peer connection
                 if (peerConnection) {
                     console.log("[endCall] Closing peer connection.");
                     peerConnection.close();
@@ -766,6 +768,7 @@
                 }
 
                 // Only reset in-call states if this endCall is for the currently active call
+                // This prevents resetting the main UI if an admin kills a call they aren't in.
                 if (!forceRoomId || forceRoomId === currentRoomId) {
                     setInCall(false);
                     setCallInitiated(false);
@@ -774,16 +777,15 @@
                     setCurrentRoomId(null);
                 }
 
-
                 const targetRoomId = forceRoomId || currentRoomId;
                 const targetChatTab = forceChatTab || activeChatTab;
 
+                // Logic for deleting the Firestore document
                 if (db && targetChatTab && userId && targetRoomId) {
                     const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, targetChatTab);
                     const roomRef = doc(db, `${callRoomsCollectionPath}/${targetRoomId}`);
-                    const roomSnapshot = await getDoc(roomRef);
-                    const roomData = roomSnapshot.data();
 
+                    // Admin always has permission to delete any call
                     if (isAdmin) {
                         console.log(`[endCall] Admin ${userId} is force-ending call for room ${targetRoomId} in tab ${targetChatTab}.`);
                         try {
@@ -791,19 +793,24 @@
                             console.log("[endCall] Call document deleted by admin.");
                         } catch (e) {
                             console.error("[endCall] Admin: Error deleting call document:", e.name, e.message, e.stack);
-                            alert(`Admin: Failed to delete call room ${targetRoomId}. Check console for details.`);
+                            // Only alert if it's a real error, not just doc not found (e.g., if another admin already killed it)
+                            if (!e.message.includes("document does not exist")) {
+                                 alert(`Admin: Failed to delete call room ${targetRoomId}. Check console for details.`);
+                            }
                         }
-                    } else if (callerInitiatedEnd && roomData && roomData.callerId === userId) {
-                        console.log(`[endCall] Caller ${userId} is ending call for room ${targetRoomId} in tab ${targetChatTab}.`);
+                    } else if (localUserInitiatedEnd) {
+                        // A non-admin user who initiated the end of *their own* call should delete the document.
+                        // This ensures that when a regular user clicks 'End Call', the room is removed for everyone.
+                        console.log(`[endCall] User ${userId} is ending their call for room ${targetRoomId} in tab ${targetChatTab}. Deleting document.`);
                         try {
                             await deleteDoc(roomRef);
-                            console.log("[endCall] Call document deleted by caller.");
+                            console.log("[endCall] Call document deleted by local user.");
                         } catch (e) {
-                            console.error("[endCall] Caller: Error deleting call document:", e.name, e.message, e.stack);
-                            alert(`Caller: Failed to delete call room ${targetRoomId}. Check console for details.`);
+                            console.error("[endCall] Local User: Error deleting call document:", e.name, e.message, e.stack);
+                            alert(`Failed to delete call room ${targetRoomId}. Check console for details.`);
                         }
                     } else {
-                        console.log("[endCall] User is not the caller and not an admin. Not deleting Firestore document.");
+                        console.log("[endCall] Not an admin, and not a local user initiated end. Not deleting Firestore document.");
                     }
                 }
                 console.log("[endCall] Call ended successfully locally.");
