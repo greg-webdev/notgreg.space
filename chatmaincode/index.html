@@ -126,7 +126,7 @@
     <div id="pointer-dot"></div>
 
     <script type="module">
-        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-16 ---
+        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-18 ---
         console.log("Chat application script started.");
 
         // ====================================================================================
@@ -626,6 +626,14 @@
                     return;
                 }
 
+                // Check if navigator.mediaDevices is available
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("Video/Audio calls are not supported in this browser or over HTTP. Please ensure you are using HTTPS and a modern browser.");
+                    console.error("navigator.mediaDevices or getUserMedia is not available. Ensure HTTPS is used.");
+                    setCallInitiated(false);
+                    return;
+                }
+
                 setCallInitiated(true);
                 const newRoomId = customRoomId.trim(); // Use customRoomId
                 setCurrentRoomId(newRoomId);
@@ -740,6 +748,13 @@
                 }
                 if (inCall) {
                     console.warn("[joinCall] Already in a call. Cannot join another.");
+                    return;
+                }
+
+                // Check if navigator.mediaDevices is available
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("Video/Audio calls are not supported in this browser or over HTTP. Please ensure you are using HTTPS and a modern browser.");
+                    console.error("navigator.mediaDevices or getUserMedia is not available. Ensure HTTPS is used.");
                     return;
                 }
 
@@ -931,10 +946,10 @@
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
 
-                    // Add system message for banned user
-                    if (senderUserId) { // Ensure senderUserId is provided for banning
-                        await banUser(senderUserId, senderUserName); // Pass senderUserName
-                    }
+                    // Removed the automatic banUser call
+                    // if (senderUserId) {
+                    //     await banUser(senderUserId, senderUserName);
+                    // }
 
                 } catch (error) {
                     console.error("Error deleting message:", error);
