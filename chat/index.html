@@ -237,6 +237,7 @@
             const [callInitiated, setCallInitiated] = React.useState(false); // True if *this user* initiated the call
             const [callOfferReceived, setCallOfferReceived] = React.useState(false); // True if an offer is waiting to be answered
             const [isVideoEnabled, setIsVideoEnabled] = React.useState(true); // State for video toggle
+            const [isSpectating, setIsSpectating] = React.useState(false); // NEW: Track if currently spectating a call
 
             // NEW: State for call rooms in the waiting area
             const [activeCallRooms, setActiveCallRooms] = React.useState([]);
@@ -302,7 +303,8 @@
                             id: doc.id,
                             ...doc.data()
                         }));
-                        fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId));
+                        // Filter out messages from banned users, but allow system messages
+                        fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId) || msg.type === 'system_message');
                         fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
                         setMessages(fetchedMessages);
                     }, (error) => {
@@ -492,7 +494,8 @@
                         text: newMessage,
                         userId: userId,
                         userName: userName || 'Anonymous',
-                        timestamp: serverTimestamp()
+                        timestamp: serverTimestamp(),
+                        type: 'user_message' // Explicitly mark as user message
                     });
                     setNewMessage('');
                 } catch (error) {
@@ -518,6 +521,7 @@
                 setCallInitiated(true);
                 const newRoomId = crypto.randomUUID();
                 setCurrentRoomId(newRoomId);
+                setIsSpectating(false); // Ensure not in spectate mode when creating
                 console.log("[createCall] Attempting to get user media. Video Enabled:", isVideoEnabled);
 
                 let stream;
@@ -639,6 +643,7 @@
 
                 setCurrentRoomId(roomId);
                 setInCall(true);
+                setIsSpectating(false); // Ensure not in spectate mode when joining as participant
                 console.log(`[joinCall] Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
 
                 let stream;
@@ -743,10 +748,129 @@
                 }
             };
 
+            // NEW: Function for admin to spectate a call
+            const spectateCall = async (roomId, offerData, chatTab) => {
+                if (!db || !isAuthReady || !userId || !isAdmin) {
+                    console.error("[spectateCall] Cannot spectate: Firebase not ready or not admin.");
+                    return;
+                }
+                if (inCall) {
+                    console.warn("[spectateCall] Already in a call/spectate session. End current one first.");
+                    return;
+                }
 
-            // Function to end the current call
+                setCurrentRoomId(roomId);
+                setInCall(true); // Mark as in-call state for UI purposes
+                setIsSpectating(true); // Mark as spectating
+                console.log(`[spectateCall] Attempting to spectate room ${roomId} in tab ${chatTab}.`);
+
+                let stream;
+                let pc;
+                try {
+                    // Request media, but immediately disable tracks for spectating
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    console.log("[spectateCall] Local stream obtained, disabling tracks for spectating.");
+                    stream.getTracks().forEach(track => {
+                        track.enabled = false; // Disable local tracks for spectating
+                        console.log(`[spectateCall] Track ${track.kind} disabled: ${track.enabled}`);
+                    });
+                    setLocalStream(stream); // Keep stream reference to stop it later
+
+                    pc = new RTCPeerConnection({
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                        ]
+                    });
+                    console.log("[spectateCall] RTCPeerConnection created for spectating:", pc);
+                    setPeerConnection(pc);
+
+                    // Add dummy tracks or disabled tracks to trigger remote track events
+                    stream.getTracks().forEach(track => {
+                        pc.addTrack(track, stream);
+                    });
+
+
+                    pc.ontrack = (event) => {
+                        console.log("[spectateCall] ontrack event fired:", event);
+                        if (event.streams && event.streams[0]) {
+                            console.log("[spectateCall] Remote stream received (spectating):", event.streams[0]);
+                            setRemoteStream(event.streams[0]);
+                        } else {
+                            console.warn("[spectateCall] ontrack event fired without streams[0] during spectate.", event);
+                        }
+                    };
+
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, chatTab);
+                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${roomId}`);
+
+                    pc.onicecandidate = async (event) => {
+                        if (event.candidate) {
+                            console.log("[spectateCall] New ICE candidate generated:", event.candidate);
+                            try {
+                                const currentCallDoc = (await getDoc(callDocRef)).data();
+                                const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                await setDoc(callDocRef, {
+                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                }, { merge: true });
+                                console.log("[spectateCall] Sent ICE candidate to Firestore.");
+                            } catch (e) {
+                                console.error("[spectateCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                            }
+                        } else {
+                            console.log("[spectateCall] ICE gathering complete.");
+                        }
+                    };
+
+                    console.log("[spectateCall] Setting remote description from offer received from room data.");
+                    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+                    console.log("[spectateCall] Remote description set from offer.");
+
+                    console.log("[spectateCall] Creating SDP answer...");
+                    const answer = await pc.createAnswer();
+                    console.log("[spectateCall] SDP answer created:", answer);
+                    await pc.setLocalDescription(answer);
+                    console.log("[spectateCall] Local description set (answer).");
+
+                    // Send the answer to Firestore (admin still needs to answer to receive streams)
+                    await setDoc(callDocRef, {
+                        answer: answer,
+                        answererId: userId, // Admin acts as an answerer to receive streams
+                        answererName: userName || 'Anonymous'
+                    }, { merge: true });
+                    console.log("[spectateCall] Call answer sent to Firestore.");
+
+                    if (offerData.iceCandidates) {
+                        console.log("[spectateCall] Adding pre-existing ICE candidates from offerer.");
+                        for (const candidate of offerData.iceCandidates) {
+                            if (candidate.senderId !== userId) {
+                                try {
+                                    await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+                                    console.log("[spectateCall] Added pre-existing ICE candidate during answer.");
+                                } catch (e) {
+                                    console.error("[spectateCall] Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
+                                }
+                            }
+                        }
+                    }
+                    setShowAdminCallManagement(false); // Close the management modal after spectating
+                } catch (error) {
+                    console.error("[spectateCall] Error during spectate process:", error.name, error.message, error.stack);
+                    alert(`Failed to spectate call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    if (stream) stream.getTracks().forEach(track => track.stop());
+                    if (pc) pc.close();
+                    setLocalStream(null);
+                    setRemoteStream(null);
+                    setPeerConnection(null);
+                    setInCall(false);
+                    setIsSpectating(false);
+                    setCurrentRoomId(null);
+                }
+            };
+
+
+            // Function to end the current call (or spectate session)
             const endCall = async (localUserInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Renamed parameter for clarity
-                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
+                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab, "isSpectating:", isSpectating);
 
                 // Stop local and remote media tracks
                 if (localStream) {
@@ -777,6 +901,7 @@
                     setCallInitiated(false);
                     setCallOfferReceived(false);
                     setIsVideoEnabled(true);
+                    setIsSpectating(false); // Reset spectating state
                     setCurrentRoomId(null);
                 }
 
@@ -821,7 +946,7 @@
 
 
             // Function to delete a message (only for admin)
-            const deleteMessage = async (messageId) => {
+            const deleteMessage = async (messageId, senderUserId, senderUserName) => { // Added senderUserName
                 if (!db || !isAdmin || !activeChatTab) {
                     console.warn("Permission denied: Only admin can delete messages.");
                     return;
@@ -830,13 +955,19 @@
                     const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`, messageId);
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
+
+                    // NEW: Add system message for banned user
+                    if (senderUserId) { // Ensure senderUserId is provided for banning
+                        await banUser(senderUserId, senderUserName); // Pass senderUserName
+                    }
+
                 } catch (error) {
                     console.error("Error deleting message:", error);
                 }
             };
 
             // Function to ban a user (only for admin)
-            const banUser = async (targetUserId) => {
+            const banUser = async (targetUserId, targetUserName) => { // Added targetUserName
                 if (!db || !isAdmin || !activeChatTab) {
                     console.warn("Permission denied: Only admin can ban users.");
                     return;
@@ -848,8 +979,18 @@
                 try {
                     const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`, targetUserId);
                     await setDoc(bannedUserRef, { bannedAt: serverTimestamp() });
-                    alert(`User ${targetUserId} has been banned from ${activeChatTab} chat.`);
-                    console.log(`User ${targetUserId} banned successfully from ${activeChatTab} chat.`);
+                    alert(`User ${targetUserName || targetUserId} has been banned from ${activeChatTab} chat.`);
+                    console.log(`User ${targetUserName || targetUserId} banned successfully from ${activeChatTab} chat.`);
+
+                    // NEW: Add a system message to the chat when a user is banned
+                    await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
+                        text: `${targetUserName || targetUserId} was removed.`,
+                        userId: 'system', // Special ID for system messages
+                        userName: 'System',
+                        timestamp: serverTimestamp(),
+                        type: 'system_message' // Custom type for system messages
+                    });
+
                 } catch (error) {
                     console.error("Error banning user:", error);
                 }
@@ -1165,12 +1306,26 @@
                                             )
                                         ),
                                         React.createElement(
-                                            "button",
-                                            {
-                                                onClick: () => endCall(false, room.id, room.chatTab), // Force delete, pass room ID and chatTab
-                                                className: "ml-4 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition duration-200"
-                                            },
-                                            "Kill Call"
+                                            "div",
+                                            { className: "flex space-x-2" },
+                                            React.createElement(
+                                                "button",
+                                                {
+                                                    onClick: () => spectateCall(room.id, room.offer, room.chatTab),
+                                                    className: "px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition duration-200",
+                                                    disabled: inCall // Disable spectate if already in a call/spectate session
+                                                },
+                                                "Spectate"
+                                            ),
+                                            React.createElement(
+                                                "button",
+                                                {
+                                                    onClick: () => endCall(false, room.id, room.chatTab), // Force delete, pass room ID and chatTab
+                                                    className: "px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition duration-200"
+                                                },
+                                                    "Kill Call"
+                                                )
+                                            )
                                         )
                                     )
                                 )
@@ -1282,20 +1437,21 @@
                         React.createElement(
                             "div",
                             { className: "video-container" },
-                            React.createElement("video", {
+                            // Show local video only if not spectating and video is enabled
+                            (!isSpectating && isVideoEnabled) && React.createElement("video", {
                                 ref: (videoElement) => {
                                     if (videoElement && localStream) videoElement.srcObject = localStream;
                                 },
                                 autoPlay: true,
                                 muted: true,
-                                className: `w-full max-h-[30vh] object-contain rounded-lg ${localStream && localStream.getVideoTracks().length === 0 ? 'hidden' : ''}`
+                                className: `w-full max-h-[30vh] object-contain rounded-lg`
                             }),
                             React.createElement("video", {
                                 ref: (videoElement) => {
                                     if (videoElement && remoteStream) videoElement.srcObject = remoteStream;
                                 },
                                 autoPlay: true,
-                                className: `w-full max-h-[50vh] object-contain rounded-lg ${remoteStream && remoteStream.getVideoTracks().length === 0 ? 'hidden' : ''}`
+                                className: `w-full max-h-[50vh] object-contain rounded-lg`
                             }),
                             React.createElement(
                                 "div",
@@ -1313,7 +1469,7 @@
                         React.createElement(
                             "p",
                             { className: "text-white mt-4" },
-                            callInitiated ? "Waiting for someone to join..." : "In a call."
+                            isSpectating ? "Spectating call..." : (callInitiated ? "Waiting for someone to join..." : "In a call.")
                         )
                     )
                 ) : (
@@ -1391,24 +1547,35 @@
                             ) :
                             messages.map(msg => {
                                 const isCurrentUser = msg.userId === userId;
+                                const isSystemMessage = msg.type === 'system_message';
                                 const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col";
-                                const messageBubbleUserClasses = isCurrentUser
-                                    ? "bg-blue-600 text-white rounded-br-none"
-                                    : "bg-gray-200 text-gray-800 rounded-bl-none";
+                                let messageBubbleUserClasses = "";
+                                let textColorClass = "";
+
+                                if (isSystemMessage) {
+                                    messageBubbleUserClasses = "bg-gray-300 text-gray-800 text-center self-center";
+                                    textColorClass = "text-gray-800";
+                                } else {
+                                    messageBubbleUserClasses = isCurrentUser
+                                        ? "bg-blue-600 text-white rounded-br-none"
+                                        : "bg-gray-200 text-gray-800 rounded-bl-none";
+                                    textColorClass = isCurrentUser ? "text-white" : "text-gray-600";
+                                }
+
                                 const messageBubbleCombinedClasses = `${messageBubbleBaseClasses} ${messageBubbleUserClasses}`;
 
                                 return React.createElement(
                                     "div",
                                     {
                                         key: msg.id,
-                                        className: `flex mb-3 ${isCurrentUser ? 'justify-end' : 'justify-start'}`
+                                        className: `flex mb-3 ${isCurrentUser && !isSystemMessage ? 'justify-end' : 'justify-start'} ${isSystemMessage ? 'w-full justify-center' : ''}`
                                     },
                                     React.createElement(
                                         "div",
                                         {
                                             className: messageBubbleCombinedClasses
                                         },
-                                        React.createElement(
+                                        !isSystemMessage && React.createElement(
                                             "div",
                                             {
                                                 className: "font-bold text-xs mb-1"
@@ -1428,11 +1595,11 @@
                                             msg.timestamp && React.createElement(
                                                 "div",
                                                 {
-                                                    className: "text-right text-xs opacity-75" + (isCurrentUser ? " text-white" : " text-gray-600")
+                                                    className: `text-right text-xs opacity-75 ${textColorClass}`
                                                 },
                                                 new Date(msg.timestamp.toMillis()).toLocaleTimeString()
                                             ),
-                                            isAdmin && React.createElement(
+                                            isAdmin && !isSystemMessage && React.createElement(
                                                 "div",
                                                 {
                                                     className: "flex ml-2"
@@ -1440,7 +1607,7 @@
                                                 React.createElement(
                                                     "button",
                                                     {
-                                                        onClick: () => deleteMessage(msg.id),
+                                                        onClick: () => deleteMessage(msg.id, msg.userId, msg.userName), // Pass userId and userName
                                                         className: "px-2 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition duration-200 mr-1"
                                                     },
                                                     "Delete"
@@ -1448,7 +1615,7 @@
                                                 React.createElement(
                                                     "button",
                                                     {
-                                                        onClick: () => banUser(msg.userId),
+                                                        onClick: () => banUser(msg.userId, msg.userName), // Pass userName
                                                         className: "px-2 py-1 bg-yellow-500 text-white text-xs rounded-full hover:bg-yellow-600 transition duration-200"
                                                     },
                                                     "Ban"
