@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Class Chat</title>
+    <title>My Website Chat</title>
     <!-- Include Tailwind CSS CDN directly -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -126,7 +126,7 @@
     <div id="pointer-dot"></div>
 
     <script type="module">
-        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-15 ---
+        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-16 ---
         console.log("Chat application script started.");
 
         // ====================================================================================
@@ -345,11 +345,14 @@
                             console.log("Auth state changed: User ID set to", user.uid);
                         } else {
                             // Fallback for anonymous or unauthenticated.
-                            // If signInAnonymously failed, user might be null here.
-                            // crypto.randomUUID() is a good fallback for userId.
-                            setUserId(crypto.randomUUID());
+                            // Use a simple, widely supported method for generating UUID if crypto.randomUUID() is not available
+                            const fallbackUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                                const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                                return v.toString(16);
+                            });
+                            setUserId(fallbackUUID);
                             setIsAdmin(false);
-                            console.log("Auth state changed: User is null, User ID set to random UUID.");
+                            console.log("Auth state changed: User is null, User ID set to fallback UUID.");
                         }
                         setIsAuthReady(true);
                         setIsLoading(false); // Clear loading state once auth is checked
