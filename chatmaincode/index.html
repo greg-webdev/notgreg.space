@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Website Chat</title>
+    <!-- Include Tailwind CSS CDN directly -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Optional: Basic styling for the body */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* bg-gray-100 */
+            cursor: none; /* Hide default cursor */
+        }
+        #root {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100vw;
+            box-sizing: border-box;
+        }
+        /* Custom CSS for scrollbar (for better aesthetics) */
+        .font-inter {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Modal Overlay Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* shadow-lg */
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            position: relative;
+        }
+        /* Video call specific styles */
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 600px;
+            margin: auto;
+            background-color: #333;
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+        .video-container video {
+            width: 100%;
+            height: auto;
+            background-color: black;
+            border-radius: 0.5rem;
+        }
+        .video-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            background-color: #222;
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+        }
+        .video-controls button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+        .video-controls button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        /* Pointer Dot Styles */
+        #pointer-dot {
+            position: fixed;
+            width: 12px;
+            height: 12px;
+            background-color: #ef4444; /* red-500 */
+            border-radius: 50%;
+            pointer-events: none; /* Allow clicks to pass through */
+            z-index: 9999; /* Ensure it's on top */
+            transform: translate(-50%, -50%); /* Center the dot on the cursor */
+            transition: transform 0.05s linear; /* Smooth movement */
+        }
+    </style>
+    <!-- Import React and ReactDOM from CDN as global variables -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+</head>
+<body>
+    <!-- This is the root div where your React application will be mounted -->
+    <div id="root"></div>
+    <!-- Pointer Dot Element -->
+    <div id="pointer-dot"></div>
+
+    <script type="module">
+        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-15 ---
+        console.log("Chat application script started.");
+
+        // ====================================================================================
+        // IMPORTANT: FIREBASE CONFIGURATION
+        // Your actual Firebase project's configuration, as provided by you.
+        // ====================================================================================
+        // Ensure global Firebase config variables are defined, with fallbacks
+        window.__firebase_config = window.__firebase_config || JSON.stringify({
+            apiKey: "AIzaSyAanqUBydalRrZhHeAesq9kvsoVow-ApU0",
+            authDomain: "chatv1-5432a.firebaseapp.com",
+            projectId: "chatv1-5432a",
+            storageBucket: "chatv1-5432a.firebasestorage.app",
+            messagingSenderId: "131388808210",
+            appId: "1:131388808210:web:7c71c7bc57fcbba1c40ccb",
+            measurementId: "G-THYHQJS7B9"
+        });
+        window.__app_id = window.__app_id || "chatv1-5432a";
+        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        console.log("Firebase config string on load:", window.__firebase_config);
+        let parsedFirebaseConfig = {}; // Initialize to an empty object
+        try {
+            parsedFirebaseConfig = JSON.parse(window.__firebase_config);
+            console.log("Parsed Firebase config object:", parsedFirebaseConfig);
+        } catch (e) {
+            console.error("Error parsing Firebase config JSON at global scope:", e);
+            // parsedFirebaseConfig remains {} if parsing fails
+        }
+
+        // ====================================================================================
+        // IMPORTANT: FIREBASE AUTHENTICATION AND FIRESTORE RULES
+        // To resolve "auth/configuration-not-found" errors (Authentication setup issue)
+        // and "Missing or insufficient permissions" (Firestore rules issues):
+        //
+        // 1. **CRITICAL: ENABLE ANONYMOUS AUTHENTICATION IN FIREBASE CONSOLE**
+        //    This app now exclusively uses anonymous sign-in. If this method is not enabled,
+        //    Firebase Auth will fail to initialize.
+        //    Steps:
+        //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
+        //    b. Select your project ("chatv1-5432a").
+        //    c. In the left navigation bar, under "Build", click on "Authentication".
+        //    d. Go to the "Sign-in method" tab.
+        //    e. Find "Anonymous" in the list and click the pencil icon to enable it.
+        //    f. Toggle the "Enable" button to ON.
+        //    g. Click "Save".
+        //
+        // 2. **SET UP FIRESTORE SECURITY RULES**
+        //    Steps:
+        //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
+        //    b. Select your project ("chatv1-5432a").
+        //    c. In the left navigation bar, under "Build", click on "Firestore Database".
+        //    d. Go to the "Rules" tab.
+        //    e. **REPLACE** the existing rules with the following, then click "Publish":
+        //
+        //    rules_version = '2';
+        //    service cloud.firestore {
+        //      match /databases/{database}/documents {
+        //        // Rules for chat messages within specific chat tabs
+        //        // {chatName} will be 'main', 'games', or 'memes'
+        //        match /artifacts/{appId}/public/data/chats/{chatName}/messages/{document=**} {
+        //          allow read, write: if request.auth != null; // Allows any authenticated user
+        //        }
+        //
+        //        // Rules for banned users within specific chat tabs
+        //        match /artifacts/{appId}/public/data/chats/{chatName}/banned_users/{userId} {
+        //          allow read: if request.auth != null; // Any authenticated user can read the banned list
+        //          allow create, delete: if request.auth != null;
+        //        }
+        //
+        //        // Rules for video call signaling data in 'call_rooms' collection
+        //        // {chatName} refers to the active chat tab being used for call rooms
+        //        // {roomId} is the unique ID for each active call room
+        //        match /artifacts/{appId}/public/data/chat_tabs_calls/{chatName}/call_rooms/{roomId} {
+        //          allow create: if request.auth != null; // Any authenticated user can create a new call room
+        //          allow read, write: if request.auth != null; // Any authenticated user can read/write to a room
+        //          // Only the original caller of the room can delete it
+        //          allow delete: if request.auth != null && resource.data.callerId == request.auth.uid;
+        //        }
+        //      }
+        //    }
+        //    Remember to click "Publish" after making changes to your rules.
+        //
+        // NOTE: Firebase Storage rules are no longer needed as file upload functionality has been removed.
+        // ====================================================================================
+
+
+        // Import Firebase modules from CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc, getDoc, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+
+        // Error Boundary Component to catch rendering errors
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null, errorInfo: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                // Update state so the next render will show the fallback UI.
+                return { hasError: true, error: error };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                // You can also log the error to an error reporting service
+                console.error("Uncaught error in component:", error, errorInfo);
+                this.setState({ errorInfo: errorInfo });
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    // You can render any custom fallback UI
+                    return React.createElement(
+                        "div",
+                        { className: "flex flex-col items-center justify-center h-screen bg-red-100 text-red-800 p-4 rounded-lg shadow-lg" },
+                        React.createElement("h1", { className: "text-3xl font-bold mb-4" }, "Oops! Something went wrong."),
+                        React.createElement("p", { className: "text-lg mb-2" }, "The chat application encountered an error."),
+                        React.createElement("p", { className: "font-mono text-sm break-all mb-4" }, this.state.error && this.state.error.toString()),
+                        React.createElement(
+                            "div",
+                            { className: "text-left bg-red-200 p-3 rounded-md w-full max-w-md overflow-auto text-xs" },
+                            React.createElement("h2", { className: "font-semibold mb-2" }, "Error Details:"),
+                            React.createElement("pre", null, this.state.errorInfo ? this.state.errorInfo.componentStack : "No component stack available.")
+                        ),
+                        React.createElement("p", { className: "mt-4" }, "Please check the browser console (F12) for more details.")
+                    );
+                }
+
+                return this.props.children;
+            }
+        }
+
+
+        // Main App component for the chat application (inlined)
+        function App() {
+            console.log("App component started rendering.");
+            // State variables
+            const [db, setDb] = React.useState(null);
+            const [auth, setAuth] = React.useState(null);
+            const [userId, setUserId] = React.useState(null);
+            const [messages, setMessages] = React.useState([]);
+            const [newMessage, setNewMessage] = React.useState('');
+            const [isAuthReady, setIsAuthReady] = React.useState(false); // To track if authentication is ready
+            const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
+            const [nameInput, setNameInput] = React.useState('');
+            const [isAdmin, setIsAdmin] = React.useState(userName === 'admin' || userName?.toLowerCase() === 'greg' || userName?.toLowerCase() === 'gregory'); // Track admin status
+            const [showAdminPasswordScreen, setShowAdminPasswordScreen] = React.useState(false);
+            const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
+            const [showUnbanPage, setShowUnbanPage] = React.useState(false); // State for unban page visibility
+            const [activeChatTab, setActiveChatTab] = React.useState(localStorage.getItem('activeChatTab') || null);
+            const [showAdminCallManagement, setShowAdminCallManagement] = React.useState(false);
+            const [allActiveCallsForAdmin, setAllActiveCallsForAdmin] = React.useState([]);
+            const [pendingAdminUserType, setPendingAdminUserType] = React.useState(null);
+
+            const [isLoading, setIsLoading] = React.useState(true); // Loading state
+
+            // Video call states
+            const [localStream, setLocalStream] = React.useState(null);
+            const [remoteStream, setRemoteStream] = React.useState(null);
+            const [peerConnection, setPeerConnection] = React.useState(null);
+            const [inCall, setInCall] = React.useState(false); // True if a call is active (connecting or connected)
+            const [callInitiated, setCallInitiated] = React.useState(false); // True if *this user* initiated the call
+            const [callOfferReceived, setCallOfferReceived] = React.useState(false); // True if an offer is waiting to be answered
+            const [isVideoEnabled, setIsVideoEnabled] = React.useState(true); // State for video toggle
+
+            // State for call rooms in the waiting area
+            const [activeCallRooms, setActiveCallRooms] = React.useState([]);
+            const [currentRoomId, setCurrentRoomId] = React.useState(null); // The ID of the room the user is currently in
+            const [customRoomId, setCustomRoomId] = React.useState(''); // State for user-defined room ID
+
+            // Helper function to build correct Firestore path for call rooms collection
+            const getChatTabCallRoomsCollectionPath = React.useCallback((appId, chatName) => {
+                // Returns a string path for the 'call_rooms' collection within a specific chat tab.
+                // Example: artifacts/chatv1-5432a/public/data/chat_tabs_calls/main/call_rooms
+                return `artifacts/${appId}/public/data/chat_tabs_calls/${chatName}/call_rooms`;
+            }, []);
+
+
+            // Initialize Firebase and handle authentication
+            React.useEffect(() => {
+                console.log("useEffect: Firebase initialization and auth setup. Starting...");
+                try {
+                    // Ensure parsedFirebaseConfig and its apiKey are valid before proceeding
+                    if (!parsedFirebaseConfig || !parsedFirebaseConfig.apiKey) {
+                        console.error("Firebase config is missing or invalid (no API key). Cannot initialize Firebase.");
+                        setIsLoading(false);
+                        return; // Exit early if config is bad
+                    }
+
+                    const app = initializeApp(parsedFirebaseConfig);
+                    console.log("Firebase app initialized.");
+                    const firestoreDb = getFirestore(app);
+                    const firebaseAuth = getAuth(app);
+
+                    setDb(firestoreDb);
+                    setAuth(firebaseAuth);
+                    console.log("Firestore DB and Auth instances set in state.");
+
+                    signInAnonymously(firebaseAuth)
+                        .then((userCredential) => {
+                            console.log("Signed in anonymously:", userCredential.user.uid);
+                        })
+                        .catch(error => {
+                            console.error("Error signing in anonymously:", error);
+                            setIsLoading(false); // Ensure loading state is cleared on auth error
+                            // IMPORTANT: If anonymous sign-in fails, the app might not function.
+                            // Consider displaying a user-friendly error message here.
+                        });
+
+                    const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
+                        if (user) {
+                            setUserId(user.uid);
+                            const storedUserName = localStorage.getItem('chatUserName');
+                            setIsAdmin(storedUserName === 'admin' || storedUserName?.toLowerCase() === 'greg' || storedUserName?.toLowerCase() === 'gregory');
+                            console.log("Auth state changed: User ID set to", user.uid);
+                        } else {
+                            // Fallback for anonymous or unauthenticated.
+                            // If signInAnonymously failed, user might be null here.
+                            // crypto.randomUUID() is a good fallback for userId.
+                            setUserId(crypto.randomUUID());
+                            setIsAdmin(false);
+                            console.log("Auth state changed: User is null, User ID set to random UUID.");
+                        }
+                        setIsAuthReady(true);
+                        setIsLoading(false); // Clear loading state once auth is checked
+                        console.log("Auth state changed: isAuthReady set to true, isLoading set to false.");
+                    });
+
+                    return () => {
+                        console.log("Cleaning up auth listener.");
+                        unsubscribeAuth();
+                    };
+                } catch (error) {
+                    console.error("Caught error during Firebase initialization or auth setup:", error.name, error.message, error.stack);
+                    setIsLoading(false); // Clear loading state on initialization error
+                    // Display a more prominent error if Firebase init itself fails
+                    // This error will be caught by ErrorBoundary if it's a React render error
+                    // but if it's a direct script error, it might just crash.
+                }
+            }, []);
+
+            // Set up real-time listener for messages from Firestore (depends on activeChatTab)
+            React.useEffect(() => {
+                console.log("useEffect: Message listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
+                if (db && isAuthReady && activeChatTab) {
+                    const chatCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`);
+                    const q = query(chatCollectionRef);
+
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        let fetchedMessages = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        // Filter out messages from banned users, but allow system messages
+                        fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId) || msg.type === 'system_message');
+                        fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+                        setMessages(fetchedMessages);
+                    }, (error) => {
+                        console.error("Error fetching messages:", error);
+                    });
+
+                    return () => unsubscribe();
+                } else {
+                    setMessages([]);
+                }
+            }, [db, isAuthReady, bannedUsers, activeChatTab]);
+
+            // Set up real-time listener for banned users from Firestore (depends on activeChatTab)
+            React.useEffect(() => {
+                console.log("useEffect: Banned users listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
+                if (db && isAuthReady && activeChatTab) {
+                    const bannedUsersCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`);
+                    const q = query(bannedUsersCollectionRef);
+
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        const fetchedBannedUsers = snapshot.docs.map(doc => doc.id);
+                        setBannedUsers(fetchedBannedUsers);
+                        console.log("Fetched Banned Users:", fetchedBannedUsers);
+                    }, (error) => {
+                        console.error("Error fetching banned users:", error);
+                    });
+
+                    return () => unsubscribe();
+                } else {
+                    setBannedUsers([]);
+                }
+            }, [db, isAuthReady, activeChatTab]);
+
+            // Effect for listening to active call rooms in the current chat tab (for regular users)
+            React.useEffect(() => {
+                console.log("useEffect: Active call rooms listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
+                if (!db || !isAuthReady || !activeChatTab) {
+                    setActiveCallRooms([]);
+                    return;
+                }
+                // If admin is in manage calls view, activeCallRooms for current tab doesn't apply
+                if (isAdmin && showAdminCallManagement) {
+                     setActiveCallRooms([]); // Clear if admin is in manage calls view
+                     return;
+                }
+
+                const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                const callRoomsCollectionRef = collection(db, callRoomsCollectionPath);
+                const q = query(callRoomsCollectionRef);
+
+                const unsubscribeCallRooms = onSnapshot(q, (snapshot) => {
+                    const fetchedRooms = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        chatTab: activeChatTab, // Add chatTab info
+                        ...doc.data()
+                    }));
+                    setActiveCallRooms(fetchedRooms);
+                    console.log(`Fetched Active Call Rooms for ${activeChatTab} tab:`, fetchedRooms);
+
+                    const incomingOffer = fetchedRooms.find(room =>
+                        room.offer && !room.answer && room.callerId !== userId && !room.answererId && !inCall
+                    );
+                    setCallOfferReceived(!!incomingOffer);
+
+                    if (inCall && currentRoomId) {
+                         const currentRoomStillExists = fetchedRooms.some(room => room.id === currentRoomId);
+                         if (!currentRoomStillExists) {
+                             console.log("Current call room removed by other party. Ending call.");
+                             endCall(false);
+                         }
+                    }
+
+                }, (error) => {
+                    console.error("Error listening to active call rooms:", error);
+                });
+
+                return () => unsubscribeCallRooms();
+            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath, isAdmin, showAdminCallManagement]);
+
+            // Effect for admins to listen to ALL active call rooms across all tabs
+            React.useEffect(() => {
+                console.log("useEffect: Admin all calls listener setup. db:", !!db, "isAuthReady:", isAuthReady, "isAdmin:", isAdmin);
+                if (!db || !isAuthReady || !isAdmin) {
+                    setAllActiveCallsForAdmin([]);
+                    return;
+                }
+
+                const chatTabs = ['main', 'games', 'memes'];
+                const unsubscribes = [];
+                const allCallsAccumulator = {}; // Use an object to easily update/remove by room ID
+
+                chatTabs.forEach(chatTabName => {
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, chatTabName);
+                    const callRoomsCollectionRef = collection(db, callRoomsCollectionPath);
+                    const q = query(callRoomsCollectionRef);
+
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        snapshot.docChanges().forEach(change => {
+                            const roomData = { id: change.doc.id, chatTab: chatTabName, ...change.doc.data() };
+                            if (change.type === "added" || change.type === "modified") {
+                                allCallsAccumulator[roomData.id] = roomData;
+                            }
+                            if (change.type === "removed") {
+                                delete allCallsAccumulator[roomData.id];
+                            }
+                        });
+                        // Convert the object back to an array for state
+                        setAllActiveCallsForAdmin(Object.values(allCallsAccumulator));
+                        console.log("Admin - All Active Call Rooms:", Object.values(allCallsAccumulator));
+                    }, (error) => {
+                        console.error(`Admin: Error listening to calls in ${chatTabName} tab:`, error);
+                    });
+                    unsubscribes.push(unsubscribe);
+                });
+
+                return () => {
+                    unsubscribes.forEach(unsub => unsub());
+                    console.log("Admin - Unsubscribed from all call room listeners.");
+                };
+            }, [db, isAuthReady, isAdmin, getChatTabCallRoomsCollectionPath]);
+
+
+            // Effect for WebRTC signaling via Firestore for the *current* call room
+            React.useEffect(() => {
+                console.log("useEffect: WebRTC signaling listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab, "userId:", userId, "currentRoomId:", currentRoomId);
+                if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
+
+                const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                const callDocRef = doc(db, `${callRoomsCollectionPath}/${currentRoomId}`);
+
+                const unsubscribeCurrentCallSignaling = onSnapshot(callDocRef, async (snapshot) => {
+                    const callData = snapshot.data();
+                    console.log(`[Signaling Listener] Received update for room ${currentRoomId}:`, callData);
+
+                    if (!callData) {
+                        if (inCall) {
+                            console.log("[Signaling Listener] Current call document deleted. Ending call.");
+                            endCall(false);
+                        }
+                        return;
+                    }
+
+                    // Handle answer from Firestore
+                    if (callData.answer && callData.answer.type === 'answer' && peerConnection && peerConnection.remoteDescription?.type !== 'answer' && callData.answererId !== userId) {
+                        console.log("[Signaling Listener] Attempting to set remote description from answer.");
+                        try {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.answer));
+                            setInCall(true); // Confirm call is established
+                            console.log("[Signaling Listener] Call answer received and set.");
+                        } catch (e) {
+                            console.error("[Signaling Listener] Error setting remote description from answer:", e.name, e.message, e.stack);
+                        }
+                    }
+
+                    // Handle ICE candidates from Firestore
+                    if (callData.iceCandidates && peerConnection) {
+                        for (const candidate of callData.iceCandidates) {
+                            // Only add candidates that are not from the current user
+                            // and have not been added before (simple check based on candidate string)
+                            if (candidate.senderId !== userId) {
+                                const iceCandidate = new RTCIceCandidate(candidate.candidate);
+                                // A more robust check for duplicates would involve checking peerConnection.remoteDescription.iceCandidates
+                                // but that property is not standard. For simplicity, we rely on senderId and the browser's
+                                // internal handling of duplicates.
+                                console.log("[Signaling Listener] Adding received ICE candidate:", iceCandidate);
+                                try {
+                                    await peerConnection.addIceCandidate(iceCandidate);
+                                    console.log("[Signaling Listener] Added ICE candidate successfully.");
+                                } catch (e) {
+                                    // Ignore "ice candidate already added" errors
+                                    if (!e.message.includes("candidate already added")) {
+                                        console.warn("[Signaling Listener] Duplicate ICE candidate ignored:", e.message);
+                                    } else {
+                                        console.error("[Signaling Listener] Error adding ICE candidate:", e.name, e.message, e.stack);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }, (error) => {
+                    console.error("[Signaling Listener] Error listening to current call signaling:", error.name, error.message, error.stack);
+                });
+
+                return () => unsubscribeCurrentCallSignaling();
+            }, [db, isAuthReady, activeChatTab, userId, currentRoomId, peerConnection, inCall, getChatTabCallRoomsCollectionPath]);
+
+            // Function to send a new message
+            const sendMessage = async () => {
+                console.log("Attempting to send message.");
+                if (bannedUsers.includes(userId)) {
+                    alert('You are banned from sending messages in this chat.');
+                    setNewMessage('');
+                    return;
+                }
+                if (inCall) { // Disable chat input if in call
+                    alert('Please end the video call to send chat messages.');
+                    return;
+                }
+
+                if (newMessage.trim() === '' || !db || !userId || !activeChatTab) {
+                    console.warn("Message not sent: Missing data.");
+                    return;
+                }
+
+                try {
+                    await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
+                        text: newMessage,
+                        userId: userId,
+                        userName: userName || 'Anonymous',
+                        timestamp: serverTimestamp(),
+                        type: 'user_message' // Explicitly mark as user message
+                    });
+                    setNewMessage('');
+                    console.log("Message sent successfully.");
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                }
+            };
+
+            // Function to create a new call room
+            const createCall = async () => {
+                console.log("Attempting to create call.");
+                if (!db || !isAuthReady || !userId || !activeChatTab) {
+                    console.error("[createCall] Cannot create call: Firebase not ready or tab not selected.");
+                    return;
+                }
+                if (bannedUsers.includes(userId)) {
+                    alert('You are banned from creating calls in this chat.');
+                    return;
+                }
+                if (inCall) {
+                    console.warn("[createCall] Already in a call. Cannot create a new one.");
+                    return;
+                }
+                // Validate customRoomId
+                if (customRoomId.trim() === '') {
+                    alert('Please enter a custom room ID to create a call.');
+                    return;
+                }
+
+                setCallInitiated(true);
+                const newRoomId = customRoomId.trim(); // Use customRoomId
+                setCurrentRoomId(newRoomId);
+                console.log("[createCall] Attempting to get user media. Video Enabled:", isVideoEnabled);
+
+                let stream;
+                let pc;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
+                    console.log("[createCall] Local stream obtained successfully:", stream);
+                    setLocalStream(stream);
+
+                    pc = new RTCPeerConnection({
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                        ]
+                    });
+                    console.log("[createCall] RTCPeerConnection created:", pc);
+                    setPeerConnection(pc);
+
+                    // Add local tracks to peer connection
+                    stream.getTracks().forEach(track => {
+                        pc.addTrack(track, stream);
+                        console.log(`[createCall] Added local ${track.kind} track to peer connection.`);
+                    });
+
+                    pc.ontrack = (event) => {
+                        console.log("[createCall] ontrack event fired:", event);
+                        if (event.streams && event.streams[0]) {
+                            console.log("[createCall] Remote stream received:", event.streams[0]);
+                            setRemoteStream(event.streams[0]);
+                        } else {
+                            console.warn("[createCall] ontrack event fired without streams[0].", event);
+                        }
+                    };
+
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${newRoomId}`);
+
+                    pc.onicecandidate = async (event) => {
+                        if (event.candidate) {
+                            console.log("[createCall] New ICE candidate generated:", event.candidate);
+                            try {
+                                const currentCallDoc = (await getDoc(callDocRef)).data();
+                                const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                await setDoc(callDocRef, {
+                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                }, { merge: true });
+                                console.log("[createCall] Sent ICE candidate to Firestore.");
+                            } catch (e) {
+                                console.error("[createCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                            }
+                        } else {
+                            console.log("[createCall] ICE gathering complete.");
+                        }
+                    };
+
+                    console.log("[createCall] Creating SDP offer...");
+                    const offer = await pc.createOffer();
+                    console.log("[createCall] SDP offer created:", offer);
+                    await pc.setLocalDescription(offer);
+                    console.log("[createCall] Local description set (offer).");
+
+                    setInCall(true);
+
+                    await setDoc(callDocRef, {
+                        offer: offer,
+                        callerId: userId,
+                        callerName: userName || 'Anonymous',
+                        answer: null,
+                        answererId: null,
+                        iceCandidates: [],
+                        createdAt: serverTimestamp(),
+                        isVideoCall: isVideoEnabled
+                    });
+                    console.log(`[createCall] Call room ${newRoomId} created and offer sent to Firestore.`);
+                    setCustomRoomId(''); // Clear custom room ID input after creation
+
+                } catch (error) {
+                    console.error("[createCall] Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to create video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    if (stream) stream.getTracks().forEach(track => track.stop());
+                    if (pc) pc.close();
+                    setLocalStream(null);
+                    setRemoteStream(null);
+                    setPeerConnection(null);
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCurrentRoomId(null);
+                    if (db && activeChatTab && newRoomId) {
+                        try {
+                            const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                            await deleteDoc(doc(db, `${callRoomsCollectionPath}/${newRoomId}`));
+                            console.log("[createCall] Cleaned up failed call document.");
+                        } catch (e) {
+                            console.error("[createCall] Error cleaning up failed call document:", e);
+                        }
+                    }
+                }
+            };
+
+            // Function to join an existing call room
+            const joinCall = async (roomId, offerData) => {
+                console.log("Attempting to join call.");
+                if (!db || !isAuthReady || !userId || !activeChatTab) {
+                    console.error("[joinCall] Cannot join call: Firebase not ready or tab not selected.");
+                    return;
+                }
+                if (bannedUsers.includes(userId)) {
+                    alert('You are banned from joining calls in this chat.');
+                    return;
+                }
+                if (inCall) {
+                    console.warn("[joinCall] Already in a call. Cannot join another.");
+                    return;
+                }
+
+                setCurrentRoomId(roomId);
+                setInCall(true);
+                console.log(`[joinCall] Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
+
+                let stream;
+                let pc;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled, audio: true });
+                    console.log("[joinCall] Local stream obtained for joining call:", stream);
+                    setLocalStream(stream);
+
+                    pc = new RTCPeerConnection({
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                        ]
+                    });
+                    console.log("[joinCall] RTCPeerConnection created for joining:", pc);
+                    setPeerConnection(pc);
+
+                    stream.getTracks().forEach(track => {
+                        pc.addTrack(track, stream);
+                        console.log(`[joinCall] Added local ${track.kind} track to peer connection for joining.`);
+                    });
+
+                    pc.ontrack = (event) => {
+                        console.log("[joinCall] ontrack event fired:", event);
+                        if (event.streams && event.streams[0]) {
+                            console.log("[joinCall] Remote stream received:", event.streams[0]);
+                            setRemoteStream(event.streams[0]);
+                        } else {
+                            console.warn("[joinCall] ontrack event fired without streams[0].", event);
+                        }
+                    };
+
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
+                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${roomId}`);
+
+                    pc.onicecandidate = async (event) => {
+                        if (event.candidate) {
+                            console.log("[joinCall] New ICE candidate generated:", event.candidate);
+                            try {
+                                const currentCallDoc = (await getDoc(callDocRef)).data();
+                                const currentCandidates = currentCallDoc?.iceCandidates || [];
+                                await setDoc(callDocRef, {
+                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
+                                }, { merge: true });
+                                console.log("[joinCall] Sent ICE candidate to Firestore.");
+                            } catch (e) {
+                                console.error("[joinCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
+                            }
+                        } else {
+                            console.log("[joinCall] ICE gathering complete.");
+                        }
+                    };
+
+                    console.log("[joinCall] Setting remote description from offer received from room data.");
+                    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+                    console.log("[joinCall] Remote description set from offer.");
+
+                    console.log("[joinCall] Creating SDP answer...");
+                    const answer = await pc.createAnswer();
+                    console.log("[joinCall] SDP answer created:", answer);
+                    await pc.setLocalDescription(answer);
+                    console.log("[joinCall] Local description set (answer).");
+
+                    await setDoc(callDocRef, {
+                        answer: answer,
+                        answererId: userId,
+                        answererName: userName || 'Anonymous'
+                    }, { merge: true });
+                    console.log("[joinCall] Call answer sent to Firestore.");
+
+                    if (offerData.iceCandidates) {
+                        console.log("[joinCall] Adding pre-existing ICE candidates from offerer.");
+                        for (const candidate of offerData.iceCandidates) {
+                            if (candidate.senderId !== userId) {
+                                try {
+                                    await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+                                    console.log("[joinCall] Added pre-existing ICE candidate during answer.");
+                                } catch (e) {
+                                    console.error("[joinCall] Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
+                                }
+                            }
+                        }
+                    }
+
+                } catch (error) {
+                    console.error("[joinCall] Error during call process:", error.name, error.message, error.stack);
+                    alert(`Failed to join video call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
+                    if (stream) stream.getTracks().forEach(track => track.stop());
+                    if (pc) pc.close();
+                    setLocalStream(null);
+                    setRemoteStream(null);
+                    setPeerConnection(null);
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCurrentRoomId(null);
+                }
+            };
+
+            // Function to end the current call
+            const endCall = async (localUserInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Renamed parameter for clarity
+                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
+
+                // Stop local and remote media tracks
+                if (localStream) {
+                    localStream.getTracks().forEach(track => {
+                        console.log(`[endCall] Stopping local track: ${track.kind} (id: ${track.id})`);
+                        track.stop();
+                    });
+                    setLocalStream(null);
+                }
+                if (remoteStream) {
+                    remoteStream.getTracks().forEach(track => {
+                        console.log(`[endCall] Stopping remote track: ${track.kind} (id: ${track.id})`);
+                        track.stop();
+                    });
+                    setRemoteStream(null);
+                }
+                // Close peer connection
+                if (peerConnection) {
+                    console.log("[endCall] Closing peer connection.");
+                    peerConnection.close();
+                    setPeerConnection(null);
+                }
+
+                // Only reset in-call states if this endCall is for the currently active call
+                // This prevents resetting the main UI if an admin kills a call they aren't in.
+                if (!forceRoomId || forceRoomId === currentRoomId) {
+                    setInCall(false);
+                    setCallInitiated(false);
+                    setCallOfferReceived(false);
+                    setIsVideoEnabled(true);
+                    setCurrentRoomId(null);
+                }
+
+                const targetRoomId = forceRoomId || currentRoomId;
+                const targetChatTab = forceChatTab || activeChatTab;
+
+                // Logic for deleting the Firestore document
+                if (db && targetChatTab && userId && targetRoomId) {
+                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, targetChatTab);
+                    const roomRef = doc(db, `${callRoomsCollectionPath}/${targetRoomId}`);
+
+                    // Admin always has permission to delete any call
+                    if (isAdmin) {
+                        console.log(`[endCall] Admin ${userId} is force-ending call for room ${targetRoomId} in tab ${targetChatTab}.`);
+                        try {
+                            await deleteDoc(roomRef);
+                            console.log("[endCall] Call document deleted by admin.");
+                        } catch (e) {
+                            console.error("[endCall] Admin: Error deleting call document:", e.name, e.message, e.stack);
+                            // Only alert if it's a real error, not just doc not found (e.g., if another admin already killed it)
+                            if (!e.message.includes("document does not exist")) {
+                                 alert(`Admin: Failed to delete call room ${targetRoomId}. Check console for details.`);
+                            }
+                        }
+                    } else if (localUserInitiatedEnd) {
+                        // A non-admin user who initiated the end of *their own* call should delete the document.
+                        // This ensures that when a regular user clicks 'End Call', the room is removed for everyone.
+                        console.log(`[endCall] User ${userId} is ending their call for room ${targetRoomId} in tab ${targetChatTab}. Deleting document.`);
+                        try {
+                            await deleteDoc(roomRef);
+                            console.log("[endCall] Call document deleted by local user.");
+                        } catch (e) {
+                            console.error("[endCall] Local User: Error deleting call document:", e.name, e.message, e.stack);
+                            alert(`Failed to delete call room ${targetRoomId}. Check console for details.`);
+                        }
+                    } else {
+                        console.log("[endCall] Not an admin, and not a local user initiated end. Not deleting Firestore document.");
+                    }
+                }
+                console.log("[endCall] Call ended successfully locally.");
+            };
+
+
+            // Function to delete a message (only for admin)
+            const deleteMessage = async (messageId, senderUserId, senderUserName) => { // Added senderUserName
+                console.log("Attempting to delete message.");
+                if (!db || !isAdmin || !activeChatTab) {
+                    console.warn("Permission denied: Only admin can delete messages.");
+                    return;
+                }
+                try {
+                    const messageRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`, messageId);
+                    await deleteDoc(messageRef);
+                    console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
+
+                    // Add system message for banned user
+                    if (senderUserId) { // Ensure senderUserId is provided for banning
+                        await banUser(senderUserId, senderUserName); // Pass senderUserName
+                    }
+
+                } catch (error) {
+                    console.error("Error deleting message:", error);
+                }
+            };
+
+            // Function to ban a user (only for admin)
+            const banUser = async (targetUserId, targetUserName) => { // Added targetUserName
+                console.log("Attempting to ban user.");
+                if (!db || !isAdmin || !activeChatTab) {
+                    console.warn("Permission denied: Only admin can ban users.");
+                    return;
+                }
+                if (targetUserId === userId) {
+                    alert("You cannot ban yourself.");
+                    return;
+                }
+                try {
+                    const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`, targetUserId);
+                    await setDoc(bannedUserRef, { bannedAt: serverTimestamp() });
+                    alert(`User ${targetUserName || targetUserId} has been banned from ${activeChatTab} chat.`);
+                    console.log(`User ${targetUserName || targetUserId} banned successfully from ${activeChatTab} chat.`);
+
+                    // Add a system message to the chat when a user is banned
+                    await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
+                        text: `${targetUserName || targetUserId} was removed.`,
+                        userId: 'system', // Special ID for system messages
+                        userName: 'System',
+                        timestamp: serverTimestamp(),
+                        type: 'system_message' // Custom type for system messages
+                    });
+
+                } catch (error) {
+                    console.error("Error banning user:", error);
+                }
+            };
+
+            // Function to unban a user (only for admin)
+            const unbanUser = async (targetUserId) => {
+                console.log("Attempting to unban user.");
+                if (!db || !isAdmin || !activeChatTab) {
+                    console.warn("Permission denied: Only admin can unban users.");
+                    return;
+                }
+                try {
+                    const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`, targetUserId);
+                    await deleteDoc(bannedUserRef);
+                    alert(`User ${targetUserId} has been unbanned from ${activeChatTab} chat.`);
+                    console.log(`User ${targetUserId} unbanned successfully from ${activeChatTab} chat.`);
+                } catch (error) {
+                    console.error("Error unbanning user:", error);
+                }
+            };
+
+            // Handle key press for all input stages
+            const handleKeyPress = (e) => {
+                console.log("Key pressed:", e.key);
+                if (e.key === 'Enter') {
+                    if (!activeChatTab) {
+                        console.log("Please select a chat tab.");
+                    } else if (!userName) {
+                        setChatUserName();
+                    } else if (showAdminPasswordScreen) {
+                        handleAdminPassword();
+                    } else if (!inCall) { // Only send message if not in call
+                        sendMessage();
+                    }
+                }
+            };
+
+            // Function to handle initial name setting or admin first attempt
+            const setChatUserName = () => {
+                console.log("Setting chat username.");
+                const lowerCaseNameInput = nameInput.trim().toLowerCase();
+                if (lowerCaseNameInput === 'admin') {
+                    setPendingAdminUserType('admin'); // Indicate admin password is pending
+                    setShowAdminPasswordScreen(true);
+                    setNameInput(''); // Clear input for password
+                } else if (lowerCaseNameInput === 'greg' || lowerCaseNameInput === 'gregory') {
+                    setPendingAdminUserType('greg'); // Indicate greg/gregory password is pending
+                    setUserName(nameInput.trim()); // Temporarily set userName for display in password screen
+                    setShowAdminPasswordScreen(true);
+                    setNameInput(''); // Clear input for password
+                } else if (nameInput.trim() !== '') {
+                    setUserName(nameInput.trim());
+                    localStorage.setItem('chatUserName', nameInput.trim());
+                    setIsAdmin(false);
+                    setShowAdminPasswordScreen(false);
+                }
+            };
+
+            // Function to handle admin password confirmation
+            const handleAdminPassword = () => {
+                console.log("Handling admin password.");
+                const passwordEntered = nameInput.trim();
+                let correctPassword = '';
+                let adminGranted = false;
+
+                if (pendingAdminUserType === 'admin') {
+                    correctPassword = '69$@';
+                    if (passwordEntered === correctPassword) {
+                        setUserName('admin'); // Ensure username is set to 'admin'
+                        localStorage.setItem('chatUserName', 'admin');
+                        adminGranted = true;
+                    }
+                } else if (pendingAdminUserType === 'greg') {
+                    correctPassword = 'hiimgreg';
+                    if (passwordEntered === correctPassword) {
+                        // userName is already set to 'greg' or 'gregory' from setChatUserName
+                        localStorage.setItem('chatUserName', userName); // Ensure it's saved with correct casing
+                        adminGranted = true;
+                    }
+                }
+
+                if (adminGranted) {
+                    setIsAdmin(true);
+                    setShowAdminPasswordScreen(false);
+                    setPendingAdminUserType(null); // Clear pending state
+                    setNameInput(''); // Clear password input
+                    alert('Admin access granted!');
+                } else {
+                    // Reset everything if password is wrong
+                    setUserName('');
+                    localStorage.removeItem('chatUserName');
+                    setIsAdmin(false);
+                    setShowAdminPasswordScreen(false);
+                    setPendingAdminUserType(null); // Clear pending state
+                    setNameInput(''); // Clear password input
+                    alert('Incorrect password. Please enter your name again to start chatting or re-attempt admin login.');
+                }
+            };
+
+            // Helper to set active chat tab and store in localStorage
+            const selectChatTab = (tabName) => {
+                console.log("Selecting chat tab:", tabName);
+                setActiveChatTab(tabName);
+                localStorage.setItem('activeChatTab', tabName);
+                setMessages([]);
+                setBannedUsers([]);
+                if (inCall) endCall(true); // End any active call if changing tabs
+            };
+
+
+            // Render loading screen if Firebase is not yet initialized
+            if (isLoading) {
+                console.log("Rendering loading screen.");
+                return React.createElement(
+                    "div",
+                    { className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter" },
+                    React.createElement("p", { className: "text-lg text-gray-700" }, "Loading chat...")
+                );
+            }
+
+            if (!activeChatTab) {
+                console.log("Rendering chat tab selection screen.");
+                return React.createElement(
+                    "div",
+                    { className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter p-4" },
+                    React.createElement("h2", { className: "text-2xl font-bold text-gray-800 mb-6" }, "Select a Chat Room"),
+                    React.createElement(
+                        "div",
+                        { className: "flex flex-col space-y-4 w-full max-w-xs" },
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => selectChatTab('main'),
+                                className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'main' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                            },
+                            "Main Chat"
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => selectChatTab('games'),
+                                className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'games' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                            },
+                            "Games Chat"
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => selectChatTab('memes'),
+                                className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'memes' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                            },
+                            "Memes Chat"
+                        )
+                    )
+                );
+            }
+            else if (!userName || showAdminPasswordScreen) {
+                console.log("Rendering name/password screen. userName:", userName, "showAdminPasswordScreen:", showAdminPasswordScreen);
+                return React.createElement(
+                    "div",
+                    { className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter p-4" },
+                    React.createElement(
+                        "h2",
+                        { className: "text-2xl font-bold text-gray-800 mb-6" },
+                        showAdminPasswordScreen ? `Enter Password for ${userName || 'Admin'}` : `Welcome to the ${activeChatTab} Chat!`
+                    ),
+                    React.createElement(
+                        "p",
+                        { className: "text-gray-600 mb-4" },
+                        showAdminPasswordScreen ? "Please enter the password to confirm administrator privileges." : "Please enter your name to start chatting."
+                    ),
+                    React.createElement("input", {
+                        type: "password",
+                        value: nameInput,
+                        onChange: e => setNameInput(e.target.value),
+                        onKeyPress: handleKeyPress,
+                        placeholder: "Password",
+                        className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
+                    }),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: showAdminPasswordScreen ? handleAdminPassword : setChatUserName,
+                            className: "px-8 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                        },
+                        showAdminPasswordScreen ? "Confirm Password" : "Start Chatting"
+                    )
+                );
+            }
+
+            if (showUnbanPage) {
+                console.log("Rendering unban page.");
+                return React.createElement(
+                    "div",
+                    { className: "modal-overlay" },
+                    React.createElement(
+                        "div",
+                        { className: "modal-content" },
+                        React.createElement(
+                            "h2",
+                            { className: "text-2xl font-bold text-gray-800 mb-6 text-center" },
+                            "Banned Users in ", activeChatTab, " Chat"
+                        ),
+                        bannedUsers.length === 0 ? (
+                            React.createElement("p", { className: "text-center text-gray-500" }, "No users currently banned in this chat.")
+                        ) : (
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3" },
+                                bannedUsers.map(bannedId => (
+                                    React.createElement(
+                                        "li",
+                                        {
+                                            key: bannedId,
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm"
+                                        },
+                                        React.createElement("span", { className: "font-medium text-gray-700 break-all" }, bannedId),
+                                        React.createElement(
+                                            "button",
+                                            {
+                                                onClick: () => unbanUser(bannedId),
+                                                className: "ml-4 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition duration-200"
+                                            },
+                                            "Unban"
+                                        )
+                                    )
+                                ))
+                            )
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowUnbanPage(false),
+                                className: "mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 w-full"
+                            },
+                            "Back to Chat"
+                        )
+                    )
+                );
+            }
+
+            // Admin Call Management Modal
+            if (isAdmin && showAdminCallManagement) {
+                console.log("Rendering admin call management modal.");
+                return React.createElement(
+                    "div",
+                    { className: "modal-overlay" },
+                    React.createElement(
+                        "div",
+                        { className: "modal-content w-full md:max-w-xl lg:max-w-2xl" },
+                        React.createElement(
+                            "h2",
+                            { className: "text-2xl font-bold text-gray-800 mb-6 text-center" },
+                            "Manage Active Calls (Admin)"
+                        ),
+                        allActiveCallsForAdmin.length === 0 ? (
+                            React.createElement("p", { className: "text-center text-gray-500" }, "No active calls across all chats.")
+                        ) : (
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3" },
+                                allActiveCallsForAdmin.map(room => (
+                                    React.createElement(
+                                        "li",
+                                        {
+                                            key: `${room.chatTab}-${room.id}`,
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm flex-wrap gap-2"
+                                        },
+                                        React.createElement(
+                                            "div",
+                                            { className: "flex-1 min-w-[200px]" },
+                                            React.createElement(
+                                                "p",
+                                                { className: "font-medium text-gray-700" },
+                                                "Tab: ", room.chatTab, " | ID: ", room.id.substring(0, 8), "...",
+                                                room.isVideoCall ? ' (Video Call)' : ' (Audio Call)'
+                                            ),
+                                            React.createElement(
+                                                "p",
+                                                { className: "text-sm text-gray-600" },
+                                                "Caller: ", room.callerName || 'Unknown', " (", room.callerId ? room.callerId.substring(0, 8) + '...' : 'N/A', ")"
+                                            )
+                                        ),
+                                        React.createElement(
+                                            "div",
+                                            { className: "flex space-x-2" },
+                                            React.createElement(
+                                                "button",
+                                                {
+                                                    onClick: () => endCall(false, room.id, room.chatTab),
+                                                    className: "px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition duration-200"
+                                                },
+                                                "Kill Call"
+                                            )
+                                        )
+                                    )
+                                ))
+                            )
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowAdminCallManagement(false),
+                                className: "mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 w-full"
+                            },
+                            "Back to Chat"
+                        )
+                    )
+                );
+            }
+
+
+            return React.createElement(
+                "div",
+                { className: "flex flex-col h-screen antialiased bg-gray-100 text-gray-900 font-inter w-full" },
+                React.createElement(
+                    "div",
+                    { className: "flex justify-around bg-white p-3 rounded-t-lg shadow-md mb-4" },
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: () => selectChatTab('main'),
+                            className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'main' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                        },
+                        "Main Chat"
+                    ),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: () => selectChatTab('games'),
+                            className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'games' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                        },
+                        "Games Chat"
+                    ),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: () => selectChatTab('memes'),
+                            className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'memes' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                        },
+                        "Memes Chat"
+                    )
+                ),
+                userId && (
+                    React.createElement(
+                        "div",
+                        { className: "bg-blue-500 text-white p-3 rounded-t-lg shadow-md mb-4 text-center" },
+                        React.createElement("span", { className: "font-semibold" }, "Your User ID: "),
+                        React.createElement("span", { className: "break-all" }, userId),
+                        React.createElement("span", { className: "ml-4 font-semibold" }, " | Your Name: "),
+                        React.createElement("span", { className: "font-semibold" }, userName),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => {
+                                    setUserName('');
+                                    localStorage.removeItem('chatUserName');
+                                    localStorage.removeItem('activeChatTab');
+                                    setIsAdmin(false);
+                                    setNewMessage('');
+                                    setMessages([]);
+                                    setShowAdminPasswordScreen(false);
+                                    setShowUnbanPage(false);
+                                    setActiveChatTab(null);
+                                    if (inCall) endCall(true);
+                                },
+                                className: "ml-4 px-3 py-1 bg-blue-700 text-white text-xs rounded-full hover:bg-blue-800 transition duration-200"
+                            },
+                            "Change Name / Tab"
+                        )
+                    )
+                ),
+
+                inCall ? (
+                    React.createElement(
+                        "div",
+                        { className: "flex-1 flex flex-col items-center justify-center bg-gray-900 p-4 rounded-lg shadow-md" },
+                        React.createElement(
+                            "div",
+                            { className: "video-container" },
+                            /* Show local video only if video is enabled */
+                            isVideoEnabled && (
+                                React.createElement("video", {
+                                    ref: (videoElement) => {
+                                        if (videoElement && localStream) videoElement.srcObject = localStream;
+                                    },
+                                    autoPlay: true,
+                                    muted: true,
+                                    className: `w-full max-h-[30vh] object-contain rounded-lg`
+                                })
+                            ),
+                            React.createElement("video", {
+                                ref: (videoElement) => {
+                                    if (videoElement && remoteStream) videoElement.srcObject = remoteStream;
+                                },
+                                autoPlay: true,
+                                className: `w-full max-h-[50vh] object-contain rounded-lg`
+                            }),
+                            React.createElement(
+                                "div",
+                                { className: "video-controls" },
+                                React.createElement(
+                                    "button",
+                                    {
+                                        onClick: () => endCall(true),
+                                        className: "bg-red-600 text-white hover:bg-red-700"
+                                    },
+                                    "End Call"
+                                )
+                            )
+                        ),
+                        React.createElement(
+                            "p",
+                            { className: "text-white mt-4" },
+                            callInitiated ? "Waiting for someone to join..." : "In a call."
+                        )
+                    )
+                ) : (
+                    React.createElement(
+                        "div",
+                        { className: "flex-1 bg-white rounded-lg shadow-md p-4 overflow-y-auto mb-4 custom-scrollbar" },
+                        React.createElement(
+                            "h3",
+                            { className: "text-xl font-bold text-gray-800 mb-4" },
+                            "Active Calls in ", activeChatTab, " Chat:"
+                        ),
+                        activeCallRooms.length === 0 ? (
+                            React.createElement(
+                                "p",
+                                { className: "text-center text-gray-500 mb-4" },
+                                "No active calls. Be the first to create one!"
+                            )
+                        ) : (
+                            React.createElement(
+                                "ul",
+                                { className: "space-y-3 mb-6" },
+                                activeCallRooms.map(room => {
+                                    const isRoomFull = room.answererId !== null;
+                                    const isMyCall = room.callerId === userId;
+                                    const statusText = isRoomFull ? `In Progress (${room.callerName} & ${room.answererName || 'Unknown'})` : `Waiting for Answer (${room.callerName || 'Unknown'})`;
+                                    const joinButtonText = isMyCall ? "My Call (Waiting)" : (isRoomFull ? "Full" : "Join Call");
+
+                                    return React.createElement(
+                                        "li",
+                                        {
+                                            key: room.id,
+                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm"
+                                        },
+                                        React.createElement(
+                                            "div",
+                                            null,
+                                            React.createElement(
+                                                "p",
+                                                { className: "font-medium text-gray-700" },
+                                                "Room ID: ", room.id, " ", room.isVideoCall ? ' (Video Call)' : ' (Audio Call)'
+                                            ),
+                                            React.createElement(
+                                                "p",
+                                                { className: "text-sm text-gray-600" },
+                                                statusText
+                                            )
+                                        ),
+                                        React.createElement(
+                                            "button",
+                                            {
+                                                onClick: () => joinCall(room.id, room.offer),
+                                                className: `ml-4 px-4 py-2 ${isRoomFull || isMyCall ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl transition duration-200`,
+                                                disabled: isRoomFull || isMyCall
+                                            },
+                                            joinButtonText
+                                        )
+                                    );
+                                })
+                            )
+                        ),
+
+                        React.createElement(
+                            "h3",
+                            { className: "text-xl font-bold text-gray-800 mb-4 mt-6" },
+                            "Chat Messages:"
+                        ),
+                        messages.length === 0 ? (
+                            React.createElement(
+                                "div",
+                                { className: "text-center text-gray-500 mt-10" },
+                                "No messages yet. Start the conversation!"
+                            )
+                        ) : (
+                            messages.map(msg => {
+                                const isCurrentUser = msg.userId === userId;
+                                const isSystemMessage = msg.type === 'system_message';
+                                const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col";
+                                let messageBubbleUserClasses = "";
+                                let textColorClass = "";
+
+                                if (isSystemMessage) {
+                                    messageBubbleUserClasses = "bg-gray-300 text-gray-800 text-center self-center";
+                                    textColorClass = "text-gray-800";
+                                } else {
+                                    messageBubbleUserClasses = isCurrentUser
+                                        ? "bg-blue-600 text-white rounded-br-none"
+                                        : "bg-gray-200 text-gray-800 rounded-bl-none";
+                                    textColorClass = isCurrentUser ? "text-white" : "text-gray-600";
+                                }
+
+                                const messageBubbleCombinedClasses = `${messageBubbleBaseClasses} ${messageBubbleUserClasses}`;
+
+                                return React.createElement(
+                                    "div",
+                                    {
+                                        key: msg.id,
+                                        className: `flex mb-3 ${isCurrentUser && !isSystemMessage ? 'justify-end' : 'justify-start'} ${isSystemMessage ? 'w-full justify-center' : ''}`
+                                    },
+                                    React.createElement(
+                                        "div",
+                                        { className: messageBubbleCombinedClasses },
+                                        !isSystemMessage && (
+                                            React.createElement(
+                                                "div",
+                                                { className: "font-bold text-xs mb-1" },
+                                                isCurrentUser ? 'You' : (msg.userName || msg.userId)
+                                            )
+                                        ),
+                                        React.createElement("p", { className: "text-sm" }, msg.text),
+                                        React.createElement(
+                                            "div",
+                                            { className: "flex justify-between items-center mt-1" },
+                                            msg.timestamp && (
+                                                React.createElement(
+                                                    "div",
+                                                    { className: `text-right text-xs opacity-75 ${textColorClass}` },
+                                                    new Date(msg.timestamp.toMillis()).toLocaleTimeString()
+                                                )
+                                            ),
+                                            isAdmin && !isSystemMessage && (
+                                                React.createElement(
+                                                    "div",
+                                                    { className: "flex ml-2" },
+                                                    React.createElement(
+                                                        "button",
+                                                        {
+                                                            onClick: () => deleteMessage(msg.id, msg.userId, msg.userName),
+                                                            className: "px-2 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition duration-200 mr-1"
+                                                        },
+                                                        "Delete"
+                                                    ),
+                                                    React.createElement(
+                                                        "button",
+                                                        {
+                                                            onClick: () => banUser(msg.userId, msg.userName),
+                                                            className: "px-2 py-1 bg-yellow-500 text-white text-xs rounded-full hover:bg-yellow-600 transition duration-200"
+                                                        },
+                                                        "Ban"
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                );
+                            })
+                        )
+                    )
+                ),
+                React.createElement(
+                    "div",
+                    { className: "flex items-center space-x-3 bg-white p-4 rounded-b-lg shadow-md mt-auto" },
+                    !inCall && (
+                        React.createElement(
+                            "div",
+                            { className: "flex flex-col space-y-2 items-center" },
+                            React.createElement("input", {
+                                type: "text",
+                                value: customRoomId,
+                                onChange: e => setCustomRoomId(e.target.value),
+                                placeholder: "Enter Custom Room ID",
+                                className: "p-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-48"
+                            }),
+                            React.createElement(
+                                "button",
+                                {
+                                    onClick: createCall,
+                                    className: "px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                                    disabled: !isAuthReady || bannedUsers.includes(userId) || inCall || callInitiated || customRoomId.trim() === ''
+                                },
+                                callInitiated ? "Creating Call..." : "Create New Call"
+                            ),
+                            React.createElement(
+                                "div",
+                                { className: "flex items-center mt-2" },
+                                React.createElement("input", {
+                                    type: "checkbox",
+                                    id: "video-toggle",
+                                    checked: isVideoEnabled,
+                                    onChange: (e) => {
+                                        setIsVideoEnabled(e.target.checked);
+                                        console.log("Video Enabled:", e.target.checked);
+                                    },
+                                    className: "h-5 w-5 text-green-600 rounded focus:ring-green-500"
+                                }),
+                                React.createElement(
+                                    "label",
+                                    { htmlFor: "video-toggle", className: "ml-2 text-gray-700 font-medium" },
+                                    "Enable Video"
+                                )
+                            )
+                        )
+                    ),
+                    !inCall && (
+                        React.createElement("input", {
+                            type: "text",
+                            value: newMessage,
+                            onChange: e => setNewMessage(e.target.value),
+                            onKeyPress: handleKeyPress,
+                            placeholder: `Type your message in ${activeChatTab} chat...`,
+                            className: "flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 ml-3",
+                            disabled: !isAuthReady || bannedUsers.includes(userId)
+                        })
+                    ),
+                    !inCall && (
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: sendMessage,
+                                className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                                disabled: !isAuthReady || newMessage.trim() === '' || bannedUsers.includes(userId)
+                            },
+                            "Send"
+                        )
+                    ),
+                    isAdmin && (
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowUnbanPage(true),
+                                className: "ml-3 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200"
+                            },
+                            "Unban Users"
+                        )
+                    ),
+                    isAdmin && !inCall && (
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowAdminCallManagement(true),
+                                className: "ml-3 px-6 py-3 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200"
+                            },
+                            "Manage Calls"
+                        )
+                    )
+                )
+            );
+        }
+
+        // Pointer Dot Logic (outside React component for simplicity and direct DOM manipulation)
+        window.addEventListener('mousemove', (e) => {
+            const dot = document.getElementById('pointer-dot');
+            if (dot) {
+                dot.style.left = `${e.clientX}px`;
+                dot.style.top = `${e.clientY}px`;
+            }
+        });
+
+        // For touch devices (to move dot with finger)
+        window.addEventListener('touchmove', (e) => {
+            const dot = document.getElementById('pointer-dot');
+            if (dot && e.touches.length > 0) {
+                dot.style.left = `${e.touches[0].clientX}px`;
+                dot.style.top = `${e.touches[0].clientY}px`;
+            }
+        });
+
+
+        // Ensure React app renders after the DOM is fully loaded
+        window.onload = function() {
+            console.log("window.onload fired. Attempting to render React app.");
+            const rootElement = document.getElementById('root');
+            if (rootElement) {
+                try {
+                    ReactDOM.render(
+                        React.createElement(
+                            ErrorBoundary,
+                            null,
+                            React.createElement(App, null)
+                        ),
+                        rootElement
+                    );
+                    console.log("React app rendering initiated within ErrorBoundary.");
+                } catch (renderError) {
+                    console.error("Caught error during ReactDOM.render:", renderError.name, renderError.message, renderError.stack);
+                    // Fallback UI if ReactDOM.render itself fails
+                    rootElement.innerHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; width: 100vw; background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                            <h1 style="font-size: 1.875rem; font-weight: bold; margin-bottom: 1rem;">Application Failed to Load</h1>
+                            <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">A critical error occurred during startup.</p>
+                            <p style="font-family: monospace; font-size: 0.875rem; word-break: break-all; margin-bottom: 1rem;">${renderError.toString()}</p>
+                            <p style="font-size: 0.875rem;">Please check your browser's developer console (F12) for more details.</p>
+                        </div>
+                    `;
+                }
+            } else {
+                console.error("Root element with ID 'root' not found in the document!");
+            }
+        };
+    </script>
+</body>
+</html>
