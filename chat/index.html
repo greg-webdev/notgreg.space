@@ -223,6 +223,8 @@
             const [showAdminCallManagement, setShowAdminCallManagement] = React.useState(false);
             // NEW: State to store all active calls for admin view
             const [allActiveCallsForAdmin, setAllActiveCallsForAdmin] = React.useState([]);
+            // NEW: State to store which admin-level user is currently trying to log in (admin, greg)
+            const [pendingAdminUserType, setPendingAdminUserType] = React.useState(null);
 
 
             const [isLoading, setIsLoading] = React.useState(true); // Loading state
@@ -271,7 +273,8 @@
                         if (user) {
                             setUserId(user.uid);
                             // Re-evaluate admin status when auth state changes (e.g., after initial login)
-                            setIsAdmin(localStorage.getItem('chatUserName') === 'admin');
+                            const storedUserName = localStorage.getItem('chatUserName');
+                            setIsAdmin(storedUserName === 'admin' || storedUserName?.toLowerCase() === 'greg' || storedUserName?.toLowerCase() === 'gregory');
                         } else {
                             setUserId(crypto.randomUUID());
                             setIsAdmin(false); // Not authenticated, so not admin
@@ -885,9 +888,16 @@
 
             // Function to handle initial name setting or admin first attempt
             const setChatUserName = () => {
-                if (nameInput.trim() === 'admin') {
+                const lowerCaseNameInput = nameInput.trim().toLowerCase();
+                if (lowerCaseNameInput === 'admin') {
+                    setPendingAdminUserType('admin'); // Indicate admin password is pending
                     setShowAdminPasswordScreen(true);
-                    setNameInput('');
+                    setNameInput(''); // Clear input for password
+                } else if (lowerCaseNameInput === 'greg' || lowerCaseNameInput === 'gregory') {
+                    setPendingAdminUserType('greg'); // Indicate greg/gregory password is pending
+                    setUserName(nameInput.trim()); // Temporarily set userName for display in password screen
+                    setShowAdminPasswordScreen(true);
+                    setNameInput(''); // Clear input for password
                 } else if (nameInput.trim() !== '') {
                     setUserName(nameInput.trim());
                     localStorage.setItem('chatUserName', nameInput.trim());
@@ -898,20 +908,40 @@
 
             // Function to handle admin password confirmation
             const handleAdminPassword = () => {
-                const adminPassword = '69$@';
-                if (nameInput.trim() === adminPassword) {
-                    setUserName('admin');
-                    localStorage.setItem('chatUserName', 'admin');
+                const passwordEntered = nameInput.trim();
+                let correctPassword = '';
+                let adminGranted = false;
+
+                if (pendingAdminUserType === 'admin') {
+                    correctPassword = '69$@';
+                    if (passwordEntered === correctPassword) {
+                        setUserName('admin'); // Ensure username is set to 'admin'
+                        localStorage.setItem('chatUserName', 'admin');
+                        adminGranted = true;
+                    }
+                } else if (pendingAdminUserType === 'greg') {
+                    correctPassword = 'hiimgreg';
+                    if (passwordEntered === correctPassword) {
+                        // userName is already set to 'greg' or 'gregory' from setChatUserName
+                        localStorage.setItem('chatUserName', userName); // Ensure it's saved with correct casing
+                        adminGranted = true;
+                    }
+                }
+
+                if (adminGranted) {
                     setIsAdmin(true);
                     setShowAdminPasswordScreen(false);
-                    setNameInput('');
+                    setPendingAdminUserType(null); // Clear pending state
+                    setNameInput(''); // Clear password input
                     alert('Admin access granted!');
                 } else {
+                    // Reset everything if password is wrong
                     setUserName('');
                     localStorage.removeItem('chatUserName');
                     setIsAdmin(false);
                     setShowAdminPasswordScreen(false);
-                    setNameInput('');
+                    setPendingAdminUserType(null); // Clear pending state
+                    setNameInput(''); // Clear password input
                     alert('Incorrect password. Please enter your name again to start chatting or re-attempt admin login.');
                 }
             };
@@ -986,23 +1016,23 @@
                         {
                             className: "text-2xl font-bold text-gray-800 mb-6"
                         },
-                        showAdminPasswordScreen ? "Enter Admin Password" : `Welcome to the ${activeChatTab} Chat!`
+                        showAdminPasswordScreen ? `Enter Password for ${userName || 'Admin'}` : `Welcome to the ${activeChatTab} Chat!`
                         ),
                     React.createElement(
                         "p",
                         {
                             className: "text-gray-600 mb-4"
                         },
-                        showAdminPasswordScreen ? "Please enter the admin password to confirm administrator privileges." : "Please enter your name to start chatting."
+                        showAdminPasswordScreen ? "Please enter the password to confirm administrator privileges." : "Please enter your name to start chatting."
                     ),
                     React.createElement(
                         "input",
                         {
-                            type: showAdminPasswordScreen ? "password" : "text",
+                            type: "password", // Always password type when showAdminPasswordScreen is true
                             value: nameInput,
                             onChange: e => setNameInput(e.target.value),
                             onKeyPress: handleKeyPress,
-                            placeholder: showAdminPasswordScreen ? "Admin Password" : "Your Name",
+                            placeholder: "Password",
                             className: "p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 w-full max-w-sm mb-4"
                         }
                     ),
