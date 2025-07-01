@@ -111,6 +111,8 @@
     <div id="root"></div>
 
     <script type="module">
+        console.log("Chat application script started.");
+
         // ====================================================================================
         // IMPORTANT: FIREBASE CONFIGURATION
         // Your actual Firebase project's configuration, as provided by you.
@@ -128,7 +130,6 @@
         window.__app_id = "chatv1-5432a";
         window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Log the Firebase config as a JSON string and then parsed object for debugging
         console.log("Firebase config string on load:", window.__firebase_config);
         let parsedFirebaseConfig;
         try {
@@ -152,12 +153,10 @@
         //    b. Select your project ("chatv1-5432a").
         //    c. In the left navigation bar, under "Build", click on "Authentication".
         //    d. Go to the "Sign-in method" tab.
-        //    e. Find "Anonymous" in the list and click the pencil icon to edit it.
-        //    f. Toggle the "Enable" button to ON.
-        //    g. Click "Save".
+        //    e. Find "Anonymous" in the list and click the pencil icon to enable it.
+        //    f. Click "Save".
         //
-        // 2. **SET UP FIRESTORE SECURITY RULES (UPDATED FOR CHAT TABS AND CALL ROOMS)**
-        //    This resolves "Missing or insufficient permissions" errors.
+        // 2. **SET UP FIRESTORE SECURITY RULES**
         //    Steps:
         //    a. Go to your Firebase Project Console: https://console.firebase.google.com/
         //    b. Select your project ("chatv1-5432a").
@@ -180,7 +179,7 @@
         //          allow create, delete: if request.auth != null;
         //        }
         //
-        //        // NEW: Rules for video call signaling data in 'call_rooms' collection
+        //        // Rules for video call signaling data in 'call_rooms' collection
         //        // {chatName} refers to the active chat tab being used for call rooms
         //        // {roomId} is the unique ID for each active call room
         //        match /artifacts/{appId}/public/data/chat_tabs_calls/{chatName}/call_rooms/{roomId} {
@@ -203,15 +202,56 @@
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, doc, deleteDoc, setDoc, getDoc, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
+        // Error Boundary Component to catch rendering errors
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null, errorInfo: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                // Update state so the next render will show the fallback UI.
+                return { hasError: true, error: error };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                // You can also log the error to an error reporting service
+                console.error("Uncaught error in component:", error, errorInfo);
+                this.setState({ errorInfo: errorInfo });
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    // You can render any custom fallback UI
+                    return React.createElement(
+                        "div",
+                        { className: "flex flex-col items-center justify-center h-screen bg-red-100 text-red-800 p-4 rounded-lg shadow-lg" },
+                        React.createElement("h1", { className: "text-3xl font-bold mb-4" }, "Oops! Something went wrong."),
+                        React.createElement("p", { className: "text-lg mb-2" }, "The chat application encountered an error."),
+                        React.createElement("p", { className: "font-mono text-sm break-all mb-4" }, this.state.error && this.state.error.toString()),
+                        React.createElement("div", { className: "text-left bg-red-200 p-3 rounded-md w-full max-w-md overflow-auto text-xs" },
+                            React.createElement("h2", { className: "font-semibold mb-2" }, "Error Details:"),
+                            React.createElement("pre", null, this.state.errorInfo ? this.state.errorInfo.componentStack : "No component stack available.")
+                        ),
+                        React.createElement("p", { className: "mt-4" }, "Please check the browser console (F12) for more details.")
+                    );
+                }
+
+                return this.props.children;
+            }
+        }
+
+
         // Main App component for the chat application (inlined)
         function App() {
+            console.log("App component started rendering.");
             // State variables
             const [db, setDb] = React.useState(null);
             const [auth, setAuth] = React.useState(null);
             const [userId, setUserId] = React.useState(null);
             const [messages, setMessages] = React.useState([]);
             const [newMessage, setNewMessage] = React.useState('');
-            const [isAuthReady, setIsAuthReady] = React.useState(false);
+            const [isAuthReady, setIsAuthReady] = React.useState(false); // To track if authentication is ready
             const [userName, setUserName] = React.useState(localStorage.getItem('chatUserName') || '');
             const [nameInput, setNameInput] = React.useState('');
             const [isAdmin, setIsAdmin] = React.useState(userName === 'admin'); // Track admin status
@@ -219,13 +259,9 @@
             const [bannedUsers, setBannedUsers] = React.useState([]); // State for banned user IDs
             const [showUnbanPage, setShowUnbanPage] = React.useState(false); // State for unban page visibility
             const [activeChatTab, setActiveChatTab] = React.useState(localStorage.getItem('activeChatTab') || null);
-            // NEW: State to control visibility of the admin call management modal
-            const [showAdminCallManagement, setShowAdminCallManagement] = React.useState(false);
-            // NEW: State to store all active calls for admin view
-            const [allActiveCallsForAdmin, setAllActiveCallsForAdmin] = React.useState([]);
-            // NEW: State to store which admin-level user is currently trying to log in (admin, greg)
+            // Removed: showAdminCallManagement state
+            // Removed: allActiveCallsForAdmin state
             const [pendingAdminUserType, setPendingAdminUserType] = React.useState(null);
-
 
             const [isLoading, setIsLoading] = React.useState(true); // Loading state
 
@@ -237,9 +273,9 @@
             const [callInitiated, setCallInitiated] = React.useState(false); // True if *this user* initiated the call
             const [callOfferReceived, setCallOfferReceived] = React.useState(false); // True if an offer is waiting to be answered
             const [isVideoEnabled, setIsVideoEnabled] = React.useState(true); // State for video toggle
-            const [isSpectating, setIsSpectating] = React.useState(false); // NEW: Track if currently spectating a call
+            // Removed: isSpectating state
 
-            // NEW: State for call rooms in the waiting area
+            // State for call rooms in the waiting area
             const [activeCallRooms, setActiveCallRooms] = React.useState([]);
             const [currentRoomId, setCurrentRoomId] = React.useState(null); // The ID of the room the user is currently in
 
@@ -253,6 +289,7 @@
 
             // Initialize Firebase and handle authentication
             React.useEffect(() => {
+                console.log("useEffect: Firebase initialization and auth setup.");
                 try {
                     const app = initializeApp(parsedFirebaseConfig);
                     const firestoreDb = getFirestore(app);
@@ -267,33 +304,33 @@
                         })
                         .catch(error => {
                             console.error("Error signing in anonymously:", error);
-                            setIsLoading(false);
+                            setIsLoading(false); // Ensure loading state is cleared on auth error
                         });
 
                     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
                         if (user) {
                             setUserId(user.uid);
-                            // Re-evaluate admin status when auth state changes (e.g., after initial login)
                             const storedUserName = localStorage.getItem('chatUserName');
                             setIsAdmin(storedUserName === 'admin' || storedUserName?.toLowerCase() === 'greg' || storedUserName?.toLowerCase() === 'gregory');
                         } else {
-                            setUserId(crypto.randomUUID());
-                            setIsAdmin(false); // Not authenticated, so not admin
+                            setUserId(crypto.randomUUID()); // Fallback for anonymous or unauthenticated
+                            setIsAdmin(false);
                         }
                         setIsAuthReady(true);
-                        setIsLoading(false);
+                        setIsLoading(false); // Clear loading state once auth is checked
                         console.log("Auth state changed: User ID:", user?.uid || 'anonymous', "isAuthReady:", true);
                     });
 
                     return () => unsubscribeAuth();
                 } catch (error) {
                     console.error("Failed to initialize Firebase app or auth:", error);
-                    setIsLoading(false);
+                    setIsLoading(false); // Clear loading state on initialization error
                 }
             }, []);
 
             // Set up real-time listener for messages from Firestore (depends on activeChatTab)
             React.useEffect(() => {
+                console.log("useEffect: Message listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
                 if (db && isAuthReady && activeChatTab) {
                     const chatCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`);
                     const q = query(chatCollectionRef);
@@ -319,6 +356,7 @@
 
             // Set up real-time listener for banned users from Firestore (depends on activeChatTab)
             React.useEffect(() => {
+                console.log("useEffect: Banned users listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
                 if (db && isAuthReady && activeChatTab) {
                     const bannedUsersCollectionRef = collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`);
                     const q = query(bannedUsersCollectionRef);
@@ -339,14 +377,10 @@
 
             // Effect for listening to active call rooms in the current chat tab (for regular users)
             React.useEffect(() => {
+                console.log("useEffect: Active call rooms listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab);
                 if (!db || !isAuthReady || !activeChatTab) {
                     setActiveCallRooms([]);
                     return;
-                }
-                // Only listen for the current active tab's calls for non-admin users or for the current view.
-                // Admin will have a separate listener for all calls.
-                if (isAdmin && !showAdminCallManagement) { // If admin is viewing main chat, they still see their tab's calls
-                     // If admin is in manage calls view, activeCallRooms for current tab doesn't apply
                 }
 
                 const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
@@ -380,52 +414,13 @@
                 });
 
                 return () => unsubscribeCallRooms();
-            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath, isAdmin, showAdminCallManagement]);
+            }, [db, isAuthReady, activeChatTab, userId, inCall, currentRoomId, getChatTabCallRoomsCollectionPath]);
 
-            // NEW: Effect for admins to listen to ALL active call rooms across all tabs
-            React.useEffect(() => {
-                if (!db || !isAuthReady || !isAdmin) {
-                    setAllActiveCallsForAdmin([]);
-                    return;
-                }
-
-                const chatTabs = ['main', 'games', 'memes'];
-                const unsubscribes = [];
-                const allCallsAccumulator = {}; // Use an object to easily update/remove by room ID
-
-                chatTabs.forEach(chatTabName => {
-                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, chatTabName);
-                    const callRoomsCollectionRef = collection(db, callRoomsCollectionPath);
-                    const q = query(callRoomsCollectionRef);
-
-                    const unsubscribe = onSnapshot(q, (snapshot) => {
-                        snapshot.docChanges().forEach(change => {
-                            const roomData = { id: change.doc.id, chatTab: chatTabName, ...change.doc.data() };
-                            if (change.type === "added" || change.type === "modified") {
-                                allCallsAccumulator[roomData.id] = roomData;
-                            }
-                            if (change.type === "removed") {
-                                delete allCallsAccumulator[roomData.id];
-                            }
-                        });
-                        // Convert the object back to an array for state
-                        setAllActiveCallsForAdmin(Object.values(allCallsAccumulator));
-                        console.log("Admin - All Active Call Rooms:", Object.values(allCallsAccumulator));
-                    }, (error) => {
-                        console.error(`Admin: Error listening to calls in ${chatTabName} tab:`, error);
-                    });
-                    unsubscribes.push(unsubscribe);
-                });
-
-                return () => {
-                    unsubscribes.forEach(unsub => unsub());
-                    console.log("Admin - Unsubscribed from all call room listeners.");
-                };
-            }, [db, isAuthReady, isAdmin, getChatTabCallRoomsCollectionPath]);
-
+            // Removed: Effect for admins to listen to ALL active call rooms across all tabs
 
             // Effect for WebRTC signaling via Firestore for the *current* call room
             React.useEffect(() => {
+                console.log("useEffect: WebRTC signaling listener setup. db:", !!db, "isAuthReady:", isAuthReady, "activeChatTab:", activeChatTab, "userId:", userId, "currentRoomId:", currentRoomId);
                 if (!db || !isAuthReady || !activeChatTab || !userId || !currentRoomId) return;
 
                 const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, activeChatTab);
@@ -477,6 +472,7 @@
 
             // Function to send a new message
             const sendMessage = async () => {
+                console.log("Attempting to send message.");
                 if (bannedUsers.includes(userId)) {
                     alert('You are banned from sending messages in this chat.');
                     setNewMessage('');
@@ -487,7 +483,10 @@
                     return;
                 }
 
-                if (newMessage.trim() === '' || !db || !userId || !activeChatTab) return;
+                if (newMessage.trim() === '' || !db || !userId || !activeChatTab) {
+                    console.warn("Message not sent: Missing data.");
+                    return;
+                }
 
                 try {
                     await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
@@ -498,13 +497,15 @@
                         type: 'user_message' // Explicitly mark as user message
                     });
                     setNewMessage('');
+                    console.log("Message sent successfully.");
                 } catch (error) {
                     console.error("Error sending message:", error);
                 }
             };
 
-            // NEW: Function to create a new call room
+            // Function to create a new call room
             const createCall = async () => {
+                console.log("Attempting to create call.");
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
                     console.error("[createCall] Cannot create call: Firebase not ready or tab not selected.");
                     return;
@@ -521,7 +522,7 @@
                 setCallInitiated(true);
                 const newRoomId = crypto.randomUUID();
                 setCurrentRoomId(newRoomId);
-                setIsSpectating(false); // Ensure not in spectate mode when creating
+                // Removed: setIsSpectating(false); // Ensure not in spectate mode when creating
                 console.log("[createCall] Attempting to get user media. Video Enabled:", isVideoEnabled);
 
                 let stream;
@@ -626,8 +627,9 @@
                 }
             };
 
-            // NEW: Function to join an existing call room
+            // Function to join an existing call room
             const joinCall = async (roomId, offerData) => {
+                console.log("Attempting to join call.");
                 if (!db || !isAuthReady || !userId || !activeChatTab) {
                     console.error("[joinCall] Cannot join call: Firebase not ready or tab not selected.");
                     return;
@@ -643,7 +645,7 @@
 
                 setCurrentRoomId(roomId);
                 setInCall(true);
-                setIsSpectating(false); // Ensure not in spectate mode when joining as participant
+                // Removed: setIsSpectating(false); // Ensure not in spectate mode when joining as participant
                 console.log(`[joinCall] Attempting to join room ${roomId}. Video Enabled:`, isVideoEnabled);
 
                 let stream;
@@ -748,129 +750,11 @@
                 }
             };
 
-            // NEW: Function for admin to spectate a call
-            const spectateCall = async (roomId, offerData, chatTab) => {
-                if (!db || !isAuthReady || !userId || !isAdmin) {
-                    console.error("[spectateCall] Cannot spectate: Firebase not ready or not admin.");
-                    return;
-                }
-                if (inCall) {
-                    console.warn("[spectateCall] Already in a call/spectate session. End current one first.");
-                    return;
-                }
+            // Removed: spectateCall function
 
-                setCurrentRoomId(roomId);
-                setInCall(true); // Mark as in-call state for UI purposes
-                setIsSpectating(true); // Mark as spectating
-                console.log(`[spectateCall] Attempting to spectate room ${roomId} in tab ${chatTab}.`);
-
-                let stream;
-                let pc;
-                try {
-                    // Request media, but immediately disable tracks for spectating
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    console.log("[spectateCall] Local stream obtained, disabling tracks for spectating.");
-                    stream.getTracks().forEach(track => {
-                        track.enabled = false; // Disable local tracks for spectating
-                        console.log(`[spectateCall] Track ${track.kind} disabled: ${track.enabled}`);
-                    });
-                    setLocalStream(stream); // Keep stream reference to stop it later
-
-                    pc = new RTCPeerConnection({
-                        iceServers: [
-                            { urls: 'stun:stun.l.google.com:19302' },
-                        ]
-                    });
-                    console.log("[spectateCall] RTCPeerConnection created for spectating:", pc);
-                    setPeerConnection(pc);
-
-                    // Add dummy tracks or disabled tracks to trigger remote track events
-                    stream.getTracks().forEach(track => {
-                        pc.addTrack(track, stream);
-                    });
-
-
-                    pc.ontrack = (event) => {
-                        console.log("[spectateCall] ontrack event fired:", event);
-                        if (event.streams && event.streams[0]) {
-                            console.log("[spectateCall] Remote stream received (spectating):", event.streams[0]);
-                            setRemoteStream(event.streams[0]);
-                        } else {
-                            console.warn("[spectateCall] ontrack event fired without streams[0] during spectate.", event);
-                        }
-                    };
-
-                    const callRoomsCollectionPath = getChatTabCallRoomsCollectionPath(window.__app_id, chatTab);
-                    const callDocRef = doc(db, `${callRoomsCollectionPath}/${roomId}`);
-
-                    pc.onicecandidate = async (event) => {
-                        if (event.candidate) {
-                            console.log("[spectateCall] New ICE candidate generated:", event.candidate);
-                            try {
-                                const currentCallDoc = (await getDoc(callDocRef)).data();
-                                const currentCandidates = currentCallDoc?.iceCandidates || [];
-                                await setDoc(callDocRef, {
-                                    iceCandidates: [...currentCandidates, { candidate: event.candidate.toJSON(), senderId: userId }]
-                                }, { merge: true });
-                                console.log("[spectateCall] Sent ICE candidate to Firestore.");
-                            } catch (e) {
-                                console.error("[spectateCall] Error sending ICE candidate to Firestore:", e.name, e.message, e.stack);
-                            }
-                        } else {
-                            console.log("[spectateCall] ICE gathering complete.");
-                        }
-                    };
-
-                    console.log("[spectateCall] Setting remote description from offer received from room data.");
-                    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-                    console.log("[spectateCall] Remote description set from offer.");
-
-                    console.log("[spectateCall] Creating SDP answer...");
-                    const answer = await pc.createAnswer();
-                    console.log("[spectateCall] SDP answer created:", answer);
-                    await pc.setLocalDescription(answer);
-                    console.log("[spectateCall] Local description set (answer).");
-
-                    // Send the answer to Firestore (admin still needs to answer to receive streams)
-                    await setDoc(callDocRef, {
-                        answer: answer,
-                        answererId: userId, // Admin acts as an answerer to receive streams
-                        answererName: userName || 'Anonymous'
-                    }, { merge: true });
-                    console.log("[spectateCall] Call answer sent to Firestore.");
-
-                    if (offerData.iceCandidates) {
-                        console.log("[spectateCall] Adding pre-existing ICE candidates from offerer.");
-                        for (const candidate of offerData.iceCandidates) {
-                            if (candidate.senderId !== userId) {
-                                try {
-                                    await pc.addIceCandidate(new RTCIceCandidate(candidate.candidate));
-                                    console.log("[spectateCall] Added pre-existing ICE candidate during answer.");
-                                } catch (e) {
-                                    console.error("[spectateCall] Error adding pre-existing ICE candidate during answer:", e.name, e.message, e.stack);
-                                }
-                            }
-                        }
-                    }
-                    setShowAdminCallManagement(false); // Close the management modal after spectating
-                } catch (error) {
-                    console.error("[spectateCall] Error during spectate process:", error.name, error.message, error.stack);
-                    alert(`Failed to spectate call: ${error.name || 'Error'}. Please check your console for more details and ensure camera/mic permissions are granted.`);
-                    if (stream) stream.getTracks().forEach(track => track.stop());
-                    if (pc) pc.close();
-                    setLocalStream(null);
-                    setRemoteStream(null);
-                    setPeerConnection(null);
-                    setInCall(false);
-                    setIsSpectating(false);
-                    setCurrentRoomId(null);
-                }
-            };
-
-
-            // Function to end the current call (or spectate session)
+            // Function to end the current call
             const endCall = async (localUserInitiatedEnd = true, forceRoomId = null, forceChatTab = null) => { // Renamed parameter for clarity
-                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab, "isSpectating:", isSpectating);
+                console.log("[endCall] Attempting to end call. Local user initiated:", localUserInitiatedEnd, "isAdmin:", isAdmin, "Force Room ID:", forceRoomId, "Force Chat Tab:", forceChatTab);
 
                 // Stop local and remote media tracks
                 if (localStream) {
@@ -901,7 +785,7 @@
                     setCallInitiated(false);
                     setCallOfferReceived(false);
                     setIsVideoEnabled(true);
-                    setIsSpectating(false); // Reset spectating state
+                    // Removed: setIsSpectating(false); // Reset spectating state
                     setCurrentRoomId(null);
                 }
 
@@ -947,6 +831,7 @@
 
             // Function to delete a message (only for admin)
             const deleteMessage = async (messageId, senderUserId, senderUserName) => { // Added senderUserName
+                console.log("Attempting to delete message.");
                 if (!db || !isAdmin || !activeChatTab) {
                     console.warn("Permission denied: Only admin can delete messages.");
                     return;
@@ -956,7 +841,7 @@
                     await deleteDoc(messageRef);
                     console.log(`Message ${messageId} deleted successfully from ${activeChatTab} chat.`);
 
-                    // NEW: Add system message for banned user
+                    // Add system message for banned user
                     if (senderUserId) { // Ensure senderUserId is provided for banning
                         await banUser(senderUserId, senderUserName); // Pass senderUserName
                     }
@@ -968,6 +853,7 @@
 
             // Function to ban a user (only for admin)
             const banUser = async (targetUserId, targetUserName) => { // Added targetUserName
+                console.log("Attempting to ban user.");
                 if (!db || !isAdmin || !activeChatTab) {
                     console.warn("Permission denied: Only admin can ban users.");
                     return;
@@ -982,7 +868,7 @@
                     alert(`User ${targetUserName || targetUserId} has been banned from ${activeChatTab} chat.`);
                     console.log(`User ${targetUserName || targetUserId} banned successfully from ${activeChatTab} chat.`);
 
-                    // NEW: Add a system message to the chat when a user is banned
+                    // Add a system message to the chat when a user is banned
                     await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
                         text: `${targetUserName || targetUserId} was removed.`,
                         userId: 'system', // Special ID for system messages
@@ -998,6 +884,7 @@
 
             // Function to unban a user (only for admin)
             const unbanUser = async (targetUserId) => {
+                console.log("Attempting to unban user.");
                 if (!db || !isAdmin || !activeChatTab) {
                     console.warn("Permission denied: Only admin can unban users.");
                     return;
@@ -1014,6 +901,7 @@
 
             // Handle key press for all input stages
             const handleKeyPress = (e) => {
+                console.log("Key pressed:", e.key);
                 if (e.key === 'Enter') {
                     if (!activeChatTab) {
                         console.log("Please select a chat tab.");
@@ -1029,6 +917,7 @@
 
             // Function to handle initial name setting or admin first attempt
             const setChatUserName = () => {
+                console.log("Setting chat username.");
                 const lowerCaseNameInput = nameInput.trim().toLowerCase();
                 if (lowerCaseNameInput === 'admin') {
                     setPendingAdminUserType('admin'); // Indicate admin password is pending
@@ -1049,6 +938,7 @@
 
             // Function to handle admin password confirmation
             const handleAdminPassword = () => {
+                console.log("Handling admin password.");
                 const passwordEntered = nameInput.trim();
                 let correctPassword = '';
                 let adminGranted = false;
@@ -1089,15 +979,17 @@
 
             // Helper to set active chat tab and store in localStorage
             const selectChatTab = (tabName) => {
+                console.log("Selecting chat tab:", tabName);
                 setActiveChatTab(tabName);
                 localStorage.setItem('activeChatTab', tabName);
                 setMessages([]);
                 setBannedUsers([]);
-                if (inCall) endCall(true);
+                if (inCall) endCall(true); // End any active call if changing tabs
             };
 
             // Render loading screen if Firebase is not yet initialized
             if (isLoading) {
+                console.log("Rendering loading screen.");
                 return React.createElement(
                     "div",
                     { className: "flex flex-col items-center justify-center h-screen bg-gray-100 font-inter" },
@@ -1106,6 +998,7 @@
             }
 
             if (!activeChatTab) {
+                console.log("Rendering chat tab selection screen.");
                 return React.createElement(
                     "div",
                     {
@@ -1147,6 +1040,7 @@
                 );
             }
             else if (!userName || showAdminPasswordScreen) {
+                console.log("Rendering name/password screen. userName:", userName, "showAdminPasswordScreen:", showAdminPasswordScreen);
                 return React.createElement(
                     "div",
                     {
@@ -1189,6 +1083,7 @@
             }
 
             if (showUnbanPage) {
+                console.log("Rendering unban page.");
                 return React.createElement(
                     "div",
                     {
@@ -1250,98 +1145,7 @@
                 );
             }
 
-            // NEW: Admin Call Management Modal
-            if (isAdmin && showAdminCallManagement) {
-                return React.createElement(
-                    "div",
-                    {
-                        className: "modal-overlay"
-                    },
-                    React.createElement(
-                        "div",
-                        {
-                            className: "modal-content w-full md:max-w-xl lg:max-w-2xl"
-                        },
-                        React.createElement(
-                            "h2",
-                            {
-                                className: "text-2xl font-bold text-gray-800 mb-6 text-center"
-                            },
-                            "Manage Active Calls (Admin)"
-                        ),
-                        allActiveCallsForAdmin.length === 0 ?
-                            React.createElement(
-                                "p",
-                                { className: "text-center text-gray-500" },
-                                "No active calls across all chats."
-                            ) :
-                            React.createElement(
-                                "ul",
-                                { className: "space-y-3" },
-                                allActiveCallsForAdmin.map(room =>
-                                    React.createElement(
-                                        "li",
-                                        {
-                                            key: `${room.chatTab}-${room.id}`, // Unique key for combined view
-                                            className: "flex items-center justify-between bg-gray-100 p-3 rounded-lg shadow-sm flex-wrap gap-2"
-                                        },
-                                        React.createElement(
-                                            "div",
-                                            { className: "flex-1 min-w-[200px]" },
-                                            React.createElement(
-                                                "p",
-                                                { className: "font-medium text-gray-700" },
-                                                `Tab: ${room.chatTab} | ID: ${room.id.substring(0, 8)}... `
-                                                + (room.isVideoCall ? ' (Video Call)' : ' (Audio Call)')
-                                            ),
-                                            React.createElement(
-                                                "p",
-                                                { className: "text-sm text-gray-600" },
-                                                `Caller: ${room.callerName || 'Unknown'} (${room.callerId ? room.callerId.substring(0, 8) + '...' : 'N/A'})`
-                                            ),
-                                            room.answererId && React.createElement(
-                                                "p",
-                                                { className: "text-sm text-gray-600" },
-                                                `Answerer: ${room.answererName || 'Unknown'} (${room.answererId ? room.answererId.substring(0, 8) + '...' : 'N/A'})`
-                                            )
-                                        ),
-                                        React.createElement(
-                                            "div",
-                                            { className: "flex space-x-2" },
-                                            React.createElement(
-                                                "button",
-                                                {
-                                                    onClick: () => spectateCall(room.id, room.offer, room.chatTab),
-                                                    className: "px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition duration-200",
-                                                    disabled: inCall // Disable spectate if already in a call/spectate session
-                                                },
-                                                "Spectate"
-                                            ),
-                                            React.createElement(
-                                                "button",
-                                                {
-                                                    onClick: () => endCall(false, room.id, room.chatTab), // Force delete, pass room ID and chatTab
-                                                    className: "px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition duration-200"
-                                                },
-                                                    "Kill Call"
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            ),
-                        React.createElement(
-                            "button",
-                            {
-                                onClick: () => setShowAdminCallManagement(false),
-                                className: "mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 w-full"
-                            },
-                            "Back to Chat"
-                        )
-                    )
-                );
-            }
-
+            // Removed: Admin Call Management Modal
 
             return React.createElement(
                 "div",
@@ -1437,8 +1241,8 @@
                         React.createElement(
                             "div",
                             { className: "video-container" },
-                            // Show local video only if not spectating and video is enabled
-                            (!isSpectating && isVideoEnabled) && React.createElement("video", {
+                            // Show local video only if video is enabled
+                            isVideoEnabled && React.createElement("video", {
                                 ref: (videoElement) => {
                                     if (videoElement && localStream) videoElement.srcObject = localStream;
                                 },
@@ -1469,7 +1273,7 @@
                         React.createElement(
                             "p",
                             { className: "text-white mt-4" },
-                            isSpectating ? "Spectating call..." : (callInitiated ? "Waiting for someone to join..." : "In a call.")
+                            callInitiated ? "Waiting for someone to join..." : "In a call."
                         )
                     )
                 ) : (
@@ -1692,24 +1496,26 @@
                             className: "ml-3 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200"
                         },
                         "Unban Users"
-                    ),
-                    // NEW: Admin Call Management Button
-                    isAdmin && !inCall && React.createElement(
-                        "button",
-                        {
-                            onClick: () => setShowAdminCallManagement(true),
-                            className: "ml-3 px-6 py-3 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200"
-                        },
-                        "Manage Calls"
                     )
+                    // Removed: Admin Call Management Button
                 )
             );
         }
 
-        ReactDOM.render(
-            React.createElement(App, null),
-            document.getElementById('root')
-        );
+        // Ensure React app renders after the DOM is fully loaded
+        window.onload = function() {
+            console.log("window.onload fired. Attempting to render React app.");
+            const rootElement = document.getElementById('root');
+            if (rootElement) {
+                ReactDOM.render(
+                    React.createElement(ErrorBoundary, null, React.createElement(App, null)),
+                    rootElement
+                );
+                console.log("React app rendering initiated within ErrorBoundary.");
+            } else {
+                console.error("Root element with ID 'root' not found in the document!");
+            }
+        };
     </script>
 </body>
 </html>
