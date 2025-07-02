@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Illegal Class Chat</title>
+    <title>My Website Chat</title>
     <!-- Include Tailwind CSS CDN directly -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -114,6 +114,14 @@
             transform: translate(-50%, -50%); /* Center the dot on the cursor */
             transition: transform 0.05s linear; /* Smooth movement */
         }
+        /* Image message styling */
+        .chat-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
     </style>
     <!-- Import React and ReactDOM from CDN as global variables -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
@@ -126,7 +134,7 @@
     <div id="pointer-dot"></div>
 
     <script type="module">
-        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-18 ---
+        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-20 ---
         console.log("Chat application script started.");
 
         // ====================================================================================
@@ -384,8 +392,8 @@
                             id: doc.id,
                             ...doc.data()
                         }));
-                        // Filter out messages from banned users, but allow system messages
-                        fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId) || msg.type === 'system_message');
+                        // Removed the filtering of messages from banned users here
+                        // fetchedMessages = fetchedMessages.filter(msg => !bannedUsers.includes(msg.userId) || msg.type === 'system_message');
                         fetchedMessages.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
                         setMessages(fetchedMessages);
                     }, (error) => {
@@ -396,7 +404,7 @@
                 } else {
                     setMessages([]);
                 }
-            }, [db, isAuthReady, bannedUsers, activeChatTab]);
+            }, [db, isAuthReady, bannedUsers, activeChatTab]); // bannedUsers is still a dependency for the system message logic, but not for filtering
 
             // Set up real-time listener for banned users from Firestore (depends on activeChatTab)
             React.useEffect(() => {
@@ -590,13 +598,22 @@
                     return;
                 }
 
+                let messageType = 'user_message';
+                let messageContent = newMessage;
+
+                // Check if the message is "image.png" to display the image
+                if (newMessage.trim().toLowerCase() === 'image.png') {
+                    messageType = 'image';
+                    messageContent = 'image.png'; // Use the actual filename of the uploaded image
+                }
+
                 try {
                     await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
-                        text: newMessage,
+                        text: messageContent, // Store the image filename if it's an image message
                         userId: userId,
                         userName: userName || 'Anonymous',
                         timestamp: serverTimestamp(),
-                        type: 'user_message' // Explicitly mark as user message
+                        type: messageType // Set the type based on content
                     });
                     setNewMessage('');
                     console.log("Message sent successfully.");
@@ -970,12 +987,12 @@
                 try {
                     const bannedUserRef = doc(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/banned_users`, targetUserId);
                     await setDoc(bannedUserRef, { bannedAt: serverTimestamp() });
-                    alert(`User ${targetUserName || targetUserId} has been banned from ${activeChatTab} chat.`);
+                    alert(`User ${targetUserName || targetUserId} has been banned from sending messages in ${activeChatTab} chat.`);
                     console.log(`User ${targetUserName || targetUserId} banned successfully from ${activeChatTab} chat.`);
 
                     // Add a system message to the chat when a user is banned
                     await addDoc(collection(db, `artifacts/${window.__app_id}/public/data/chats/${activeChatTab}/messages`), {
-                        text: `${targetUserName || targetUserId} was removed.`,
+                        text: `${targetUserName || targetUserId} was banned from sending messages.`, // Updated system message
                         userId: 'system', // Special ID for system messages
                         userName: 'System',
                         timestamp: serverTimestamp(),
@@ -1306,7 +1323,7 @@
                         {
                             onClick: () => selectChatTab('main'),
                             className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'main' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                        },
+                            },
                         "Main Chat"
                     ),
                     React.createElement(
@@ -1474,6 +1491,7 @@
                             messages.map(msg => {
                                 const isCurrentUser = msg.userId === userId;
                                 const isSystemMessage = msg.type === 'system_message';
+                                const isImageMessage = msg.type === 'image'; // New check for image messages
                                 const messageBubbleBaseClasses = "rounded-xl p-3 max-w-[80%] break-words shadow-sm flex flex-col";
                                 let messageBubbleUserClasses = "";
                                 let textColorClass = "";
@@ -1506,7 +1524,22 @@
                                                 isCurrentUser ? 'You' : (msg.userName || msg.userId)
                                             )
                                         ),
-                                        React.createElement("p", { className: "text-sm" }, msg.text),
+                                        isImageMessage ? (
+                                            // Render image if it's an image message
+                                            React.createElement("img", {
+                                                src: msg.text, // msg.text will contain the image filename (e.g., 'image_d06f9f.png')
+                                                alt: "Chat Image",
+                                                className: "chat-image",
+                                                onError: (e) => {
+                                                    e.target.onerror = null; // Prevents infinite loop if image is truly broken
+                                                    e.target.src = "https://placehold.co/150x150/cccccc/333333?text=Image+Error"; // Placeholder image
+                                                    console.error(`Failed to load image: ${msg.text}`);
+                                                }
+                                            })
+                                        ) : (
+                                            // Render text if it's a regular message
+                                            React.createElement("p", { className: "text-sm" }, msg.text)
+                                        ),
                                         React.createElement(
                                             "div",
                                             { className: "flex justify-between items-center mt-1" },
