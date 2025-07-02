@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>chat access</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0; /* Ensure no default body margin */
+            overflow: hidden; /* Prevent scrollbars if animation goes beyond viewport */
+
+            /* Animated background styles */
+            background: linear-gradient(270deg, #a7e0f0, #87ceeb, #6495ed, #4682b4); /* Blue gradient for river effect */
+            background-size: 400% 400%; /* Make gradient larger than viewport for animation */
+            animation: flowBackground 15s ease infinite; /* Animation definition */
+        }
+
+        /* Keyframes for the flowing background animation */
+        @keyframes flowBackground {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- The button itself, styled with Tailwind CSS -->
+    <a href="http://165.173.23.252/" rel="noopener noreferrer"
+       class="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white
+              bg-gradient-to-r from-blue-500 to-purple-600 rounded-full shadow-lg
+              hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-4
+              focus:ring-blue-300 focus:ring-opacity-75 transition duration-300 ease-in-out
+              transform hover:-translate-y-1 hover:scale-105">
+        Go to Chat
+        <!-- Optional: Add an icon for external link -->
+        <svg class="ml-2 -mr-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+        </svg>
+    </a>
+</body>
+</html>
