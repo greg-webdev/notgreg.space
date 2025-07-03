@@ -134,7 +134,7 @@
     <div id="pointer-dot"></div>
 
     <script type="module">
-        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-20 ---
+        // --- SCRIPT VERSION: 2025-07-01-1500-SyntaxFixAttempt-21 ---
         console.log("Chat application script started.");
 
         // ====================================================================================
@@ -289,6 +289,7 @@
             const [showAdminCallManagement, setShowAdminCallManagement] = React.useState(false);
             const [allActiveCallsForAdmin, setAllActiveCallsForAdmin] = React.useState([]);
             const [pendingAdminUserType, setPendingAdminUserType] = React.useState(null);
+            const [showExtrasMenu, setShowExtrasMenu] = React.useState(false); // New state for Extras menu
 
             const [isLoading, setIsLoading] = React.useState(true); // Loading state
 
@@ -604,7 +605,7 @@
                 // Check if the message is "image.png" to display the image
                 if (newMessage.trim().toLowerCase() === 'image.png') {
                     messageType = 'image';
-                    messageContent = 'image.png'; // Use the actual filename of the uploaded image
+                    messageContent = 'image_d06f9f.png'; // Use the actual filename of the uploaded image
                 }
 
                 try {
@@ -1152,6 +1153,14 @@
                                 className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'memes' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
                             },
                             "Memes Chat"
+                        ),
+                        React.createElement(
+                            "button",
+                            {
+                                onClick: () => setShowExtrasMenu(true),
+                                className: `px-4 py-2 rounded-lg font-semibold transition duration-200 bg-yellow-500 text-white hover:bg-yellow-600`
+                            },
+                            "Extras"
                         )
                     )
                 );
@@ -1311,6 +1320,45 @@
                 );
             }
 
+            // Extras Menu Modal
+            if (showExtrasMenu) {
+                console.log("Rendering Extras menu.");
+                return React.createElement(
+                    "div",
+                    { className: "modal-overlay" },
+                    React.createElement(
+                        "div",
+                        { className: "modal-content w-full md:max-w-md" },
+                        React.createElement(
+                            "h2",
+                            { className: "text-2xl font-bold text-gray-800 mb-6 text-center" },
+                            "Extras"
+                        ),
+                        React.createElement(
+                            "div",
+                            { className: "flex flex-col space-y-4" },
+                            React.createElement(
+                                "a",
+                                {
+                                    href: "roblox-download.ipa",
+                                    download: "roblox-download.ipa",
+                                    className: "px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200 text-center"
+                                },
+                                "Download Roblox App (IPA)"
+                            ),
+                            React.createElement(
+                                "button",
+                                {
+                                    onClick: () => setShowExtrasMenu(false),
+                                    className: "px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                                },
+                                "Back to Chat"
+                            )
+                        )
+                    )
+                );
+            }
+
 
             return React.createElement(
                 "div",
@@ -1341,6 +1389,14 @@
                             className: `px-4 py-2 rounded-lg font-semibold transition duration-200 ${activeChatTab === 'memes' ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
                         },
                         "Memes Chat"
+                    ),
+                    React.createElement(
+                        "button",
+                        {
+                            onClick: () => setShowExtrasMenu(true),
+                            className: `px-4 py-2 rounded-lg font-semibold transition duration-200 bg-yellow-500 text-white hover:bg-yellow-600`
+                        },
+                        "Extras"
                     )
                 ),
                 userId && (
