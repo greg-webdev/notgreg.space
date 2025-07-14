@@ -214,7 +214,7 @@
                     </div>
 
                     <div id="file-drop-area"
-                        class="border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 mb-8 hidden"
+                        class="border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 mb-8"
                     >
                         <div id="uploading-state" class="hidden">
                             <p class="text-lg text-indigo-600 font-semibold">Uploading...</p>
@@ -350,23 +350,25 @@
             unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
                 const roomPageMessage = document.getElementById('room-page-message');
                 const roomStatusWaiting = document.getElementById('room-status-waiting');
-                const fileDropArea = document.getElementById('file-drop-area');
+                const fileDropArea = document.getElementById('file-drop-area'); // Get reference
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.users && data.users.length === 2) {
                         roomPageMessage.textContent = 'Another user has joined! You can now share files.';
                         roomStatusWaiting.classList.add('hidden');
-                        fileDropArea.classList.remove('hidden'); // Show drop area when ready
+                        // fileDropArea.classList.remove('hidden'); // Removed: fileDropArea is now always visible
+                        fileDropArea.classList.remove('opacity-70', 'cursor-not-allowed'); // Make it active
                     } else {
                         roomPageMessage.textContent = 'Waiting for another user to join this room...';
                         roomStatusWaiting.classList.remove('hidden');
-                        fileDropArea.classList.add('hidden'); // Hide drop area when waiting
+                        // fileDropArea.classList.add('hidden'); // Removed: fileDropArea is now always visible
+                        fileDropArea.classList.add('opacity-70', 'cursor-not-allowed'); // Make it appear inactive
                     }
                 } else {
                     roomPageMessage.textContent = 'Room not found or deleted.';
                     roomStatusWaiting.classList.add('hidden');
-                    fileDropArea.classList.add('hidden');
+                    fileDropArea.classList.add('opacity-70', 'cursor-not-allowed'); // Make it appear inactive
                     showMessage('Room has been deleted or does not exist. Returning to home.', 'error');
                     setTimeout(() => {
                         currentPage = 'home';
@@ -433,17 +435,23 @@
             const uploadProgressBar = document.getElementById('upload-progress-bar');
             const uploadProgressText = document.getElementById('upload-progress-text');
 
+            // --- Debugging: Log dataTransfer.files ---
+            console.log("e.dataTransfer.files:", e.dataTransfer.files);
+            // --- End Debugging ---
+
             // Check if room is ready
             const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, currentRoomId);
             const roomSnap = await getDoc(roomRef);
             if (!roomSnap.exists() || roomSnap.data().users.length < 2) {
                 showMessage('Please wait for another user to join before uploading files.', 'info');
+                // Keep the drop area visually inactive
+                fileDropArea.classList.add('opacity-70', 'cursor-not-allowed');
                 return;
             }
 
             const droppedFiles = Array.from(e.dataTransfer.files);
             if (droppedFiles.length === 0) {
-                showMessage('No files selected.', 'info');
+                showMessage('No files selected. Please ensure you are dragging a file.', 'info'); // More specific message
                 return;
             }
 
