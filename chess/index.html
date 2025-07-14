@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,8 +115,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, addDoc, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // Import chess.js library
-        import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.0.0-beta.7/chess.js";
+        // Import chess.js library - Updated to a stable CDN URL
+        import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.0.0-beta.7/chess.min.js";
 
         // Global variables for Firebase and game state
         let app;
@@ -139,6 +140,7 @@
 
         // Ensure __app_id and __firebase_config are defined in the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // CORRECTED Firebase Config with your provided API Key
         const firebaseConfig = {
             apiKey: "AIzaSyD77rYCiT3O8BHWYLgdfsLf_9iq0Bq4Uzg",
             authDomain: "chess6969-6d8af.firebaseapp.com",
@@ -162,13 +164,9 @@
             return `${pieceObj.color}${pieceObj.type}`;
         };
 
-        // Helper function to convert chess.js board array to our 2D array of strings
-        const convertChessJsBoard = (chessJsBoard) => {
-            return chessJsBoard.map(row => row.map(piece => getPieceString(piece)));
-        };
-
         // --- UI Update Functions ---
         const updateLobbyView = () => {
+            console.log("updateLobbyView called. Current gameId:", gameId);
             const lobbyView = document.getElementById('lobbyView');
             const gameView = document.getElementById('gameView');
             if (gameId) {
@@ -184,6 +182,7 @@
         };
 
         const renderAvailableGames = () => {
+            console.log("renderAvailableGames called. Available games:", availableGames.length);
             const availableGamesList = document.getElementById('availableGamesList');
             availableGamesList.innerHTML = ''; // Clear previous list
 
@@ -235,11 +234,15 @@
             if (boardElement && boardElement.offsetWidth > 0) {
                 const boardWidth = boardElement.offsetWidth;
                 squareSize = boardWidth / 8;
+                console.log("Calculated squareSize:", squareSize, "Board Width:", boardWidth);
                 renderBoard(); // Re-render board with new square size
+            } else {
+                console.log("Board element not visible or has no width for square size calculation.");
             }
         };
 
         const renderBoard = () => {
+            console.log("renderBoard called. Chess FEN:", chess.fen());
             const chessBoardElement = document.getElementById('chessBoard');
             chessBoardElement.innerHTML = ''; // Clear previous board
 
@@ -282,6 +285,7 @@
         };
 
         const updateGameInfo = () => {
+            console.log("updateGameInfo called. Current Turn:", turn, "Game Status:", gameStatus);
             document.getElementById('gameIdDisplay').textContent = gameId;
             document.getElementById('turnDisplay').textContent = turn.toUpperCase();
             document.getElementById('turnDisplay').className = `font-bold ${turn === 'white' ? 'text-white' : 'text-gray-400'}`;
@@ -290,14 +294,14 @@
             document.getElementById('blackPlayerDisplay').textContent = players.black || 'Waiting...';
             
             const gameStatusDisplay = document.getElementById('gameStatusDisplay');
-            if (chess.in_checkmate()) {
+            if (chess.is_checkmate()) {
                 const winner = chess.turn() === 'w' ? 'Black' : 'White'; // If white is checkmated, black wins
                 gameStatusDisplay.textContent = `CHECKMATE! ${winner} Wins!`;
                 gameStatusDisplay.className = 'font-semibold text-green-500';
-            } else if (chess.in_stalemate()) {
+            } else if (chess.is_stalemate()) {
                 gameStatusDisplay.textContent = 'STALEMATE! Game Over.';
                 gameStatusDisplay.className = 'font-semibold text-yellow-500';
-            } else if (chess.in_check()) {
+            } else if (chess.is_check()) {
                 gameStatusDisplay.textContent = 'CHECK!';
                 gameStatusDisplay.className = 'font-semibold text-red-500';
             } else {
@@ -307,6 +311,7 @@
         };
 
         const renderChatMessages = () => {
+            console.log("renderChatMessages called. Messages count:", chatMessages.length);
             const chatMessagesDiv = document.getElementById('chatMessages');
             chatMessagesDiv.innerHTML = '';
             chatMessages.forEach((msg, index) => {
@@ -319,6 +324,7 @@
         };
 
         const renderCapturedPieces = () => {
+            console.log("renderCapturedPieces called. White:", capturedWhitePieces.length, "Black:", capturedBlackPieces.length);
             const capturedWhitePiecesDisplay = document.getElementById('capturedWhitePiecesDisplay');
             const capturedBlackPiecesDisplay = document.getElementById('capturedBlackPiecesDisplay');
 
@@ -364,6 +370,7 @@
                 // Initialize a new chess game and get its FEN
                 const newChessGame = new Chess();
                 const initialFen = newChessGame.fen();
+                console.log("Creating new game with FEN:", initialFen);
 
                 await setDoc(gameDocRef, {
                     boardFen: initialFen, // Store FEN string
@@ -377,6 +384,7 @@
                 });
                 window.gameId = customGameId;
                 newGameIdInput.value = ''; // Clear input after creating
+                console.log("Game created in Firestore with ID:", customGameId);
             } catch (e) {
                 console.error("Error creating game:", e);
                 alert("Error creating game. Please try again.");
@@ -400,6 +408,7 @@
                             chat: [...gameData.chat, { sender: 'System', message: `${userId} joined the game.` }]
                         });
                         window.gameId = idToJoin;
+                        console.log("Joined game with ID:", idToJoin);
                     } else if (gameData.players.white === userId || gameData.players.black === userId) {
                         window.gameId = idToJoin; // Rejoin if already a player
                         console.log("Rejoined game with ID:", idToJoin);
@@ -423,10 +432,13 @@
         };
 
         const handleSquareClick = (row, col) => {
-            if (!gameId || chess.is_game_over()) return; // Prevent moves after game end
+            console.log("handleSquareClick called. Row:", row, "Col:", col);
+            if (!gameId || chess.is_game_over()) {
+                console.log("Game not active or over. Cannot click.");
+                return;
+            }
 
             const currentPlayerColor = players.white === userId ? 'white' : (players.black === userId ? 'black' : null);
-            // chess.turn() returns 'w' or 'b'
             if (!currentPlayerColor || (currentPlayerColor === 'white' && chess.turn() !== 'w') || (currentPlayerColor === 'black' && chess.turn() !== 'b')) {
                 console.log("It's not your turn or you are not a player.");
                 return;
@@ -439,6 +451,7 @@
                 const startSquareAlgebraic = toAlgebraic(selectedSquare.row, selectedSquare.col);
                 
                 if (selectedSquare.row === row && selectedSquare.col === col) {
+                    console.log("Deselecting square.");
                     selectedSquare = null;
                     validMoves = [];
                     renderBoard();
@@ -447,8 +460,8 @@
 
                 // If clicking on your own piece, select the new piece and update valid moves
                 if (piece && piece.color === chess.turn()) {
+                    console.log("Selecting new piece.");
                     selectedSquare = { row, col };
-                    // Get valid moves for the newly selected piece
                     const moves = chess.moves({ square: squareAlgebraic, verbose: true });
                     validMoves = moves.map(move => {
                         const targetRow = 8 - parseInt(move.to[1]);
@@ -461,6 +474,7 @@
 
                 // Attempt to move the selected piece
                 try {
+                    console.log("Attempting move from", startSquareAlgebraic, "to", squareAlgebraic);
                     const moveResult = chess.move({
                         from: startSquareAlgebraic,
                         to: squareAlgebraic,
@@ -468,12 +482,13 @@
                     });
 
                     if (moveResult) {
+                        console.log("Move successful:", moveResult);
                         makeMove(moveResult); // Pass the move result to makeMove
                         selectedSquare = null;
                         validMoves = [];
                         renderBoard(); // Render immediately for local responsiveness
                     } else {
-                        console.log("Invalid move.");
+                        console.log("Invalid move. chess.js returned null.");
                     }
                 } catch (e) {
                     console.error("Error making move with chess.js:", e);
@@ -482,8 +497,8 @@
             } else {
                 // If no piece is selected, select the clicked piece if it's the current player's turn
                 if (piece && piece.color === chess.turn()) {
+                    console.log("Selecting piece:", piece);
                     selectedSquare = { row, col };
-                    // Get valid moves for the selected piece
                     const moves = chess.moves({ square: squareAlgebraic, verbose: true });
                     validMoves = moves.map(move => {
                         const targetRow = 8 - parseInt(move.to[1]);
@@ -491,13 +506,18 @@
                         return { row: targetRow, col: targetCol };
                     });
                     renderBoard();
+                } else {
+                    console.log("No piece selected or not your piece/turn.");
                 }
             }
         };
 
         // makeMove now takes the result from chess.move()
         const makeMove = async (moveResult) => {
-            if (!gameId || !userId || chess.is_game_over()) return;
+            if (!gameId || !userId || chess.is_game_over()) {
+                console.log("Game not active or over. Cannot make move.");
+                return;
+            }
 
             // Update captured pieces based on moveResult
             let updatedCapturedWhitePieces = [...capturedWhitePieces];
@@ -510,6 +530,7 @@
                 } else { // Black captured a white piece
                     updatedCapturedBlackPieces.push(capturedPieceString);
                 }
+                console.log("Piece captured:", capturedPieceString);
             }
 
             const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
@@ -519,7 +540,7 @@
                     turn: chess.turn() === 'w' ? 'white' : 'black', // Update turn based on chess.js
                     capturedWhitePieces: JSON.stringify(updatedCapturedWhitePieces),
                     capturedBlackPieces: JSON.stringify(updatedCapturedBlackPieces),
-                    status: chess.in_checkmate() ? 'checkmate' : (chess.in_stalemate() ? 'stalemate' : (chess.in_check() ? 'check' : 'playing')),
+                    status: chess.is_checkmate() ? 'checkmate' : (chess.is_stalemate() ? 'stalemate' : (chess.is_check() ? 'check' : 'playing')),
                 });
                 console.log("Move made and updated in Firestore. New FEN:", chess.fen());
             } catch (e) {
@@ -546,6 +567,7 @@
                         chat: [...currentChat, message]
                     });
                     chatInput.value = ''; // Clear input
+                    console.log("Chat message sent.");
                 }
             } catch (e) {
                 console.error("Error sending chat message:", e);
@@ -553,6 +575,7 @@
         };
 
         const leaveGame = async () => {
+            console.log("Leaving game...");
             if (!gameId || !userId) {
                 console.error("Cannot leave game: gameId or userId not set.");
                 return;
@@ -606,10 +629,12 @@
             renderChatMessages(); // Clear chat
             renderCapturedPieces(); // Clear captured pieces display
             fetchAvailableGames();
+            console.log("Game left and local state reset.");
         };
 
 
         const deleteGame = async (gameToDeleteId) => {
+            console.log("Attempting to delete game:", gameToDeleteId);
             if (!userId) {
                 console.error("User not authenticated.");
                 return;
@@ -619,11 +644,9 @@
                 const docSnap = await getDoc(gameDocRef);
                 if (docSnap.exists()) {
                     const gameData = docSnap.data();
-                    // Allow deletion if the user is the white player and the game is waiting
-                    // OR if both players have left (checked by onSnapshot)
                     if ((gameData.players.white === userId && gameData.status === 'waiting') || (!gameData.players.white && !gameData.players.black)) {
                         await deleteDoc(gameDocRef);
-                        console.log(`Game ${gameToDeleteId} deleted.`);
+                        console.log(`Game ${gameToDeleteId} deleted successfully.`);
                         if (gameId === gameToDeleteId) {
                             leaveGame(); // Leave the game if it was the current one
                         } else {
@@ -642,10 +665,13 @@
 
         // --- Firebase Listeners and Initialization ---
         const setupGameListener = () => {
+            console.log("setupGameListener called for gameId:", gameId);
             if (unsubscribeGameListener) {
                 unsubscribeGameListener(); // Unsubscribe from previous game if any
+                console.log("Unsubscribed from previous game listener.");
             }
             if (!gameId || !isAuthReady || !userId) {
+                console.log("Not setting up game listener: missing gameId, auth not ready, or userId.");
                 chess.reset(); // Reset chess.js board
                 turn = 'white';
                 players = { white: null, black: null };
@@ -662,9 +688,21 @@
 
             const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
             unsubscribeGameListener = onSnapshot(gameDocRef, (docSnap) => {
+                console.log("onSnapshot triggered for game:", gameId);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    chess.load(data.boardFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // Load FEN
+                    console.log("Firestore data received:", data);
+                    
+                    try {
+                        chess.load(data.boardFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // Load FEN
+                        console.log("chess.js board loaded with FEN:", chess.fen());
+                    } catch (e) {
+                        console.error("Error loading FEN into chess.js:", e);
+                        // Fallback to reset if FEN is invalid
+                        chess.reset();
+                        console.log("chess.js board reset due to FEN loading error.");
+                    }
+
                     turn = data.turn || 'white';
                     players = data.players || { white: null, black: null };
                     gameStatus = data.status || 'waiting';
@@ -676,7 +714,7 @@
                     updateGameInfo();
                     renderChatMessages();
                     renderCapturedPieces();
-                    console.log("Game state updated:", data);
+                    console.log("UI updated based on Firestore data.");
 
                     // New: Check if both players have left to delete the game
                     if (!data.players.white && !data.players.black) {
@@ -685,7 +723,7 @@
                     }
 
                 } else {
-                    console.log("No such game document!");
+                    console.log("No such game document! Game might have been deleted.");
                     leaveGame(); // Automatically leave if game document disappears
                 }
             }, (error) => {
@@ -694,7 +732,11 @@
         };
 
         const fetchAvailableGames = async () => {
-            if (!isAuthReady || !userId) return;
+            console.log("fetchAvailableGames called.");
+            if (!isAuthReady || !userId) {
+                console.log("Not fetching available games: auth not ready or userId missing.");
+                return;
+            }
 
             try {
                 const gamesCollectionRef = collection(db, `artifacts/${appId}/public/data/games`);
@@ -703,17 +745,21 @@
                 availableGames = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 availableGames = availableGames.filter(game => game.status === 'waiting' || (game.status === 'playing' && (game.players.white === userId || game.players.black === userId)));
                 renderAvailableGames();
+                console.log("Available games fetched successfully.");
             } catch (error) {
                 console.error("Error fetching available games:", error);
             }
         };
 
         const setupAvailableGamesListener = () => {
+            console.log("setupAvailableGamesListener called.");
             if (unsubscribeGamesListener) {
                 unsubscribeGamesListener();
+                console.log("Unsubscribed from previous available games listener.");
             }
             const q = query(collection(db, `artifacts/${appId}/public/data/games`));
             unsubscribeGamesListener = onSnapshot(q, (snapshot) => {
+                console.log("onSnapshot triggered for available games.");
                 availableGames = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 availableGames = availableGames.filter(game => game.status === 'waiting' || (game.status === 'playing' && (game.players.white === userId || game.players.black === userId)));
                 renderAvailableGames();
@@ -724,9 +770,11 @@
 
         // --- Event Listeners ---
         document.addEventListener('DOMContentLoaded', async () => {
+            console.log("DOMContentLoaded fired.");
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            console.log("Firebase initialized.");
 
             const userIdDisplay = document.getElementById('userIdDisplay');
             const createGameBtn = document.getElementById('createGameBtn');
@@ -800,6 +848,7 @@
             Object.defineProperty(window, 'gameId', {
                 get: () => gameId,
                 set: (newValue) => {
+                    console.log("gameId setter called. Old:", gameId, "New:", newValue);
                     gameId = newValue;
                     setupGameListener();
                     updateLobbyView();
@@ -811,6 +860,7 @@
             renderCapturedPieces();
 
             window.addEventListener('resize', calculateAndSetSquareSize);
+            console.log("DOMContentLoaded complete. Initial UI render triggered.");
         });
     </script>
 </body>
