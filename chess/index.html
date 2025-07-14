@@ -112,14 +112,15 @@
 
         // Ensure __app_id and __firebase_config are defined in the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+        const firebaseConfig = {
+            apiKey: "AIzaSyD77rYCiT3O8BHWYLgdfsLf_9iq0Bq4Uzg",
+            authDomain: "chess6969-6d8af.firebaseapp.com",
+            projectId: "chess6969-6d8af",
+            storageBucket: "chess6969-6d8af.firebasestorage.app",
+            messagingSenderId: "176883638566",
+            appId: "1:176883638566:web:14216441ece77c5540a1e7"
         };
+
 
         // Chess piece representations (using Unicode chess symbols for visual appeal)
         const PIECES = {
@@ -680,17 +681,22 @@
 
             // Initial authentication
             try {
+                // Log the Firebase config being used
+                console.log("Firebase Config:", firebaseConfig);
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    console.log("Attempting sign-in with custom token...");
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
+                    console.log("Attempting anonymous sign-in...");
                     await signInAnonymously(auth);
                 }
             } catch (error) {
                 console.error("Error during Firebase authentication:", error);
                 try {
+                    console.log("Fallback: Attempting anonymous sign-in due to initial failure...");
                     await signInAnonymously(auth);
                 } catch (anonError) {
-                    console.error("Error during anonymous sign-in:", anonError);
+                    console.error("Error during anonymous sign-in (fallback):", anonError);
                 }
             }
 
