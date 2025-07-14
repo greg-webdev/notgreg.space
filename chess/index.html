@@ -50,11 +50,14 @@
 
     <div id="lobbyView" class="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
         <h2 class="text-2xl font-semibold mb-4 text-center">Lobby</h2>
-        <button id="createGameBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 mb-4 shadow-md">
-            Create New Game
-        </button>
         <div class="mb-4">
-            <input type="text" id="gameIdInput" placeholder="Enter Game ID to Join" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
+            <input type="text" id="newGameIdInput" placeholder="Enter New Game ID (e.g., mygame123)" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
+            <button id="createGameBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 mb-4 shadow-md">
+                Create New Game
+            </button>
+        </div>
+        <div class="mb-4">
+            <input type="text" id="gameIdInput" placeholder="Enter Existing Game ID to Join" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
             <button id="joinGameBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
                 Join Game
             </button>
@@ -111,6 +114,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, addDoc, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import chess.js library
+        import { Chess } from "https://cdn.jsdelivr.net/npm/chess.js@1.0.0-beta.7/chess.js";
 
         // Global variables for Firebase and game state
         let app;
@@ -119,18 +124,18 @@
         let userId = null;
         let isAuthReady = false;
         let gameId = '';
-        let currentBoard = [];
+        let chess = new Chess(); // Initialize chess.js
         let selectedSquare = null; // {row, col}
         let validMoves = []; // Array of {row, col} for valid moves
         let turn = 'white'; // 'white' or 'black'
         let players = { white: null, black: null };
-        let gameStatus = 'waiting'; // 'waiting', 'playing', 'checkmate', 'stalemate'
+        let gameStatus = 'waiting'; // 'waiting', 'playing', 'check', 'checkmate', 'stalemate'
         let chatMessages = [];
         let availableGames = [];
-        let capturedWhitePieces = []; // New: Array to store captured white pieces
-        let capturedBlackPieces = []; // New: Array to store captured black pieces
-        let unsubscribeGameListener = null; // To store the unsubscribe function for the game listener
-        let unsubscribeGamesListener = null; // To store the unsubscribe function for the available games listener
+        let capturedWhitePieces = [];
+        let capturedBlackPieces = [];
+        let unsubscribeGameListener = null;
+        let unsubscribeGamesListener = null;
 
         // Ensure __app_id and __firebase_config are defined in the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -143,132 +148,23 @@
             appId: "1:176883638566:web:14216441ece77c5540a1e7"
         };
 
-
         // Chess piece representations (using Unicode chess symbols for visual appeal)
-        const PIECES = {
+        // Note: chess.js uses 'p', 'r', 'n', 'b', 'q', 'k' for pieces and 'w', 'b' for color
+        const PIECES_UNICODE = {
             'wp': '♙', 'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔',
             'bp': '♟', 'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚',
             '': '' // Empty square
         };
 
-        // Initial board setup
-        const initialBoard = [
-            ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
-            ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
-            ['', '', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', '', ''],
-            ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
-            ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
-        ];
-
-        // Helper function to deep copy a 2D array
-        const deepCopyBoard = (board) => JSON.parse(JSON.stringify(board));
-
-        // Basic move validation (simplified for this example)
-        const isValidMove = (board, startRow, startCol, endRow, endCol, piece) => {
-            if (startRow === endRow && startCol === endCol) return false; // Cannot move to the same square
-
-            const targetPiece = board[endRow][endCol];
-            const isWhite = piece[0] === 'w';
-            const isTargetWhite = targetPiece[0] === 'w';
-
-            // Cannot capture your own piece
-            if (targetPiece && ((isWhite && isTargetWhite) || (!isWhite && !isTargetWhite))) {
-                return false;
-            }
-
-            const rowDiff = Math.abs(endRow - startRow);
-            const colDiff = Math.abs(endCol - startCol);
-
-            switch (piece[1]) {
-                case 'p': // Pawn
-                    if (isWhite) {
-                        if (startCol === endCol) { // Straight move
-                            if (endRow === startRow - 1 && !targetPiece) return true; // Single step
-                            if (startRow === 6 && endRow === startRow - 2 && !targetPiece && !board[startRow - 1][startCol]) return true; // Double step from start
-                        } else if (colDiff === 1 && endRow === startRow - 1 && targetPiece) { // Capture
-                            return true;
-                        }
-                    } else { // Black pawn
-                        if (startCol === endCol) { // Straight move
-                            if (endRow === startRow + 1 && !targetPiece) return true; // Single step
-                            if (startRow === 1 && endRow === startRow + 2 && !targetPiece && !board[startRow + 1][startCol]) return true; // Double step from start
-                        } else if (colDiff === 1 && endRow === startRow + 1 && targetPiece) { // Capture
-                            return true;
-                        }
-                    }
-                    return false;
-                case 'r': // Rook
-                    if (startRow === endRow) { // Horizontal
-                        const step = startCol < endCol ? 1 : -1;
-                        for (let c = startCol + step; c !== endCol; c += step) {
-                            if (board[startRow][c]) return false; // Path blocked
-                        }
-                        return true;
-                    } else if (startCol === endCol) { // Vertical
-                        const step = startRow < endRow ? 1 : -1;
-                        for (let r = startRow + step; r !== endRow; r += step) {
-                            if (board[r][startCol]) return false; // Path blocked
-                        }
-                        return true;
-                    }
-                    return false;
-                case 'n': // Knight
-                    return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
-                case 'b': // Bishop
-                    if (rowDiff === colDiff) { // Diagonal
-                        const rowStep = startRow < endRow ? 1 : -1;
-                        const colStep = startCol < endCol ? 1 : -1;
-                        for (let r = startRow + rowStep, c = startCol + colStep; r !== endRow; r += rowStep, c += colStep) {
-                            if (board[r][c]) return false; // Path blocked
-                        }
-                        return true;
-                    }
-                    return false;
-                case 'q': // Queen
-                    // Combines Rook and Bishop logic
-                    if (startRow === endRow || startCol === endCol) { // Horizontal or Vertical
-                        const step = startRow === endRow ? (startCol < endCol ? 1 : -1) : 0;
-                        if (step !== 0) { // Horizontal
-                            for (let c = startCol + step; c !== endCol; c += step) {
-                                if (board[startRow][c]) return false;
-                            }
-                        } else { // Vertical
-                            const rowStep = startRow < endRow ? 1 : -1;
-                            for (let r = startRow + rowStep; r !== endRow; r += rowStep) {
-                                if (board[r][startCol]) return false;
-                            }
-                        }
-                        return true;
-                    } else if (rowDiff === colDiff) { // Diagonal
-                        const rowStep = startRow < endRow ? 1 : -1;
-                        const colStep = startCol < endCol ? 1 : -1;
-                        for (let r = startRow + rowStep, c = startCol + colStep; r !== endRow; r += rowStep, c += colStep) {
-                            if (board[r][c]) return false;
-                        }
-                        return true;
-                    }
-                    return false;
-                case 'k': // King
-                    return rowDiff <= 1 && colDiff <= 1;
-                default:
-                    return false;
-            }
+        // Helper function to convert chess.js piece object to our string format (e.g., 'wp', 'bn')
+        const getPieceString = (pieceObj) => {
+            if (!pieceObj) return '';
+            return `${pieceObj.color}${pieceObj.type}`;
         };
 
-        // Function to get all valid moves for a given piece at a given position
-        const getValidMovesForPiece = (board, startRow, startCol, piece) => {
-            const moves = [];
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    if (isValidMove(board, startRow, startCol, r, c, piece)) {
-                        moves.push({ row: r, col: c });
-                    }
-                }
-            }
-            return moves;
+        // Helper function to convert chess.js board array to our 2D array of strings
+        const convertChessJsBoard = (chessJsBoard) => {
+            return chessJsBoard.map(row => row.map(piece => getPieceString(piece)));
         };
 
         // --- UI Update Functions ---
@@ -347,8 +243,13 @@
             const chessBoardElement = document.getElementById('chessBoard');
             chessBoardElement.innerHTML = ''; // Clear previous board
 
-            currentBoard.forEach((row, rIdx) => {
-                row.forEach((piece, cIdx) => {
+            // chess.js board is an array of arrays of piece objects or null
+            const boardArray = chess.board(); // Get the current board from chess.js
+
+            boardArray.forEach((row, rIdx) => {
+                row.forEach((pieceObj, cIdx) => {
+                    const pieceString = getPieceString(pieceObj); // Convert to our 'wp', 'bn' format
+
                     const isLightSquare = (rIdx + cIdx) % 2 === 0;
                     const isSelected = selectedSquare && selectedSquare.row === rIdx && selectedSquare.col === cIdx;
                     const isPossibleMove = validMoves.some(move => move.row === rIdx && move.col === cIdx);
@@ -366,7 +267,7 @@
 
                     const pieceSpan = document.createElement('span');
                     pieceSpan.className = 'chess-piece';
-                    pieceSpan.textContent = PIECES[piece];
+                    pieceSpan.textContent = PIECES_UNICODE[pieceString]; // Use the Unicode map
                     squareDiv.appendChild(pieceSpan);
 
                     if (isPossibleMove) {
@@ -384,9 +285,25 @@
             document.getElementById('gameIdDisplay').textContent = gameId;
             document.getElementById('turnDisplay').textContent = turn.toUpperCase();
             document.getElementById('turnDisplay').className = `font-bold ${turn === 'white' ? 'text-white' : 'text-gray-400'}`;
+            
             document.getElementById('whitePlayerDisplay').textContent = players.white || 'Waiting...';
             document.getElementById('blackPlayerDisplay').textContent = players.black || 'Waiting...';
-            document.getElementById('gameStatusDisplay').textContent = gameStatus.toUpperCase();
+            
+            const gameStatusDisplay = document.getElementById('gameStatusDisplay');
+            if (chess.in_checkmate()) {
+                const winner = chess.turn() === 'w' ? 'Black' : 'White'; // If white is checkmated, black wins
+                gameStatusDisplay.textContent = `CHECKMATE! ${winner} Wins!`;
+                gameStatusDisplay.className = 'font-semibold text-green-500';
+            } else if (chess.in_stalemate()) {
+                gameStatusDisplay.textContent = 'STALEMATE! Game Over.';
+                gameStatusDisplay.className = 'font-semibold text-yellow-500';
+            } else if (chess.in_check()) {
+                gameStatusDisplay.textContent = 'CHECK!';
+                gameStatusDisplay.className = 'font-semibold text-red-500';
+            } else {
+                gameStatusDisplay.textContent = gameStatus.toUpperCase();
+                gameStatusDisplay.className = 'font-semibold text-orange-400';
+            }
         };
 
         const renderChatMessages = () => {
@@ -401,7 +318,6 @@
             chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Scroll to bottom
         };
 
-        // New: Function to render captured pieces
         const renderCapturedPieces = () => {
             const capturedWhitePiecesDisplay = document.getElementById('capturedWhitePiecesDisplay');
             const capturedBlackPiecesDisplay = document.getElementById('capturedBlackPiecesDisplay');
@@ -411,13 +327,13 @@
 
             capturedWhitePieces.forEach(piece => {
                 const span = document.createElement('span');
-                span.textContent = PIECES[piece];
+                span.textContent = PIECES_UNICODE[piece];
                 capturedWhitePiecesDisplay.appendChild(span);
             });
 
             capturedBlackPieces.forEach(piece => {
                 const span = document.createElement('span');
-                span.textContent = PIECES[piece];
+                span.textContent = PIECES_UNICODE[piece];
                 capturedBlackPiecesDisplay.appendChild(span);
             });
         };
@@ -429,23 +345,41 @@
                 console.error("User not authenticated.");
                 return;
             }
-            const newGameId = `game_${Date.now()}`;
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, newGameId);
+            const newGameIdInput = document.getElementById('newGameIdInput');
+            const customGameId = newGameIdInput.value.trim();
+
+            if (!customGameId) {
+                alert("Please enter a Game ID to create a new game."); // Using alert for simplicity, consider a custom modal
+                return;
+            }
+
+            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, customGameId);
             try {
+                const docSnap = await getDoc(gameDocRef);
+                if (docSnap.exists()) {
+                    alert(`Game ID "${customGameId}" already exists. Please choose a different one or join it.`);
+                    return;
+                }
+
+                // Initialize a new chess game and get its FEN
+                const newChessGame = new Chess();
+                const initialFen = newChessGame.fen();
+
                 await setDoc(gameDocRef, {
-                    board: JSON.stringify(deepCopyBoard(initialBoard)),
+                    boardFen: initialFen, // Store FEN string
                     turn: 'white',
                     players: { white: userId, black: null },
                     status: 'waiting',
-                    chat: [{ sender: 'System', message: `${userId} created the game.` }],
-                    capturedWhitePieces: JSON.stringify([]), // New: Initialize empty captured pieces
-                    capturedBlackPieces: JSON.stringify([]), // New: Initialize empty captured pieces
+                    chat: [{ sender: 'System', message: `${userId} created game "${customGameId}".` }],
+                    capturedWhitePieces: JSON.stringify([]),
+                    capturedBlackPieces: JSON.stringify([]),
                     createdAt: new Date().toISOString()
                 });
-                window.gameId = newGameId; // Use window.gameId to trigger the setter
-                // No need to manually update state here, onSnapshot will handle it
+                window.gameId = customGameId;
+                newGameIdInput.value = ''; // Clear input after creating
             } catch (e) {
                 console.error("Error creating game:", e);
+                alert("Error creating game. Please try again.");
             }
         };
 
@@ -465,119 +399,129 @@
                             status: 'playing',
                             chat: [...gameData.chat, { sender: 'System', message: `${userId} joined the game.` }]
                         });
-                        window.gameId = idToJoin; // Use window.gameId to trigger the setter
+                        window.gameId = idToJoin;
                     } else if (gameData.players.white === userId || gameData.players.black === userId) {
                         window.gameId = idToJoin; // Rejoin if already a player
                         console.log("Rejoined game with ID:", idToJoin);
                     } else {
-                        console.warn("Game is full or not accepting new players.");
+                        alert("Game is full or not accepting new players.");
                     }
                 } else {
-                    console.error("Game does not exist.");
+                    alert("Game does not exist.");
                 }
             } catch (e) {
                 console.error("Error joining game:", e);
+                alert("Error joining game. Please try again.");
             }
+        };
+
+        // Helper to convert (row, col) to algebraic square (e.g., 'a1', 'h8')
+        const toAlgebraic = (row, col) => {
+            const file = String.fromCharCode(97 + col); // 'a' to 'h'
+            const rank = 8 - row; // '8' to '1'
+            return `${file}${rank}`;
         };
 
         const handleSquareClick = (row, col) => {
-            if (!gameId || gameStatus !== 'playing') return;
+            if (!gameId || chess.is_game_over()) return; // Prevent moves after game end
 
             const currentPlayerColor = players.white === userId ? 'white' : (players.black === userId ? 'black' : null);
-            if (!currentPlayerColor) {
-                console.log("You are not a player in this game.");
-                return;
-            }
-
-            const piece = currentBoard[row][col];
-            const pieceColor = piece ? (piece[0] === 'w' ? 'white' : 'black') : null;
-
-            if (selectedSquare) {
-                const startRow = selectedSquare.row;
-                const startCol = selectedSquare.col;
-                const selectedPiece = currentBoard[startRow][startCol];
-
-                if (startRow === row && startCol === col) {
-                    selectedSquare = null;
-                    validMoves = [];
-                    renderBoard();
-                    return;
-                }
-
-                if (piece && pieceColor === currentPlayerColor) {
-                    selectedSquare = { row, col };
-                    validMoves = getValidMovesForPiece(currentBoard, row, col, piece);
-                    renderBoard();
-                    return;
-                }
-
-                if (isValidMove(currentBoard, startRow, startCol, row, col, selectedPiece)) {
-                    makeMove(startRow, startCol, row, col);
-                    selectedSquare = null;
-                    validMoves = [];
-                    // Board will be re-rendered by onSnapshot, but this clears dots immediately
-                    renderBoard();
-                } else {
-                    console.log("Invalid move.");
-                }
-            } else {
-                if (piece && pieceColor === turn && pieceColor === currentPlayerColor) {
-                    selectedSquare = { row, col };
-                    validMoves = getValidMovesForPiece(currentBoard, row, col, piece);
-                    renderBoard();
-                }
-            }
-        };
-
-        const makeMove = async (startRow, startCol, endRow, endCol) => {
-            if (!gameId || !userId || gameStatus !== 'playing') return;
-
-            const currentPlayerColor = players.white === userId ? 'white' : (players.black === userId ? 'black' : null);
-            if (!currentPlayerColor || currentPlayerColor !== turn) {
+            // chess.turn() returns 'w' or 'b'
+            if (!currentPlayerColor || (currentPlayerColor === 'white' && chess.turn() !== 'w') || (currentPlayerColor === 'black' && chess.turn() !== 'b')) {
                 console.log("It's not your turn or you are not a player.");
                 return;
             }
 
-            const newBoard = deepCopyBoard(currentBoard);
-            const pieceToMove = newBoard[startRow][startCol];
-            const capturedPiece = newBoard[endRow][endCol]; // Check if a piece is being captured
+            const squareAlgebraic = toAlgebraic(row, col);
+            const piece = chess.get(squareAlgebraic); // Get piece object from chess.js
 
-            // Update captured pieces if a piece is captured
+            if (selectedSquare) {
+                const startSquareAlgebraic = toAlgebraic(selectedSquare.row, selectedSquare.col);
+                
+                if (selectedSquare.row === row && selectedSquare.col === col) {
+                    selectedSquare = null;
+                    validMoves = [];
+                    renderBoard();
+                    return;
+                }
+
+                // If clicking on your own piece, select the new piece and update valid moves
+                if (piece && piece.color === chess.turn()) {
+                    selectedSquare = { row, col };
+                    // Get valid moves for the newly selected piece
+                    const moves = chess.moves({ square: squareAlgebraic, verbose: true });
+                    validMoves = moves.map(move => {
+                        const targetRow = 8 - parseInt(move.to[1]);
+                        const targetCol = move.to.charCodeAt(0) - 97;
+                        return { row: targetRow, col: targetCol };
+                    });
+                    renderBoard();
+                    return;
+                }
+
+                // Attempt to move the selected piece
+                try {
+                    const moveResult = chess.move({
+                        from: startSquareAlgebraic,
+                        to: squareAlgebraic,
+                        promotion: 'q' // auto-promote to queen for simplicity
+                    });
+
+                    if (moveResult) {
+                        makeMove(moveResult); // Pass the move result to makeMove
+                        selectedSquare = null;
+                        validMoves = [];
+                        renderBoard(); // Render immediately for local responsiveness
+                    } else {
+                        console.log("Invalid move.");
+                    }
+                } catch (e) {
+                    console.error("Error making move with chess.js:", e);
+                    console.log("Invalid move. (Error caught)");
+                }
+            } else {
+                // If no piece is selected, select the clicked piece if it's the current player's turn
+                if (piece && piece.color === chess.turn()) {
+                    selectedSquare = { row, col };
+                    // Get valid moves for the selected piece
+                    const moves = chess.moves({ square: squareAlgebraic, verbose: true });
+                    validMoves = moves.map(move => {
+                        const targetRow = 8 - parseInt(move.to[1]);
+                        const targetCol = move.to.charCodeAt(0) - 97;
+                        return { row: targetRow, col: targetCol };
+                    });
+                    renderBoard();
+                }
+            }
+        };
+
+        // makeMove now takes the result from chess.move()
+        const makeMove = async (moveResult) => {
+            if (!gameId || !userId || chess.is_game_over()) return;
+
+            // Update captured pieces based on moveResult
             let updatedCapturedWhitePieces = [...capturedWhitePieces];
             let updatedCapturedBlackPieces = [...capturedBlackPieces];
 
-            if (capturedPiece) {
-                if (capturedPiece[0] === 'w') { // Captured a white piece
-                    updatedCapturedBlackPieces.push(capturedPiece);
-                } else { // Captured a black piece
-                    updatedCapturedWhitePieces.push(capturedPiece);
+            if (moveResult.captured) {
+                const capturedPieceString = `${moveResult.color === 'w' ? 'b' : 'w'}${moveResult.captured}`;
+                if (moveResult.color === 'w') { // White captured a black piece
+                    updatedCapturedWhitePieces.push(capturedPieceString);
+                } else { // Black captured a white piece
+                    updatedCapturedBlackPieces.push(capturedPieceString);
                 }
             }
-
-            if (pieceToMove[1] === 'p') {
-                if (pieceToMove[0] === 'w' && endRow === 0) {
-                    newBoard[endRow][endCol] = 'wq';
-                } else if (pieceToMove[0] === 'b' && endRow === 7) {
-                    newBoard[endRow][endCol] = 'bq';
-                } else {
-                    newBoard[endRow][endCol] = pieceToMove;
-                }
-            } else {
-                newBoard[endRow][endCol] = pieceToMove;
-            }
-            newBoard[startRow][startCol] = '';
-
-            const nextTurn = turn === 'white' ? 'black' : 'white';
 
             const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
             try {
                 await updateDoc(gameDocRef, {
-                    board: JSON.stringify(newBoard),
-                    turn: nextTurn,
-                    capturedWhitePieces: JSON.stringify(updatedCapturedWhitePieces), // New: Update captured pieces
-                    capturedBlackPieces: JSON.stringify(updatedCapturedBlackPieces), // New: Update captured pieces
+                    boardFen: chess.fen(), // Save the new FEN string
+                    turn: chess.turn() === 'w' ? 'white' : 'black', // Update turn based on chess.js
+                    capturedWhitePieces: JSON.stringify(updatedCapturedWhitePieces),
+                    capturedBlackPieces: JSON.stringify(updatedCapturedBlackPieces),
+                    status: chess.in_checkmate() ? 'checkmate' : (chess.in_stalemate() ? 'stalemate' : (chess.in_check() ? 'check' : 'playing')),
                 });
-                console.log("Move made and updated in Firestore.");
+                console.log("Move made and updated in Firestore. New FEN:", chess.fen());
             } catch (e) {
                 console.error("Error updating board:", e);
             }
@@ -608,28 +552,62 @@
             }
         };
 
-        const leaveGame = () => {
+        const leaveGame = async () => {
+            if (!gameId || !userId) {
+                console.error("Cannot leave game: gameId or userId not set.");
+                return;
+            }
+
+            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
+            try {
+                const docSnap = await getDoc(gameDocRef);
+                if (docSnap.exists()) {
+                    const gameData = docSnap.data();
+                    let updatedPlayers = { ...gameData.players };
+
+                    if (updatedPlayers.white === userId) {
+                        updatedPlayers.white = null;
+                    } else if (updatedPlayers.black === userId) {
+                        updatedPlayers.black = null;
+                    } else {
+                        console.warn("You are not a player in this game, just observing.");
+                    }
+
+                    await updateDoc(gameDocRef, {
+                        players: updatedPlayers,
+                        chat: [...(gameData.chat || []), { sender: 'System', message: `${userId} left the game.` }]
+                    });
+                    console.log(`${userId} marked as left in Firestore for game ${gameId}.`);
+                } else {
+                    console.warn(`Game ${gameId} does not exist when trying to leave.`);
+                }
+            } catch (e) {
+                console.error("Error updating player status on leave:", e);
+            }
+
+            // Local state cleanup (always perform this regardless of Firestore update success)
             if (unsubscribeGameListener) {
-                unsubscribeGameListener(); // Unsubscribe from the current game
+                unsubscribeGameListener();
                 unsubscribeGameListener = null;
             }
             gameId = '';
             selectedSquare = null;
             validMoves = [];
-            currentBoard = deepCopyBoard(initialBoard); // Reset board
+            chess.reset(); // Reset chess.js board
             turn = 'white';
             players = { white: null, black: null };
             gameStatus = 'waiting';
             chatMessages = [];
-            capturedWhitePieces = []; // New: Reset captured pieces
-            capturedBlackPieces = []; // New: Reset captured pieces
+            capturedWhitePieces = [];
+            capturedBlackPieces = [];
             updateLobbyView();
             renderBoard(); // Render initial board state
             updateGameInfo(); // Update game info display
             renderChatMessages(); // Clear chat
-            renderCapturedPieces(); // New: Clear captured pieces display
-            fetchAvailableGames(); // Re-fetch available games for lobby
+            renderCapturedPieces(); // Clear captured pieces display
+            fetchAvailableGames();
         };
+
 
         const deleteGame = async (gameToDeleteId) => {
             if (!userId) {
@@ -641,7 +619,9 @@
                 const docSnap = await getDoc(gameDocRef);
                 if (docSnap.exists()) {
                     const gameData = docSnap.data();
-                    if (gameData.players.white === userId && gameData.status === 'waiting') {
+                    // Allow deletion if the user is the white player and the game is waiting
+                    // OR if both players have left (checked by onSnapshot)
+                    if ((gameData.players.white === userId && gameData.status === 'waiting') || (!gameData.players.white && !gameData.players.black)) {
                         await deleteDoc(gameDocRef);
                         console.log(`Game ${gameToDeleteId} deleted.`);
                         if (gameId === gameToDeleteId) {
@@ -666,17 +646,17 @@
                 unsubscribeGameListener(); // Unsubscribe from previous game if any
             }
             if (!gameId || !isAuthReady || !userId) {
-                currentBoard = deepCopyBoard(initialBoard);
+                chess.reset(); // Reset chess.js board
                 turn = 'white';
                 players = { white: null, black: null };
                 gameStatus = 'waiting';
                 chatMessages = [];
-                capturedWhitePieces = []; // New: Reset on listener setup
-                capturedBlackPieces = []; // New: Reset on listener setup
+                capturedWhitePieces = [];
+                capturedBlackPieces = [];
                 renderBoard();
                 updateGameInfo();
                 renderChatMessages();
-                renderCapturedPieces(); // New: Render initial empty captured pieces
+                renderCapturedPieces();
                 return;
             }
 
@@ -684,19 +664,26 @@
             unsubscribeGameListener = onSnapshot(gameDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    currentBoard = data.board ? JSON.parse(data.board) : deepCopyBoard(initialBoard);
+                    chess.load(data.boardFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // Load FEN
                     turn = data.turn || 'white';
                     players = data.players || { white: null, black: null };
                     gameStatus = data.status || 'waiting';
                     chatMessages = data.chat || [];
-                    capturedWhitePieces = data.capturedWhitePieces ? JSON.parse(data.capturedWhitePieces) : []; // New: Read captured pieces
-                    capturedBlackPieces = data.capturedBlackPieces ? JSON.parse(data.capturedBlackPieces) : []; // New: Read captured pieces
+                    capturedWhitePieces = data.capturedWhitePieces ? JSON.parse(data.capturedWhitePieces) : [];
+                    capturedBlackPieces = data.capturedBlackPieces ? JSON.parse(data.capturedBlackPieces) : [];
 
                     renderBoard();
                     updateGameInfo();
                     renderChatMessages();
-                    renderCapturedPieces(); // New: Render updated captured pieces
+                    renderCapturedPieces();
                     console.log("Game state updated:", data);
+
+                    // New: Check if both players have left to delete the game
+                    if (!data.players.white && !data.players.black) {
+                        console.log(`Both players left game ${gameId}. Deleting game document.`);
+                        deleteGame(gameId); // Call deleteGame
+                    }
+
                 } else {
                     console.log("No such game document!");
                     leaveGame(); // Automatically leave if game document disappears
@@ -743,6 +730,7 @@
 
             const userIdDisplay = document.getElementById('userIdDisplay');
             const createGameBtn = document.getElementById('createGameBtn');
+            const newGameIdInput = document.getElementById('newGameIdInput');
             const gameIdInput = document.getElementById('gameIdInput');
             const joinGameBtn = document.getElementById('joinGameBtn');
             const leaveGameBtn = document.getElementById('leaveGameBtn');
@@ -752,7 +740,6 @@
 
             // Initial authentication
             try {
-                // Log the Firebase config being used
                 console.log("Firebase Config:", firebaseConfig);
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     console.log("Attempting sign-in with custom token...");
@@ -777,24 +764,26 @@
                     userIdDisplay.textContent = userId;
                     isAuthReady = true;
                     createGameBtn.disabled = false;
+                    newGameIdInput.disabled = false;
                     gameIdInput.disabled = false;
                     joinGameBtn.disabled = false;
                     console.log("Firebase Auth Ready. User ID:", userId);
-                    setupAvailableGamesListener(); // Start listening for available games once authenticated
-                    fetchAvailableGames(); // Initial fetch
+                    setupAvailableGamesListener();
+                    fetchAvailableGames();
                 } else {
                     userId = null;
                     userIdDisplay.textContent = 'Not signed in';
                     isAuthReady = true;
                     createGameBtn.disabled = true;
+                    newGameIdInput.disabled = true;
                     gameIdInput.disabled = true;
                     joinGameBtn.disabled = true;
                     console.log("Firebase Auth Ready. No user signed in.");
                     if (unsubscribeGamesListener) {
-                        unsubscribeGamesListener(); // Stop listening if user logs out
+                        unsubscribeGamesListener();
                     }
                     availableGames = [];
-                    renderAvailableGames(); // Clear available games list
+                    renderAvailableGames();
                 }
             });
 
@@ -808,28 +797,20 @@
                 }
             });
 
-            // Listen for changes in gameId to set up/teardown game listener
-            // This is crucial for triggering UI updates when gameId changes
             Object.defineProperty(window, 'gameId', {
                 get: () => gameId,
                 set: (newValue) => {
                     gameId = newValue;
                     setupGameListener();
-                    updateLobbyView(); // This will now trigger calculateAndSetSquareSize if gameView becomes visible
+                    updateLobbyView();
                 }
             });
 
-            // Initial render of the lobby view
             updateLobbyView();
-            // No initial renderBoard() here, as it will be called by setupGameListener or calculateAndSetSquareSize
-            updateGameInfo(); // Initial update of game info display
-            renderCapturedPieces(); // Initial render of empty captured pieces
+            updateGameInfo();
+            renderCapturedPieces();
 
-            // Set up resize listener for square size
             window.addEventListener('resize', calculateAndSetSquareSize);
-            // Initial calculation is now handled by updateLobbyView when gameId is set.
-            // If starting directly in a game (e.g., from a saved state), this might need adjustment.
-            // For now, it relies on a game being created/joined.
         });
     </script>
 </body>
