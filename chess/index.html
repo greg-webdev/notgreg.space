@@ -29,6 +29,18 @@
             width: min(100%, 32rem); /* Changed from 48rem to 32rem */
             height: min(100%, 32rem); /* Changed from 48rem to 32rem */
         }
+        .captured-pieces-display {
+            font-size: 1.5rem; /* Size for captured pieces */
+            line-height: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 2rem; /* Ensure some height even if empty */
+            padding: 0.5rem;
+            border: 1px solid #4a5568; /* gray-700 */
+            border-radius: 0.5rem;
+            background-color: #2d3748; /* gray-800 */
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
@@ -73,6 +85,14 @@
         </div>
 
         <div class="flex-1 bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col">
+            <h2 class="text-2xl font-semibold mb-4 text-center">Captured Pieces</h2>
+            <div class="mb-4">
+                <p class="text-sm text-gray-400 mb-1">White Captured:</p>
+                <div id="capturedWhitePiecesDisplay" class="captured-pieces-display text-gray-800"></div>
+                <p class="text-sm text-gray-400 mt-4 mb-1">Black Captured:</p>
+                <div id="capturedBlackPiecesDisplay" class="captured-pieces-display text-amber-100"></div>
+            </div>
+
             <h2 class="text-2xl font-semibold mb-4 text-center">Chat</h2>
             <div id="chatMessages" class="flex-1 overflow-y-auto border border-gray-700 p-4 rounded-lg mb-4 bg-gray-700 max-h-80 min-h-[200px]">
                 <!-- Chat messages will be dynamically inserted here -->
@@ -107,6 +127,8 @@
         let gameStatus = 'waiting'; // 'waiting', 'playing', 'checkmate', 'stalemate'
         let chatMessages = [];
         let availableGames = [];
+        let capturedWhitePieces = []; // New: Array to store captured white pieces
+        let capturedBlackPieces = []; // New: Array to store captured black pieces
         let unsubscribeGameListener = null; // To store the unsubscribe function for the game listener
         let unsubscribeGamesListener = null; // To store the unsubscribe function for the available games listener
 
@@ -379,6 +401,28 @@
             chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Scroll to bottom
         };
 
+        // New: Function to render captured pieces
+        const renderCapturedPieces = () => {
+            const capturedWhitePiecesDisplay = document.getElementById('capturedWhitePiecesDisplay');
+            const capturedBlackPiecesDisplay = document.getElementById('capturedBlackPiecesDisplay');
+
+            capturedWhitePiecesDisplay.innerHTML = '';
+            capturedBlackPiecesDisplay.innerHTML = '';
+
+            capturedWhitePieces.forEach(piece => {
+                const span = document.createElement('span');
+                span.textContent = PIECES[piece];
+                capturedWhitePiecesDisplay.appendChild(span);
+            });
+
+            capturedBlackPieces.forEach(piece => {
+                const span = document.createElement('span');
+                span.textContent = PIECES[piece];
+                capturedBlackPiecesDisplay.appendChild(span);
+            });
+        };
+
+
         // --- Game Logic Functions ---
         const createGame = async () => {
             if (!userId) {
@@ -394,6 +438,8 @@
                     players: { white: userId, black: null },
                     status: 'waiting',
                     chat: [{ sender: 'System', message: `${userId} created the game.` }],
+                    capturedWhitePieces: JSON.stringify([]), // New: Initialize empty captured pieces
+                    capturedBlackPieces: JSON.stringify([]), // New: Initialize empty captured pieces
                     createdAt: new Date().toISOString()
                 });
                 window.gameId = newGameId; // Use window.gameId to trigger the setter
@@ -494,6 +540,19 @@
 
             const newBoard = deepCopyBoard(currentBoard);
             const pieceToMove = newBoard[startRow][startCol];
+            const capturedPiece = newBoard[endRow][endCol]; // Check if a piece is being captured
+
+            // Update captured pieces if a piece is captured
+            let updatedCapturedWhitePieces = [...capturedWhitePieces];
+            let updatedCapturedBlackPieces = [...capturedBlackPieces];
+
+            if (capturedPiece) {
+                if (capturedPiece[0] === 'w') { // Captured a white piece
+                    updatedCapturedBlackPieces.push(capturedPiece);
+                } else { // Captured a black piece
+                    updatedCapturedWhitePieces.push(capturedPiece);
+                }
+            }
 
             if (pieceToMove[1] === 'p') {
                 if (pieceToMove[0] === 'w' && endRow === 0) {
@@ -515,6 +574,8 @@
                 await updateDoc(gameDocRef, {
                     board: JSON.stringify(newBoard),
                     turn: nextTurn,
+                    capturedWhitePieces: JSON.stringify(updatedCapturedWhitePieces), // New: Update captured pieces
+                    capturedBlackPieces: JSON.stringify(updatedCapturedBlackPieces), // New: Update captured pieces
                 });
                 console.log("Move made and updated in Firestore.");
             } catch (e) {
@@ -560,10 +621,13 @@
             players = { white: null, black: null };
             gameStatus = 'waiting';
             chatMessages = [];
+            capturedWhitePieces = []; // New: Reset captured pieces
+            capturedBlackPieces = []; // New: Reset captured pieces
             updateLobbyView();
             renderBoard(); // Render initial board state
             updateGameInfo(); // Update game info display
             renderChatMessages(); // Clear chat
+            renderCapturedPieces(); // New: Clear captured pieces display
             fetchAvailableGames(); // Re-fetch available games for lobby
         };
 
@@ -607,9 +671,12 @@
                 players = { white: null, black: null };
                 gameStatus = 'waiting';
                 chatMessages = [];
+                capturedWhitePieces = []; // New: Reset on listener setup
+                capturedBlackPieces = []; // New: Reset on listener setup
                 renderBoard();
                 updateGameInfo();
                 renderChatMessages();
+                renderCapturedPieces(); // New: Render initial empty captured pieces
                 return;
             }
 
@@ -622,9 +689,13 @@
                     players = data.players || { white: null, black: null };
                     gameStatus = data.status || 'waiting';
                     chatMessages = data.chat || [];
+                    capturedWhitePieces = data.capturedWhitePieces ? JSON.parse(data.capturedWhitePieces) : []; // New: Read captured pieces
+                    capturedBlackPieces = data.capturedBlackPieces ? JSON.parse(data.capturedBlackPieces) : []; // New: Read captured pieces
+
                     renderBoard();
                     updateGameInfo();
                     renderChatMessages();
+                    renderCapturedPieces(); // New: Render updated captured pieces
                     console.log("Game state updated:", data);
                 } else {
                     console.log("No such game document!");
@@ -752,6 +823,7 @@
             updateLobbyView();
             // No initial renderBoard() here, as it will be called by setupGameListener or calculateAndSetSquareSize
             updateGameInfo(); // Initial update of game info display
+            renderCapturedPieces(); // Initial render of empty captured pieces
 
             // Set up resize listener for square size
             window.addEventListener('resize', calculateAndSetSquareSize);
