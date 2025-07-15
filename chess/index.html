@@ -11,7 +11,13 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        /* Styles for the chess piece itself */
         .piece {
+            position: absolute; /* Position piece within its square */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Center the piece */
+            font-size: 3.5rem; /* Set font size directly on the piece */
             cursor: grab;
             user-select: none; /* Prevent text selection */
             -webkit-user-select: none;
@@ -21,18 +27,23 @@
         }
         .active-piece {
             /* Styles for pieces that can be dragged by the current player */
-            transform: scale(1.05);
+            transform: translate(-50%, -50%) scale(1.05); /* Apply scale after centering */
             filter: brightness(1.2);
         }
         .board-square {
-            display: flex;
+            display: flex; /* Keep for general centering, though absolute positioning handles piece */
             align-items: center;
             justify-content: center;
-            font-size: 3.5rem; /* Adjusted for better fit on squares */
             font-weight: bold;
             border-radius: 0.125rem; /* rounded-sm */
             transition: background-color 100ms ease-in-out;
-            position: relative;
+            position: relative; /* Essential for absolute positioning of piece */
+
+            /* Force square aspect ratio */
+            width: 100%; /* Take full width of grid cell */
+            padding-bottom: 100%; /* Make height equal to width based on padding */
+            height: 0; /* Collapse intrinsic height */
+            overflow: hidden; /* Hide anything that overflows this forced square */
         }
         /* Highlight for the square where a piece is currently being dragged from */
         .selected-square {
@@ -42,7 +53,7 @@
         .dragged-over-square {
             background-color: rgba(34, 197, 94, 0.5); /* bg-green-500/50 */
         }
-        /* Ensure the board maintains aspect ratio */
+        /* Ensure the board container maintains aspect ratio */
         #chess-board-container {
             aspect-ratio: 1 / 1;
             max-width: 800px;
