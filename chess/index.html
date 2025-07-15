@@ -6,122 +6,124 @@
     <title>Multiplayer Chess</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            -webkit-user-select: none; /* Safari */
-            -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* IE10+/Edge */
-            user-select: none; /* Standard */
         }
-        /* Custom styles for chess pieces to ensure proper rendering and size */
-        .chess-piece {
-            font-size: 3rem; /* Adjust as needed for piece size */
-            line-height: 1; /* Ensure no extra space above/below piece */
+        .piece {
+            cursor: grab;
+            user-select: none; /* Prevent text selection */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: none; /* Prevent default touch actions like scrolling */
+        }
+        .active-piece {
+            /* Styles for pieces that can be dragged by the current player */
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+        .board-square {
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 3.5rem; /* Adjusted for better fit on squares */
+            font-weight: bold;
+            border-radius: 0.125rem; /* rounded-sm */
+            transition: background-color 100ms ease-in-out;
+            position: relative;
+        }
+        /* Highlight for the square where a piece is currently being dragged from */
+        .selected-square {
+            box-shadow: 0 0 0 4px rgb(59 130 246), 0 0 0 6px rgb(255 255 255); /* ring-4 ring-blue-500 ring-offset-2 */
+        }
+        /* Highlight for the square where a piece is being dragged over (potential drop target) */
+        .dragged-over-square {
+            background-color: rgba(34, 197, 94, 0.5); /* bg-green-500/50 */
+        }
+        /* Ensure the board maintains aspect ratio */
+        #chess-board-container {
+            aspect-ratio: 1 / 1;
+            max-width: 800px;
             width: 100%;
-            height: 100%;
         }
-        /* Ensure the board container takes up appropriate space */
-        .board-container {
-            width: min(100%, 32rem); /* Changed from 48rem to 32rem */
-            height: min(100%, 32rem); /* Changed from 48rem to 32rem */
+        /* Custom message box styling */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none; /* Allows clicks to pass through */
         }
-        .captured-pieces-display {
-            font-size: 1.5rem; /* Size for captured pieces */
-            line-height: 1;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            min-height: 2rem; /* Ensure some height even if empty */
-            padding: 0.5rem;
-            border: 1px solid #4a5568; /* gray-700 */
-            border-radius: 0.5rem;
-            background-color: #2d3748; /* gray-800 */
+        .message-box.show {
+            opacity: 1;
         }
-        /* Simple loading spinner */
-        .loader {
-            border: 4px solid #f3f3f3; /* Light grey */
-            border-top: 4px solid #3498db; /* Blue */
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin-left: 10px;
-            display: inline-block;
-            vertical-align: middle;
+        .message-box.error {
+            background-color: #dc2626; /* red-600 */
+            color: white;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .message-box.info {
+            background-color: #2563eb; /* blue-600 */
+            color: white;
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+<body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-700 text-white p-4">
 
-    <h1 class="text-4xl font-bold mb-6 text-yellow-400">Multiplayer Chess</h1>
-    <p class="text-lg mb-4">Your User ID: <span id="userIdDisplay" class="font-mono text-blue-400">Loading... <span id="loadingSpinner" class="loader"></span></span></p>
+    <h1 class="text-4xl md:text-6xl font-extrabold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 drop-shadow-lg">
+        Multiplayer Chess
+    </h1>
 
-    <div id="lobbyView" class="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md hidden">
-        <h2 class="text-2xl font-semibold mb-4 text-center">Lobby</h2>
-        <div class="mb-4">
-            <input type="text" id="newGameIdInput" placeholder="Enter New Game ID (e.g., mygame123)" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
-            <button id="createGameBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 mb-4 shadow-md">
+    <div class="w-full max-w-4xl bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 flex flex-col items-center">
+        <!-- Message and Error Display -->
+        <div id="message-display" class="message-box"></div>
+
+        <div class="text-lg font-medium mb-4 text-gray-300">
+            Your User ID: <span id="user-id-display" class="font-mono text-blue-400 break-all">N/A</span>
+        </div>
+
+        <!-- Lobby View -->
+        <div id="lobby-view" class="flex flex-col items-center w-full">
+            <button id="create-game-btn" class="w-full md:w-auto px-8 py-4 mb-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-xl shadow-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
                 Create New Game
             </button>
-        </div>
-        <div class="mb-4">
-            <input type="text" id="gameIdInput" placeholder="Enter Existing Game ID to Join" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
-            <button id="joinGameBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
-                Join Game
-            </button>
-        </div>
-        <h3 class="text-xl font-semibold mb-3">Available Games:</h3>
-        <ul id="availableGamesList" class="space-y-2 max-h-60 overflow-y-auto pr-2">
-            <p class="text-gray-400 text-center">Loading available games...</p>
-        </ul>
-    </div>
 
-    <div id="gameView" class="hidden flex-col lg:flex-row gap-8 w-full max-w-6xl">
-        <div class="flex-1 bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col items-center">
-            <h2 class="text-3xl font-semibold mb-4 text-center">Game: <span id="gameIdDisplay" class="font-mono text-cyan-400"></span></h2>
-            <div class="mb-4 text-center">
-                <p class="text-xl">Turn: <span id="turnDisplay" class="font-bold"></span></p>
-                <p class="text-sm text-gray-400">White: <span id="whitePlayerDisplay"></span></p>
-                <p class="text-sm text-gray-400">Black: <span id="blackPlayerDisplay"></span></p>
-                <p class="text-md mt-2">Status: <span id="gameStatusDisplay" class="font-semibold text-orange-400"></span></p>
-            </div>
-
-            <!-- Chess Board Container -->
-            <div id="chessBoard" class="grid grid-cols-8 border-2 border-gray-600 rounded-lg overflow-hidden board-container">
-                <!-- Squares will be dynamically inserted here by JavaScript -->
-            </div>
-            <button id="leaveGameBtn" class="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
-                Leave Game
-            </button>
-        </div>
-
-        <div class="flex-1 bg-gray-800 p-6 rounded-xl shadow-lg flex flex-col">
-            <h2 class="text-2xl font-semibold mb-4 text-center">Captured Pieces</h2>
-            <div class="mb-4">
-                <p class="text-sm text-gray-400 mb-1">White Captured:</p>
-                <div id="capturedWhitePiecesDisplay" class="captured-pieces-display text-gray-800"></div>
-                <p class="text-sm text-gray-400 mt-4 mb-1">Black Captured:</p>
-                <div id="capturedBlackPiecesDisplay" class="captured-pieces-display text-amber-100"></div>
-            </div>
-
-            <h2 class="text-2xl font-semibold mb-4 text-center">Chat</h2>
-            <div id="chatMessages" class="flex-1 overflow-y-auto border border-gray-700 p-4 rounded-lg mb-4 bg-gray-700 max-h-80 min-h-[200px]">
-                <!-- Chat messages will be dynamically inserted here -->
-            </div>
-            <div class="flex">
-                <input type="text" id="chatInput" placeholder="Type a message..." class="flex-1 p-3 rounded-l-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                <button id="sendChatBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-r-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
-                    Send
+            <div class="flex items-center w-full md:w-auto mb-4">
+                <input type="text" id="join-game-id-input" placeholder="Enter Game ID to join" class="flex-grow p-3 rounded-l-xl border-2 border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-lg" />
+                <button id="join-game-btn" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-lg rounded-r-xl shadow-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105">
+                    Join Game
                 </button>
             </div>
+        </div>
+
+        <!-- Game View -->
+        <div id="game-view" class="flex flex-col items-center w-full hidden">
+            <h2 class="text-3xl font-semibold mb-4 text-blue-300">
+                Game ID: <span id="game-id-display" class="font-mono text-blue-400"></span>
+            </h2>
+            <div class="text-xl font-medium mb-4 text-gray-200">
+                Current Turn: <span id="current-turn-display" class="capitalize font-bold text-yellow-300"></span>
+            </div>
+            <div class="text-lg mb-6 text-gray-300">
+                White Player: <span id="white-player-display" class="font-mono text-green-400 break-all"></span>
+                <br />
+                Black Player: <span id="black-player-display" class="font-mono text-red-400 break-all"></span>
+            </div>
+
+            <div id="chess-board-container" class="grid grid-cols-8 gap-0 border-4 border-gray-800 rounded-lg shadow-2xl overflow-hidden">
+                <!-- Chess board squares will be rendered here by JavaScript -->
+            </div>
+
+            <button id="leave-game-btn" class="mt-8 px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold text-lg rounded-xl shadow-lg hover:from-red-600 hover:to-rose-700 transition-all duration-300 transform hover:scale-105">
+                Leave Game
+            </button>
         </div>
     </div>
 
@@ -129,764 +131,619 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, addDoc, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // Import chess.js library - Updated to a stable CDN URL
-        import { Chess } from "https://unpkg.com/chess.js@1.0.0-beta.7/dist/chess.min.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables for Firebase and game state
-        let app;
-        let db;
-        let auth;
-        let userId = null;
-        let isAuthReady = false;
-        let gameId = '';
-        let chess = new Chess(); // Initialize chess.js
-        let selectedSquare = null; // {row, col}
-        let validMoves = []; // Array of {row, col} for valid moves
-        let turn = 'white'; // 'white' or 'black'
-        let players = { white: null, black: null };
-        let gameStatus = 'waiting'; // 'waiting', 'playing', 'check', 'checkmate', 'stalemate'
-        let chatMessages = [];
-        let availableGames = [];
-        let capturedWhitePieces = [];
-        let capturedBlackPieces = [];
-        let unsubscribeGameListener = null;
-        let unsubscribeGamesListener = null;
+        // Firebase configuration from user's input
+        // Use the __firebase_config global variable provided by the Canvas environment
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
-        // Ensure __app_id and __firebase_config are defined in the Canvas environment
+        // Global variables provided by the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // CORRECTED Firebase Config with your provided API Key
-        const firebaseConfig = {
-            apiKey: "AIzaSyD77rYCiT3O8BHWYLgdfsLf_9iq0Bq4Uzg",
-            authDomain: "chess6969-6d8af.firebaseapp.com",
-            projectId: "chess6969-6d8af",
-            storageBucket: "chess6969-6d8af.firebasestorage.app",
-            messagingSenderId: "176883638566",
-            appId: "1:176883638566:web:14216441ece77c5540a1e7"
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase app
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Global game state
+        const gameState = {
+            user: null,
+            userId: null,
+            isAuthReady: false,
+            gameId: null,
+            gameData: null, // Stores the current game state from Firestore
+            draggingPiece: null, // { piece: 'wp', from: 'a2' }
+            draggedOverSquare: null, // 'b3'
+            unsubscribeGame: null // To store the Firestore unsubscribe function
         };
 
-        // Chess piece representations (using Unicode chess symbols for visual appeal)
-        // Note: chess.js uses 'p', 'r', 'n', 'b', 'q', 'k' for pieces and 'w', 'b' for color
-        const PIECES_UNICODE = {
+        // Chess piece Unicode characters
+        const PIECES = {
             'wp': '♙', 'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔',
             'bp': '♟', 'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚',
-            '': '' // Empty square
         };
 
-        // Helper function to convert chess.js piece object to our string format (e.g., 'wp', 'bn')
-        const getPieceString = (pieceObj) => {
-            if (!pieceObj) return '';
-            return `${pieceObj.color}${pieceObj.type}`;
+        // Initial board setup
+        const initialBoard = [
+            ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+            ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+            ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr'],
+        ];
+
+        // --- Helper Functions ---
+
+        /**
+         * Displays a message to the user.
+         * @param {string} msg The message to display.
+         * @param {'info'|'error'} type The type of message (info or error).
+         */
+        function showMessage(msg, type = 'info') {
+            const messageDisplay = document.getElementById('message-display');
+            messageDisplay.textContent = msg;
+            messageDisplay.className = `message-box show font-medium ${type === 'error' ? 'error' : 'info'}`;
+            setTimeout(() => {
+                messageDisplay.classList.remove('show');
+            }, 3000); // Message disappears after 3 seconds
+        }
+
+        /**
+         * Gets the color of a chess piece.
+         * @param {string} piece The piece string (e.g., 'wp', 'br').
+         * @returns {string|null} 'w' for white, 'b' for black, or null if no piece.
+         */
+        const getPieceColor = (piece) => piece ? piece[0] : null;
+
+        /**
+         * Converts a square string (e.g., 'a1') to board coordinates {row, col}.
+         * @param {string} square The square string.
+         * @returns {{row: number, col: number}|null} The row and column, or null if invalid.
+         */
+        const getCoords = (square) => {
+            if (!square) return null;
+            const col = square.charCodeAt(0) - 'a'.charCodeAt(0);
+            const row = 8 - parseInt(square[1], 10);
+            if (row < 0 || row > 7 || col < 0 || col > 7) return null; // Ensure coordinates are within board
+            return { row, col };
         };
 
-        // --- UI Update Functions ---
-        const updateLobbyView = () => {
-            console.log("updateLobbyView called. Current gameId:", gameId);
-            const lobbyView = document.getElementById('lobbyView');
-            const gameView = document.getElementById('gameView');
-            const loadingSpinner = document.getElementById('loadingSpinner');
+        /**
+         * Converts board coordinates {row, col} to a square string (e.g., 'a1').
+         * @param {number} row The row index (0-7).
+         * @param {number} col The column index (0-7).
+         * @returns {string|null} The square string, or null if invalid.
+         */
+        const getSquareString = (row, col) => {
+            if (row < 0 || row > 7 || col < 0 || col > 7) return null;
+            return String.fromCharCode('a'.charCodeAt(0) + col) + (8 - row);
+        };
 
-            if (loadingSpinner) {
-                loadingSpinner.style.display = 'none'; // Hide spinner once authenticated
+        // --- Chess Logic (Simplified for demonstration) ---
+        // This section contains basic move validation.
+        // It does NOT include:
+        // - Check/Checkmate/Stalemate detection
+        // - Castling
+        // - En Passant
+        // - Pawn Promotion
+        // - Full legal move generation (only checks direct path)
+
+        /**
+         * Checks if a move is valid according to basic chess rules.
+         * @param {Array<Array<string|null>>} board The current board state.
+         * @param {string} from The starting square string (e.g., 'a2').
+         * @param {string} to The target square string (e.g., 'a4').
+         * @param {string} turn The current turn ('white' or 'black').
+         * @returns {boolean} True if the move is valid, false otherwise.
+         */
+        const isValidMove = (board, from, to, turn) => {
+            const fromCoords = getCoords(from);
+            const toCoords = getCoords(to);
+
+            if (!fromCoords || !toCoords) return false;
+
+            const { row: fromRow, col: fromCol } = fromCoords;
+            const { row: toRow, col: toCol } = toCoords;
+
+            const piece = board[fromRow][fromCol];
+            if (!piece) return false; // No piece at 'from' square
+
+            const pieceColor = getPieceColor(piece);
+            if (pieceColor !== turn[0]) return false; // Not current player's turn
+
+            const targetPiece = board[toRow][toCol];
+            const targetPieceColor = getPieceColor(targetPiece);
+
+            if (targetPiece && targetPieceColor === pieceColor) return false; // Cannot capture own piece
+
+            const pieceType = piece[1]; // 'p', 'r', 'n', 'b', 'q', 'k'
+
+            switch (pieceType) {
+                case 'p': // Pawn
+                    const direction = pieceColor === 'w' ? -1 : 1;
+                    const startRow = pieceColor === 'w' ? 6 : 1;
+
+                    // Move forward 1 square
+                    if (fromCol === toCol && toRow === fromRow + direction && !targetPiece) {
+                        return true;
+                    }
+                    // Move forward 2 squares from start
+                    if (fromCol === toCol && fromRow === startRow && toRow === fromRow + 2 * direction && !targetPiece && !board[fromRow + direction][fromCol]) {
+                        return true;
+                    }
+                    // Capture diagonally
+                    if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow + direction && targetPiece) {
+                        return true;
+                    }
+                    break;
+
+                case 'r': // Rook
+                    if (fromRow === toRow || fromCol === toCol) {
+                        return isPathClear(board, fromCoords, toCoords);
+                    }
+                    break;
+
+                case 'n': // Knight
+                    const dr = Math.abs(fromRow - toRow);
+                    const dc = Math.abs(fromCol - toCol);
+                    return (dr === 2 && dc === 1) || (dr === 1 && dc === 2);
+
+                case 'b': // Bishop
+                    if (Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol)) {
+                        return isPathClear(board, fromCoords, toCoords);
+                    }
+                    break;
+
+                case 'q': // Queen
+                    if (fromRow === toRow || fromCol === toCol || Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol)) {
+                        return isPathClear(board, fromCoords, toCoords);
+                    }
+                    break;
+
+                case 'k': // King
+                    return Math.abs(fromRow - toRow) <= 1 && Math.abs(fromCol - toCol) <= 1;
+
+                default:
+                    return false;
             }
+            return false;
+        };
 
-            if (gameId) {
-                lobbyView.classList.add('hidden');
-                gameView.classList.remove('hidden');
-                gameView.classList.add('flex'); // Ensure flex display for game view
-                calculateAndSetSquareSize(); // Recalculate square size when game view becomes visible
+        /**
+         * Checks if the path between two squares is clear for sliding pieces (Rook, Bishop, Queen).
+         * @param {Array<Array<string|null>>} board The current board state.
+         * @param {{row: number, col: number}} fromCoords Starting coordinates.
+         * @param {{row: number, col: number}} toCoords Target coordinates.
+         * @returns {boolean} True if the path is clear, false otherwise.
+         */
+        const isPathClear = (board, fromCoords, toCoords) => {
+            const { row: fromRow, col: fromCol } = fromCoords;
+            const { row: toRow, col: toCol } = toCoords;
+
+            const rowDiff = toRow - fromRow;
+            const colDiff = toCol - fromCol;
+
+            let rowStep = 0;
+            let colStep = 0;
+
+            if (rowDiff !== 0) rowStep = rowDiff > 0 ? 1 : -1;
+            if (colDiff !== 0) colStep = colDiff > 0 ? 1 : -1;
+
+            let currentRow = fromRow + rowStep;
+            let currentCol = fromCol + colStep;
+
+            while (currentRow !== toRow || currentCol !== toCol) {
+                if (board[currentRow][currentCol]) {
+                    return false; // Path is blocked
+                }
+                currentRow += rowStep;
+                currentCol += colStep;
+            }
+            return true; // Path is clear
+        };
+
+        // --- UI Rendering Functions ---
+
+        /**
+         * Renders the lobby view.
+         */
+        function renderLobby() {
+            document.getElementById('lobby-view').classList.remove('hidden');
+            document.getElementById('game-view').classList.add('hidden');
+            document.getElementById('join-game-id-input').value = gameState.gameId || ''; // Pre-fill if gameId exists
+        }
+
+        /**
+         * Renders the game view.
+         */
+        function renderGame() {
+            document.getElementById('lobby-view').classList.add('hidden');
+            document.getElementById('game-view').classList.remove('hidden');
+            if (gameState.gameData) {
+                document.getElementById('game-id-display').textContent = gameState.gameId;
+                document.getElementById('current-turn-display').textContent = gameState.gameData.turn;
+                document.getElementById('white-player-display').textContent = gameState.gameData.players.white || 'Waiting...';
+                document.getElementById('black-player-display').textContent = gameState.gameData.players.black || 'Waiting...';
+                // The board data is stored as a JSON string, parse it before rendering
+                renderBoard(gameState.gameData.board); // Pass the already parsed board
             } else {
-                lobbyView.classList.remove('hidden');
-                gameView.classList.add('hidden');
-                gameView.classList.remove('flex');
+                document.getElementById('chess-board-container').innerHTML = '<p class="text-xl text-gray-300 p-4">Loading game data...</p>';
             }
-        };
+        }
 
-        const renderAvailableGames = () => {
-            console.log("renderAvailableGames called. Available games:", availableGames.length);
-            const availableGamesList = document.getElementById('availableGamesList');
-            availableGamesList.innerHTML = ''; // Clear previous list
+        /**
+         * Renders the chess board based on the current board state.
+         * @param {Array<Array<string|null>>} board The current board state.
+         */
+        function renderBoard(board) {
+            const boardContainer = document.getElementById('chess-board-container');
+            boardContainer.innerHTML = ''; // Clear existing board
 
-            if (!isAuthReady) {
-                availableGamesList.innerHTML = '<p class="text-gray-400 text-center">Loading available games...</p>';
-                return;
-            }
+            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+            const isPlayerTurn = playerColor && gameState.gameData.turn[0] === playerColor;
 
-            if (availableGames.length === 0) {
-                availableGamesList.innerHTML = '<p class="text-gray-400 text-center">No games available. Create one!</p>';
-                return;
-            }
-
-            availableGames.forEach(game => {
-                const listItem = document.createElement('li');
-                listItem.className = 'bg-gray-700 p-3 rounded-lg flex justify-between items-center shadow-sm';
-                listItem.innerHTML = `
-                    <span class="text-gray-300 font-mono text-sm break-all mr-2">${game.id}</span>
-                    <div class="flex space-x-2">
-                        <span class="px-2 py-1 text-xs rounded-full ${game.status === 'waiting' ? 'bg-yellow-500 text-black' : 'bg-green-500 text-white'}">
-                            ${game.status.toUpperCase()}
-                        </span>
-                        ${game.players.white === userId && game.status === 'waiting' ? `
-                            <button class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded-md transition duration-200 delete-game-btn" data-game-id="${game.id}">
-                                Delete
-                            </button>
-                        ` : ''}
-                        <button class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1 px-2 rounded-md transition duration-200 join-game-btn" data-game-id="${game.id}">
-                            ${game.players.white === userId || game.players.black === userId ? 'Rejoin' : 'Join'}
-                        </button>
-                    </div>
-                `;
-                availableGamesList.appendChild(listItem);
-            });
-
-            // Add event listeners to newly rendered buttons
-            document.querySelectorAll('.join-game-btn').forEach(button => {
-                button.onclick = () => joinGame(button.dataset.gameId);
-            });
-            document.querySelectorAll('.delete-game-btn').forEach(button => {
-                button.onclick = () => deleteGame(button.dataset.gameId);
-            });
-        };
-
-        let squareSize = 0;
-        const calculateAndSetSquareSize = () => {
-            const boardElement = document.getElementById('chessBoard');
-            // Only calculate if the board element is visible and has a width
-            if (boardElement && boardElement.offsetWidth > 0) {
-                const boardWidth = boardElement.offsetWidth;
-                squareSize = boardWidth / 8;
-                console.log("Calculated squareSize:", squareSize, "Board Width:", boardWidth);
-                renderBoard(); // Re-render board with new square size
-            } else {
-                console.log("Board element not visible or has no width for square size calculation.");
-            }
-        };
-
-        const renderBoard = () => {
-            console.log("renderBoard called. Chess FEN:", chess.fen());
-            const chessBoardElement = document.getElementById('chessBoard');
-            chessBoardElement.innerHTML = ''; // Clear previous board
-
-            // chess.js board is an array of arrays of piece objects or null
-            const boardArray = chess.board(); // Get the current board from chess.js
-
-            boardArray.forEach((row, rIdx) => {
-                row.forEach((pieceObj, cIdx) => {
-                    const pieceString = getPieceString(pieceObj); // Convert to our 'wp', 'bn' format
-
-                    const isLightSquare = (rIdx + cIdx) % 2 === 0;
-                    const isSelected = selectedSquare && selectedSquare.row === rIdx && selectedSquare.col === cIdx;
-                    const isPossibleMove = validMoves.some(move => move.row === rIdx && move.col === cIdx);
-
-                    const bgColor = isSelected ? 'bg-yellow-500' : (isLightSquare ? 'bg-amber-100' : 'bg-amber-700');
-                    const textColor = isLightSquare ? 'text-gray-800' : 'text-amber-100';
+            for (let rowIndex = 0; rowIndex < 8; rowIndex++) {
+                for (let colIndex = 0; colIndex < 8; colIndex++) {
+                    const squareName = getSquareString(rowIndex, colIndex);
+                    const piece = board[rowIndex][colIndex];
+                    const isLightSquare = (rowIndex + colIndex) % 2 === 0;
+                    const bgColor = isLightSquare ? 'bg-amber-100' : 'bg-amber-700';
 
                     const squareDiv = document.createElement('div');
-                    squareDiv.className = `relative flex items-center justify-center text-4xl font-bold cursor-pointer transition-colors duration-100 ${bgColor} ${textColor}`;
-                    squareDiv.style.width = `${squareSize}px`;
-                    squareDiv.style.height = `${squareSize}px`;
-                    squareDiv.dataset.row = rIdx;
-                    squareDiv.dataset.col = cIdx;
-                    squareDiv.onclick = () => handleSquareClick(rIdx, cIdx);
+                    squareDiv.id = `square-${squareName}`;
+                    squareDiv.className = `board-square ${bgColor}`;
+                    squareDiv.dataset.square = squareName;
 
-                    const pieceSpan = document.createElement('span');
-                    pieceSpan.className = 'chess-piece';
-                    pieceSpan.textContent = PIECES_UNICODE[pieceString]; // Use the Unicode map
-                    squareDiv.appendChild(pieceSpan);
+                    // Add drag and drop event listeners to each square
+                    squareDiv.addEventListener('dragover', handleDragOver);
+                    squareDiv.addEventListener('drop', handleDrop);
 
-                    if (isPossibleMove) {
-                        const dotDiv = document.createElement('div');
-                        dotDiv.className = 'absolute w-3 h-3 bg-blue-500 rounded-full opacity-75';
-                        squareDiv.appendChild(dotDiv);
+                    if (piece) {
+                        const pieceDiv = document.createElement('div');
+                        pieceDiv.className = `piece ${getPieceColor(piece) === 'w' ? 'text-white drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]' : 'text-black drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]'}`;
+                        pieceDiv.textContent = PIECES[piece];
+                        pieceDiv.dataset.piece = piece;
+                        pieceDiv.dataset.fromSquare = squareName;
+                        pieceDiv.draggable = isPlayerTurn && getPieceColor(piece) === playerColor;
+
+                        // Add drag start/end listeners to the piece itself
+                        pieceDiv.addEventListener('dragstart', handleDragStart);
+                        pieceDiv.addEventListener('dragend', handleDragEnd);
+
+                        squareDiv.appendChild(pieceDiv);
                     }
 
-                    chessBoardElement.appendChild(squareDiv);
-                });
-            });
-        };
+                    // Optional: Display square coordinates for debugging
+                    const coordSpan = document.createElement('span');
+                    coordSpan.className = "absolute bottom-1 left-1 text-xs text-gray-500 opacity-50";
+                    coordSpan.textContent = squareName;
+                    squareDiv.appendChild(coordSpan);
 
-        const updateGameInfo = () => {
-            console.log("updateGameInfo called. Current Turn:", turn, "Game Status:", gameStatus);
-            document.getElementById('gameIdDisplay').textContent = gameId;
-            document.getElementById('turnDisplay').textContent = turn.toUpperCase();
-            document.getElementById('turnDisplay').className = `font-bold ${turn === 'white' ? 'text-white' : 'text-gray-400'}`;
-            
-            document.getElementById('whitePlayerDisplay').textContent = players.white || 'Waiting...';
-            document.getElementById('blackPlayerDisplay').textContent = players.black || 'Waiting...';
-            
-            const gameStatusDisplay = document.getElementById('gameStatusDisplay');
-            if (chess.is_checkmate()) {
-                const winner = chess.turn() === 'w' ? 'Black' : 'White'; // If white is checkmated, black wins
-                gameStatusDisplay.textContent = `CHECKMATE! ${winner} Wins!`;
-                gameStatusDisplay.className = 'font-semibold text-green-500';
-            } else if (chess.is_stalemate()) {
-                gameStatusDisplay.textContent = 'STALEMATE! Game Over.';
-                gameStatusDisplay.className = 'font-semibold text-yellow-500';
-            } else if (chess.is_check()) {
-                gameStatusDisplay.textContent = 'CHECK!';
-                gameStatusDisplay.className = 'font-semibold text-red-500';
-            } else {
-                gameStatusDisplay.textContent = gameStatus.toUpperCase();
-                gameStatusDisplay.className = 'font-semibold text-orange-400';
-            }
-        };
-
-        const renderChatMessages = () => {
-            console.log("renderChatMessages called. Messages count:", chatMessages.length);
-            const chatMessagesDiv = document.getElementById('chatMessages');
-            chatMessagesDiv.innerHTML = '';
-            chatMessages.forEach((msg, index) => {
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'mb-2';
-                msgDiv.innerHTML = `<span class="font-bold text-blue-300">${msg.sender}:</span> ${msg.message}`;
-                chatMessagesDiv.appendChild(msgDiv);
-            });
-            chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Scroll to bottom
-        };
-
-        const renderCapturedPieces = () => {
-            console.log("renderCapturedPieces called. White:", capturedWhitePieces.length, "Black:", capturedBlackPieces.length);
-            const capturedWhitePiecesDisplay = document.getElementById('capturedWhitePiecesDisplay');
-            const capturedBlackPiecesDisplay = document.getElementById('capturedBlackPiecesDisplay');
-
-            capturedWhitePiecesDisplay.innerHTML = '';
-            capturedBlackPiecesDisplay.innerHTML = '';
-
-            capturedWhitePieces.forEach(piece => {
-                const span = document.createElement('span');
-                span.textContent = PIECES_UNICODE[piece];
-                capturedWhitePiecesDisplay.appendChild(span);
-            });
-
-            capturedBlackPieces.forEach(piece => {
-                const span = document.createElement('span');
-                span.textContent = PIECES_UNICODE[piece];
-                capturedBlackPiecesDisplay.appendChild(span);
-            });
-        };
-
-
-        // --- Game Logic Functions ---
-        const createGame = async () => {
-            if (!userId) {
-                console.error("User not authenticated.");
-                return;
-            }
-            const newGameIdInput = document.getElementById('newGameIdInput');
-            const customGameId = newGameIdInput.value.trim();
-
-            if (!customGameId) {
-                alert("Please enter a Game ID to create a new game."); // Using alert for simplicity, consider a custom modal
-                return;
-            }
-
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, customGameId);
-            try {
-                const docSnap = await getDoc(gameDocRef);
-                if (docSnap.exists()) {
-                    alert(`Game ID "${customGameId}" already exists. Please choose a different one or join it.`);
-                    return;
+                    boardContainer.appendChild(squareDiv);
                 }
-
-                // Initialize a new chess game and get its FEN
-                const newChessGame = new Chess();
-                const initialFen = newChessGame.fen();
-                console.log("Creating new game with FEN:", initialFen);
-
-                await setDoc(gameDocRef, {
-                    boardFen: initialFen, // Store FEN string
-                    turn: 'white',
-                    players: { white: userId, black: null },
-                    status: 'waiting',
-                    chat: [{ sender: 'System', message: `${userId} created game "${customGameId}".` }],
-                    capturedWhitePieces: JSON.stringify([]),
-                    capturedBlackPieces: JSON.stringify([]),
-                    createdAt: new Date().toISOString()
-                });
-                window.gameId = customGameId;
-                newGameIdInput.value = ''; // Clear input after creating
-                console.log("Game created in Firestore with ID:", customGameId);
-            } catch (e) {
-                console.error("Error creating game:", e);
-                alert("Error creating game. Please try again.");
             }
-        };
+            // Apply drag-over highlight if active
+            if (gameState.draggedOverSquare) {
+                const targetSquareElement = document.getElementById(`square-${gameState.draggedOverSquare}`);
+                if (targetSquareElement) {
+                    targetSquareElement.classList.add('dragged-over-square');
+                }
+            }
+            // Apply selected highlight if active
+            if (gameState.draggingPiece && gameState.draggingPiece.from) {
+                const fromSquareElement = document.getElementById(`square-${gameState.draggingPiece.from}`);
+                if (fromSquareElement) {
+                    fromSquareElement.classList.add('selected-square');
+                }
+            }
+        }
 
-        const joinGame = async (idToJoin) => {
-            if (!userId) {
-                console.error("User not authenticated.");
+        // --- Firebase Initialization and Authentication ---
+        document.addEventListener('DOMContentLoaded', () => {
+            onAuthStateChanged(auth, async (currentUser) => {
+                if (currentUser) {
+                    gameState.user = currentUser;
+                    gameState.userId = currentUser.uid;
+                    document.getElementById('user-id-display').textContent = gameState.userId;
+                    showMessage('Signed in successfully!');
+                } else {
+                    // Sign in anonymously if no initial token, otherwise use custom token
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (authError) {
+                        console.error("Firebase Auth Error:", authError);
+                        showMessage(`Authentication failed: ${authError.message}`, 'error');
+                    }
+                }
+                gameState.isAuthReady = true; // Auth state is ready
+                // After auth is ready, check if a gameId is in local storage or needs to be rendered
+                if (gameState.gameId) {
+                    renderGame();
+                } else {
+                    renderLobby();
+                }
+            });
+        });
+
+        // --- Firestore Game State Listener ---
+        function setupGameListener() {
+            if (gameState.unsubscribeGame) {
+                gameState.unsubscribeGame(); // Unsubscribe from previous game
+            }
+
+            if (gameState.isAuthReady && gameState.gameId && gameState.userId) {
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameState.gameId);
+                gameState.unsubscribeGame = onSnapshot(gameDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const gameData = docSnap.data();
+                        // Parse the board data back from JSON string ONLY if it's a string
+                        if (typeof gameData.board === 'string') {
+                            try {
+                                gameData.board = JSON.parse(gameData.board);
+                            } catch (e) {
+                                console.error("Error parsing board data from Firestore:", e);
+                                showMessage("Error loading game board. Data might be corrupted.", 'error');
+                                // Fallback to initial board or handle gracefully
+                                gameData.board = initialBoard;
+                            }
+                        } else {
+                            // If it's not a string, assume it's already the correct array format
+                            console.warn("Board data from Firestore is not a string, assuming it's already an array:", gameData.board);
+                        }
+                        gameState.gameData = gameData;
+                        showMessage(`Game ${gameState.gameId} updated.`);
+                        renderGame(); // Re-render game view on update
+                    } else {
+                        gameState.gameData = null;
+                        showMessage(`Game ${gameState.gameId} not found or deleted.`, 'error');
+                        gameState.gameId = null; // Clear gameId if game is deleted
+                        renderLobby(); // Go back to lobby
+                    }
+                }, (err) => {
+                    console.error("Firestore Snapshot Error:", err);
+                    showMessage(`Failed to load game: ${err.message}`, 'error');
+                });
+            }
+        }
+
+        // --- Game Lobby Actions ---
+
+        document.getElementById('create-game-btn').addEventListener('click', async () => {
+            if (!gameState.userId) {
+                showMessage("Please wait for authentication to complete.", 'error');
                 return;
             }
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, idToJoin);
             try {
+                showMessage("Creating new game...");
+                const gamesCollectionRef = collection(db, `artifacts/${appId}/public/data/games`);
+                const newGameRef = await addDoc(gamesCollectionRef, {
+                    // Stringify the initialBoard before saving
+                    board: JSON.stringify(initialBoard),
+                    turn: 'white',
+                    players: { white: gameState.userId, black: null },
+                    status: 'waiting', // 'waiting', 'playing', 'checkmate', 'stalemate', 'draw'
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                });
+                gameState.gameId = newGameRef.id;
+                showMessage(`Game created with ID: ${newGameRef.id}. Share this ID with a friend!`);
+                setupGameListener(); // Start listening to the new game
+                renderGame(); // Switch to game view
+            } catch (err) {
+                console.error("Error creating game:", err);
+                showMessage(`Failed to create game: ${err.message}`, 'error');
+            }
+        });
+
+        document.getElementById('join-game-btn').addEventListener('click', async () => {
+            if (!gameState.userId) {
+                showMessage("Please wait for authentication to complete.", 'error');
+                return;
+            }
+            const idToJoin = document.getElementById('join-game-id-input').value.trim();
+            if (!idToJoin) {
+                showMessage("Please enter a Game ID to join.", 'error');
+                return;
+            }
+            try {
+                showMessage(`Attempting to join game ${idToJoin}...`);
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, idToJoin);
                 const docSnap = await getDoc(gameDocRef);
+
                 if (docSnap.exists()) {
                     const gameData = docSnap.data();
                     if (gameData.status === 'waiting' && !gameData.players.black) {
+                        // Join as black player
                         await updateDoc(gameDocRef, {
-                            'players.black': userId,
+                            'players.black': gameState.userId,
                             status: 'playing',
-                            chat: [...gameData.chat, { sender: 'System', message: `${userId} joined the game.` }]
+                            updatedAt: serverTimestamp(),
                         });
-                        window.gameId = idToJoin;
-                        console.log("Joined game with ID:", idToJoin);
-                    } else if (gameData.players.white === userId || gameData.players.black === userId) {
-                        window.gameId = idToJoin; // Rejoin if already a player
-                        console.log("Rejoined game with ID:", idToJoin);
+                        gameState.gameId = idToJoin;
+                        showMessage(`Successfully joined game ${idToJoin} as Black!`);
+                        setupGameListener(); // Start listening to the joined game
+                        renderGame(); // Switch to game view
+                    } else if (gameData.players.white === gameState.userId || gameData.players.black === gameState.userId) {
+                        // Rejoining own game
+                        gameState.gameId = idToJoin;
+                        showMessage(`Rejoined game ${idToJoin}.`);
+                        setupGameListener(); // Start listening to the rejoined game
+                        renderGame(); // Switch to game view
                     } else {
-                        alert("Game is full or not accepting new players.");
+                        showMessage("Game is already full or not in 'waiting' status.", 'error');
                     }
                 } else {
-                    alert("Game does not exist.");
+                    showMessage("Game not found.", 'error');
                 }
-            } catch (e) {
-                console.error("Error joining game:", e);
-                alert("Error joining game. Please try again.");
+            } catch (err) {
+                console.error("Error joining game:", err);
+                showMessage(`Failed to join game: ${err.message}`, 'error');
             }
-        };
+        });
 
-        // Helper to convert (row, col) to algebraic square (e.g., 'a1', 'h8')
-        const toAlgebraic = (row, col) => {
-            const file = String.fromCharCode(97 + col); // 'a' to 'h'
-            const rank = 8 - row; // '8' to '1'
-            return `${file}${rank}`;
-        };
+        document.getElementById('leave-game-btn').addEventListener('click', () => {
+            if (gameState.unsubscribeGame) {
+                gameState.unsubscribeGame(); // Unsubscribe from current game
+            }
+            gameState.gameId = null;
+            gameState.gameData = null;
+            showMessage("Left the current game.");
+            renderLobby(); // Go back to lobby view
+        });
 
-        const handleSquareClick = (row, col) => {
-            console.log("handleSquareClick called. Row:", row, "Col:", col);
-            if (!gameId || chess.is_game_over()) {
-                console.log("Game not active or over. Cannot click.");
+        // --- Chess Game Logic and Interaction (Drag and Drop) ---
+
+        /**
+         * Handles the start of a drag operation on a piece.
+         * @param {Event} e The dragstart event.
+         */
+        function handleDragStart(e) {
+            if (!gameState.gameData || gameState.gameData.status !== 'playing') {
+                e.preventDefault(); // Prevent dragging if game is not playing
+                return;
+            }
+            const piece = e.target.dataset.piece;
+            const fromSquare = e.target.dataset.fromSquare;
+            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+
+            if (!playerColor || getPieceColor(piece) !== playerColor || getPieceColor(piece) !== gameState.gameData.turn[0]) {
+                showMessage("It's not your turn or you're not a player in this game.", 'error');
+                e.preventDefault(); // Prevent dragging
                 return;
             }
 
-            const currentPlayerColor = players.white === userId ? 'white' : (players.black === userId ? 'black' : null);
-            if (!currentPlayerColor || (currentPlayerColor === 'white' && chess.turn() !== 'w') || (currentPlayerColor === 'black' && chess.turn() !== 'b')) {
-                console.log("It's not your turn or you are not a player.");
-                return;
-            }
+            gameState.draggingPiece = { piece, from: fromSquare };
+            gameState.draggedOverSquare = null;
+            e.dataTransfer.setData('text/plain', JSON.stringify(gameState.draggingPiece)); // Set data for drop
+            e.target.style.zIndex = '10'; // Bring dragging piece to front
+            // Add selected highlight to the square
+            document.getElementById(`square-${fromSquare}`).classList.add('selected-square');
+        }
 
-            const squareAlgebraic = toAlgebraic(row, col);
-            const piece = chess.get(squareAlgebraic); // Get piece object from chess.js
-
-            if (selectedSquare) {
-                const startSquareAlgebraic = toAlgebraic(selectedSquare.row, selectedSquare.col);
-                
-                if (selectedSquare.row === row && selectedSquare.col === col) {
-                    console.log("Deselecting square.");
-                    selectedSquare = null;
-                    validMoves = [];
-                    renderBoard();
-                    return;
-                }
-
-                // If clicking on your own piece, select the new piece and update valid moves
-                if (piece && piece.color === chess.turn()) {
-                    console.log("Selecting new piece.");
-                    selectedSquare = { row, col };
-                    const moves = chess.moves({ square: squareAlgebraic, verbose: true });
-                    validMoves = moves.map(move => {
-                        const targetRow = 8 - parseInt(move.to[1]);
-                        const targetCol = move.to.charCodeAt(0) - 97;
-                        return { row: targetRow, col: targetCol };
-                    });
-                    renderBoard();
-                    return;
-                }
-
-                // Attempt to move the selected piece
-                try {
-                    console.log("Attempting move from", startSquareAlgebraic, "to", squareAlgebraic);
-                    const moveResult = chess.move({
-                        from: startSquareAlgebraic,
-                        to: squareAlgebraic,
-                        promotion: 'q' // auto-promote to queen for simplicity
-                    });
-
-                    if (moveResult) {
-                        console.log("Move successful:", moveResult);
-                        makeMove(moveResult); // Pass the move result to makeMove
-                        selectedSquare = null;
-                        validMoves = [];
-                        renderBoard(); // Render immediately for local responsiveness
-                    } else {
-                        console.log("Invalid move. chess.js returned null.");
+        /**
+         * Handles a piece being dragged over a square.
+         * @param {Event} e The dragover event.
+         */
+        function handleDragOver(e) {
+            e.preventDefault(); // Necessary to allow dropping
+            if (gameState.draggingPiece) {
+                const targetSquare = e.currentTarget.dataset.square;
+                if (gameState.draggedOverSquare !== targetSquare) {
+                    // Remove highlight from previous dragged over square
+                    if (gameState.draggedOverSquare) {
+                        const prevSquareElement = document.getElementById(`square-${gameState.draggedOverSquare}`);
+                        if (prevSquareElement) {
+                            prevSquareElement.classList.remove('dragged-over-square');
+                        }
                     }
-                } catch (e) {
-                    console.error("Error making move with chess.js:", e);
-                    console.log("Invalid move. (Error caught)");
+                    gameState.draggedOverSquare = targetSquare;
+                    // Add highlight to current dragged over square
+                    e.currentTarget.classList.add('dragged-over-square');
+                }
+            }
+        }
+
+        /**
+         * Handles a piece being dropped onto a square.
+         * @param {Event} e The drop event.
+         */
+        async function handleDrop(e) {
+            e.preventDefault();
+            if (!gameState.draggingPiece || !gameState.gameData || gameState.gameData.status !== 'playing' || !gameState.userId) {
+                resetDragState();
+                return;
+            }
+
+            const { piece, from: fromSquare } = gameState.draggingPiece;
+            const toSquare = e.currentTarget.dataset.square;
+            // The board data is already parsed in renderGame/setupGameListener, so it's an array here
+            const currentBoard = gameState.gameData.board;
+            const currentTurn = gameState.gameData.turn;
+
+            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+
+            if (!playerColor || getPieceColor(piece) !== playerColor || getPieceColor(piece) !== currentTurn[0]) {
+                showMessage("It's not your turn or you're not controlling this piece.", 'error');
+                resetDragState();
+                return;
+            }
+
+            if (fromSquare === toSquare) {
+                showMessage("Piece dropped on the same square.");
+                resetDragState();
+                return;
+            }
+
+            if (isValidMove(currentBoard, fromSquare, toSquare, currentTurn)) {
+                const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Deep copy the board
+                const fromCoords = getCoords(fromSquare);
+                const toCoords = getCoords(toSquare);
+
+                newBoard[toCoords.row][toCoords.col] = newBoard[fromCoords.row][fromCoords.col];
+                newBoard[fromCoords.row][fromCoords.col] = null;
+
+                const nextTurn = currentTurn === 'white' ? 'black' : 'white';
+
+                try {
+                    const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameState.gameId);
+                    await updateDoc(gameDocRef, {
+                        // Stringify the board before updating Firestore
+                        board: JSON.stringify(newBoard),
+                        turn: nextTurn,
+                        updatedAt: serverTimestamp(),
+                        // Add move history here if desired
+                    });
+                    showMessage(`Move from ${fromSquare} to ${toSquare} made.`);
+                } catch (err) {
+                    console.error("Error updating game state:", err);
+                    showMessage(`Failed to make move: ${err.message}`, 'error');
                 }
             } else {
-                // If no piece is selected, select the clicked piece if it's the current player's turn
-                if (piece && piece.color === chess.turn()) {
-                    console.log("Selecting piece:", piece);
-                    selectedSquare = { row, col };
-                    const moves = chess.moves({ square: squareAlgebraic, verbose: true });
-                    validMoves = moves.map(move => {
-                        const targetRow = 8 - parseInt(move.to[1]);
-                        const targetCol = move.to.charCodeAt(0) - 97;
-                        return { row: targetRow, col: targetCol };
-                    });
-                    renderBoard();
-                } else {
-                    console.log("No piece selected or not your piece/turn.");
-                }
-            }
-        };
-
-        // makeMove now takes the result from chess.move()
-        const makeMove = async (moveResult) => {
-            if (!gameId || !userId || chess.is_game_over()) {
-                console.log("Game not active or over. Cannot make move.");
-                return;
+                showMessage("Invalid move!", 'error');
             }
 
-            // Update captured pieces based on moveResult
-            let updatedCapturedWhitePieces = [...capturedWhitePieces];
-            let updatedCapturedBlackPieces = [...capturedBlackPieces];
+            resetDragState();
+        }
 
-            if (moveResult.captured) {
-                const capturedPieceString = `${moveResult.color === 'w' ? 'b' : 'w'}${moveResult.captured}`;
-                if (moveResult.color === 'w') { // White captured a black piece
-                    updatedCapturedWhitePieces.push(capturedPieceString);
-                } else { // Black captured a white piece
-                    updatedCapturedBlackPieces.push(capturedPieceString);
-                }
-                console.log("Piece captured:", capturedPieceString);
-            }
+        /**
+         * Handles the end of a drag operation.
+         * Resets drag state and removes highlights.
+         */
+        function handleDragEnd() {
+            resetDragState();
+        }
 
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
-            try {
-                await updateDoc(gameDocRef, {
-                    boardFen: chess.fen(), // Save the new FEN string
-                    turn: chess.turn() === 'w' ? 'white' : 'black', // Update turn based on chess.js
-                    capturedWhitePieces: JSON.stringify(updatedCapturedWhitePieces),
-                    capturedBlackPieces: JSON.stringify(updatedCapturedBlackPieces),
-                    status: chess.is_checkmate() ? 'checkmate' : (chess.is_stalemate() ? 'stalemate' : (chess.is_check() ? 'check' : 'playing')),
-                });
-                console.log("Move made and updated in Firestore. New FEN:", chess.fen());
-            } catch (e) {
-                console.error("Error updating board:", e);
-            }
-        };
-
-        const sendChatMessage = async () => {
-            const chatInput = document.getElementById('chatInput');
-            if (!gameId || !userId || !chatInput.value.trim()) return;
-
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
-            const message = {
-                sender: userId,
-                message: chatInput.value.trim(),
-                timestamp: new Date().toISOString()
-            };
-
-            try {
-                const docSnap = await getDoc(gameDocRef);
-                if (docSnap.exists()) {
-                    const currentChat = docSnap.data().chat || [];
-                    await updateDoc(gameDocRef, {
-                        chat: [...currentChat, message]
-                    });
-                    chatInput.value = ''; // Clear input
-                    console.log("Chat message sent.");
-                }
-            } catch (e) {
-                console.error("Error sending chat message:", e);
-            }
-        };
-
-        const leaveGame = async () => {
-            console.log("Leaving game...");
-            if (!gameId || !userId) {
-                console.error("Cannot leave game: gameId or userId not set.");
-                return;
-            }
-
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
-            try {
-                const docSnap = await getDoc(gameDocRef);
-                if (docSnap.exists()) {
-                    const gameData = docSnap.data();
-                    let updatedPlayers = { ...gameData.players };
-
-                    if (updatedPlayers.white === userId) {
-                        updatedPlayers.white = null;
-                    } else if (updatedPlayers.black === userId) {
-                        updatedPlayers.black = null;
-                    } else {
-                        console.warn("You are not a player in this game, just observing.");
+        /**
+         * Resets the drag and drop state and removes any temporary highlights.
+         */
+        function resetDragState() {
+            if (gameState.draggingPiece && gameState.draggingPiece.from) {
+                const fromSquareElement = document.getElementById(`square-${gameState.draggingPiece.from}`);
+                if (fromSquareElement) {
+                    fromSquareElement.classList.remove('selected-square');
+                    const pieceElement = fromSquareElement.querySelector('.piece');
+                    if (pieceElement) {
+                        pieceElement.style.zIndex = ''; // Reset z-index
                     }
-
-                    await updateDoc(gameDocRef, {
-                        players: updatedPlayers,
-                        chat: [...(gameData.chat || []), { sender: 'System', message: `${userId} left the game.` }]
-                    });
-                    console.log(`${userId} marked as left in Firestore for game ${gameId}.`);
-                } else {
-                    console.warn(`Game ${gameId} does not exist when trying to leave.`);
-                }
-            } catch (e) {
-                console.error("Error updating player status on leave:", e);
-            }
-
-            // Local state cleanup (always perform this regardless of Firestore update success)
-            if (unsubscribeGameListener) {
-                unsubscribeGameListener();
-                unsubscribeGameListener = null;
-            }
-            gameId = '';
-            selectedSquare = null;
-            validMoves = [];
-            chess.reset(); // Reset chess.js board
-            turn = 'white';
-            players = { white: null, black: null };
-            gameStatus = 'waiting';
-            chatMessages = [];
-            capturedWhitePieces = [];
-            capturedBlackPieces = [];
-            updateLobbyView();
-            renderBoard(); // Render initial board state
-            updateGameInfo(); // Update game info display
-            renderChatMessages(); // Clear chat
-            renderCapturedPieces(); // Clear captured pieces display
-            fetchAvailableGames();
-            console.log("Game left and local state reset.");
-        };
-
-
-        const deleteGame = async (gameToDeleteId) => {
-            console.log("Attempting to delete game:", gameToDeleteId);
-            if (!userId) {
-                console.error("User not authenticated.");
-                return;
-            }
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameToDeleteId);
-            try {
-                const docSnap = await getDoc(gameDocRef);
-                if (docSnap.exists()) {
-                    const gameData = docSnap.data();
-                    if ((gameData.players.white === userId && gameData.status === 'waiting') || (!gameData.players.white && !gameData.players.black)) {
-                        await deleteDoc(gameDocRef);
-                        console.log(`Game ${gameToDeleteId} deleted successfully.`);
-                        if (gameId === gameToDeleteId) {
-                            leaveGame(); // Leave the game if it was the current one
-                        } else {
-                            fetchAvailableGames(); // Refresh lobby if another game was deleted
-                        }
-                    } else {
-                        console.warn("You are not authorized to delete this game or it's already in progress.");
-                    }
-                } else {
-                    console.warn("Game does not exist.");
-                }
-            } catch (e) {
-                console.error("Error deleting game:", e);
-            }
-        };
-
-        // --- Firebase Listeners and Initialization ---
-        const setupGameListener = () => {
-            console.log("setupGameListener called for gameId:", gameId);
-            if (unsubscribeGameListener) {
-                unsubscribeGameListener(); // Unsubscribe from previous game if any
-                console.log("Unsubscribed from previous game listener.");
-            }
-            if (!gameId || !isAuthReady || !userId) {
-                console.log("Not setting up game listener: missing gameId, auth not ready, or userId.");
-                chess.reset(); // Reset chess.js board
-                turn = 'white';
-                players = { white: null, black: null };
-                gameStatus = 'waiting';
-                chatMessages = [];
-                capturedWhitePieces = [];
-                capturedBlackPieces = [];
-                renderBoard();
-                updateGameInfo();
-                renderChatMessages();
-                renderCapturedPieces();
-                return;
-            }
-
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
-            unsubscribeGameListener = onSnapshot(gameDocRef, (docSnap) => {
-                console.log("onSnapshot triggered for game:", gameId);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    console.log("Firestore data received:", data);
-                    
-                    try {
-                        chess.load(data.boardFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // Load FEN
-                        console.log("chess.js board loaded with FEN:", chess.fen());
-                    } catch (e) {
-                        console.error("Error loading FEN into chess.js:", e);
-                        // Fallback to reset if FEN is invalid
-                        chess.reset();
-                        console.log("chess.js board reset due to FEN loading error.");
-                    }
-
-                    turn = data.turn || 'white';
-                    players = data.players || { white: null, black: null };
-                    gameStatus = data.status || 'waiting';
-                    chatMessages = data.chat || [];
-                    capturedWhitePieces = data.capturedWhitePieces ? JSON.parse(data.capturedWhitePieces) : [];
-                    capturedBlackPieces = data.capturedBlackPieces ? JSON.parse(data.capturedBlackPieces) : [];
-
-                    renderBoard();
-                    updateGameInfo();
-                    renderChatMessages();
-                    renderCapturedPieces();
-                    console.log("UI updated based on Firestore data.");
-
-                    // New: Check if both players have left to delete the game
-                    if (!data.players.white && !data.players.black) {
-                        console.log(`Both players left game ${gameId}. Deleting game document.`);
-                        deleteGame(gameId); // Call deleteGame
-                    }
-
-                } else {
-                    console.log("No such game document! Game might have been deleted.");
-                    leaveGame(); // Automatically leave if game document disappears
-                }
-            }, (error) => {
-                console.error("Error listening to game state:", error);
-            });
-        };
-
-        const fetchAvailableGames = async () => {
-            console.log("fetchAvailableGames called.");
-            if (!isAuthReady || !userId) {
-                console.log("Not fetching available games: auth not ready or userId missing.");
-                return;
-            }
-
-            try {
-                const gamesCollectionRef = collection(db, `artifacts/${appId}/public/data/games`);
-                const q = query(gamesCollectionRef);
-                const querySnapshot = await getDocs(q);
-                availableGames = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                availableGames = availableGames.filter(game => game.status === 'waiting' || (game.status === 'playing' && (game.players.white === userId || game.players.black === userId)));
-                renderAvailableGames();
-                console.log("Available games fetched successfully.");
-            } catch (error) {
-                console.error("Error fetching available games:", error);
-            }
-        };
-
-        const setupAvailableGamesListener = () => {
-            console.log("setupAvailableGamesListener called.");
-            if (unsubscribeGamesListener) {
-                unsubscribeGamesListener();
-                console.log("Unsubscribed from previous available games listener.");
-            }
-            const q = query(collection(db, `artifacts/${appId}/public/data/games`));
-            unsubscribeGamesListener = onSnapshot(q, (snapshot) => {
-                console.log("onSnapshot triggered for available games.");
-                availableGames = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                availableGames = availableGames.filter(game => game.status === 'waiting' || (game.status === 'playing' && (game.players.white === userId || game.players.black === userId)));
-                renderAvailableGames();
-            }, (error) => {
-                console.error("Error listening to available games:", error);
-            });
-        };
-
-        // --- Event Listeners ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log("DOMContentLoaded fired.");
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            console.log("Firebase initialized.");
-
-            const userIdDisplay = document.getElementById('userIdDisplay');
-            const createGameBtn = document.getElementById('createGameBtn');
-            const newGameIdInput = document.getElementById('newGameIdInput');
-            const gameIdInput = document.getElementById('gameIdInput');
-            const joinGameBtn = document.getElementById('joinGameBtn');
-            const leaveGameBtn = document.getElementById('leaveGameBtn');
-            const sendChatBtn = document.getElementById('sendChatBtn');
-            const chatInput = document.getElementById('chatInput');
-            const chessBoardElement = document.getElementById('chessBoard');
-
-            // Initial authentication
-            try {
-                console.log("Firebase Config:", firebaseConfig);
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    console.log("Attempting sign-in with custom token...");
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    console.log("Attempting anonymous sign-in...");
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Error during Firebase authentication:", error);
-                // Fallback to anonymous sign-in if custom token fails
-                try {
-                    console.log("Fallback: Attempting anonymous sign-in due to initial failure...");
-                    await signInAnonymously(auth);
-                } catch (anonError) {
-                    console.error("Error during anonymous sign-in (fallback):", anonError);
                 }
             }
-
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    userIdDisplay.textContent = userId;
-                    isAuthReady = true;
-                    createGameBtn.disabled = false;
-                    newGameIdInput.disabled = false;
-                    gameIdInput.disabled = false;
-                    joinGameBtn.disabled = false;
-                    console.log("Firebase Auth Ready. User ID:", userId);
-                    setupAvailableGamesListener();
-                    fetchAvailableGames();
-                } else {
-                    userId = null;
-                    userIdDisplay.textContent = 'Not signed in';
-                    isAuthReady = true;
-                    createGameBtn.disabled = true;
-                    newGameIdInput.disabled = true;
-                    gameIdInput.disabled = true;
-                    joinGameBtn.disabled = true;
-                    console.log("Firebase Auth Ready. No user signed in.");
-                    if (unsubscribeGamesListener) {
-                        unsubscribeGamesListener();
-                    }
-                    availableGames = [];
-                    renderAvailableGames();
+            if (gameState.draggedOverSquare) {
+                const targetSquareElement = document.getElementById(`square-${gameState.draggedOverSquare}`);
+                if (targetSquareElement) {
+                    targetSquareElement.classList.remove('dragged-over-square');
                 }
-                updateLobbyView(); // Call this here to hide spinner and show lobby after auth state is known
-            });
-
-            createGameBtn.addEventListener('click', createGame);
-            joinGameBtn.addEventListener('click', () => joinGame(gameIdInput.value));
-            leaveGameBtn.addEventListener('click', leaveGame);
-            sendChatBtn.addEventListener('click', sendChatMessage);
-            chatInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    sendChatMessage();
-                }
-            });
-
-            Object.defineProperty(window, 'gameId', {
-                get: () => gameId,
-                set: (newValue) => {
-                    console.log("gameId setter called. Old:", gameId, "New:", newValue);
-                    gameId = newValue;
-                    setupGameListener();
-                    updateLobbyView();
-                }
-            });
-
-            // Initial calls (these will be updated by onAuthStateChanged once auth is ready)
-            // updateLobbyView(); // Moved into onAuthStateChanged
-            updateGameInfo();
-            renderCapturedPieces();
-            renderBoard(); // Render initial empty board while waiting for auth/game data
-
-            window.addEventListener('resize', calculateAndSetSquareSize);
-            console.log("DOMContentLoaded complete. Initial UI render triggered.");
-        });
+            }
+            gameState.draggingPiece = null;
+            gameState.draggedOverSquare = null;
+        }
     </script>
 </body>
 </html>
