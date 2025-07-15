@@ -41,14 +41,30 @@
             border-radius: 0.5rem;
             background-color: #2d3748; /* gray-800 */
         }
+        /* Simple loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
 
     <h1 class="text-4xl font-bold mb-6 text-yellow-400">Multiplayer Chess</h1>
-    <p class="text-lg mb-4">Your User ID: <span id="userIdDisplay" class="font-mono text-blue-400">Loading...</span></p>
+    <p class="text-lg mb-4">Your User ID: <span id="userIdDisplay" class="font-mono text-blue-400">Loading... <span id="loadingSpinner" class="loader"></span></span></p>
 
-    <div id="lobbyView" class="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md">
+    <div id="lobbyView" class="bg-gray-800 p-8 rounded-xl shadow-lg w-full max-w-md hidden">
         <h2 class="text-2xl font-semibold mb-4 text-center">Lobby</h2>
         <div class="mb-4">
             <input type="text" id="newGameIdInput" placeholder="Enter New Game ID (e.g., mygame123)" class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"/>
@@ -115,7 +131,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, query, where, addDoc, getDocs, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         // Import chess.js library - Updated to a stable CDN URL
-        import { Chess } from "https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.7/chess.min.js";
+        import { Chess } from "https://unpkg.com/chess.js@1.0.0-beta.7/dist/chess.min.js";
 
         // Global variables for Firebase and game state
         let app;
@@ -168,6 +184,12 @@
             console.log("updateLobbyView called. Current gameId:", gameId);
             const lobbyView = document.getElementById('lobbyView');
             const gameView = document.getElementById('gameView');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none'; // Hide spinner once authenticated
+            }
+
             if (gameId) {
                 lobbyView.classList.add('hidden');
                 gameView.classList.remove('hidden');
@@ -797,6 +819,7 @@
                 }
             } catch (error) {
                 console.error("Error during Firebase authentication:", error);
+                // Fallback to anonymous sign-in if custom token fails
                 try {
                     console.log("Fallback: Attempting anonymous sign-in due to initial failure...");
                     await signInAnonymously(auth);
@@ -832,6 +855,7 @@
                     availableGames = [];
                     renderAvailableGames();
                 }
+                updateLobbyView(); // Call this here to hide spinner and show lobby after auth state is known
             });
 
             createGameBtn.addEventListener('click', createGame);
@@ -854,9 +878,11 @@
                 }
             });
 
-            updateLobbyView();
+            // Initial calls (these will be updated by onAuthStateChanged once auth is ready)
+            // updateLobbyView(); // Moved into onAuthStateChanged
             updateGameInfo();
             renderCapturedPieces();
+            renderBoard(); // Render initial empty board while waiting for auth/game data
 
             window.addEventListener('resize', calculateAndSetSquareSize);
             console.log("DOMContentLoaded complete. Initial UI render triggered.");
