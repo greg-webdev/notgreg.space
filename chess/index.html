@@ -105,6 +105,24 @@
             max-width: 400px;
             width: 90%;
         }
+
+        /* Styling for move dots */
+        .move-dot {
+            position: absolute;
+            width: 25%; /* Adjust size as needed */
+            height: 25%;
+            background-color: rgba(0, 255, 255, 0.3); /* Cyan semi-transparent */
+            border-radius: 50%;
+            pointer-events: none; /* Allows clicks to pass through to the square */
+            z-index: 5; /* Below pieces, above square */
+        }
+        .board-square.has-piece .move-dot {
+            /* If a square has a piece, make the dot a ring for capture indication */
+            background-color: transparent;
+            border: 4px solid rgba(0, 255, 255, 0.3);
+            width: 75%;
+            height: 75%;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-700 text-white p-4">
@@ -210,6 +228,7 @@
             gameId: null,
             gameData: null, // Stores the current game state from Firestore
             draggingPiece: null, // { piece: 'wp', from: 'a2' }
+            selectedPieceByClick: null, // { piece: 'wp', from: 'a2' } - New: for click-to-move
             draggedOverSquare: null, // 'b3'
             unsubscribeGame: null // To store the Firestore unsubscribe function
         };
@@ -452,7 +471,7 @@
                     const startRow = pieceColor === 'w' ? 6 : 1;
 
                     // 1 square forward
-                    if (!board[fromRow + direction][fromCol]) {
+                    if (fromRow + direction >= 0 && fromRow + direction < 8 && !board[fromRow + direction][fromCol]) {
                         addMove(fromRow + direction, fromCol);
                         // 2 squares forward from start
                         if (fromRow === startRow && !board[fromRow + 2 * direction][fromCol]) {
@@ -460,16 +479,18 @@
                         }
                     }
                     // Captures
-                    if (fromCol - 1 >= 0) { // Left diagonal
-                        const targetPiece = board[fromRow + direction][fromCol - 1];
-                        if (targetPiece && getPieceColor(targetPiece) !== pieceColor) {
-                            addMove(fromRow + direction, fromCol - 1);
+                    if (fromRow + direction >= 0 && fromRow + direction < 8) {
+                        if (fromCol - 1 >= 0) { // Left diagonal
+                            const targetPiece = board[fromRow + direction][fromCol - 1];
+                            if (targetPiece && getPieceColor(targetPiece) !== pieceColor) {
+                                addMove(fromRow + direction, fromCol - 1);
+                            }
                         }
-                    }
-                    if (fromCol + 1 < 8) { // Right diagonal
-                        const targetPiece = board[fromRow + direction][fromCol + 1];
-                        if (targetPiece && getPieceColor(targetPiece) !== pieceColor) {
-                            addMove(fromRow + direction, fromCol + 1);
+                        if (fromCol + 1 < 8) { // Right diagonal
+                            const targetPiece = board[fromRow + direction][fromCol + 1];
+                            if (targetPiece && getPieceColor(targetPiece) !== pieceColor) {
+                                addMove(fromRow + direction, fromCol + 1);
+                            }
                         }
                     }
                     break;
@@ -657,11 +678,16 @@
                         pieceDiv.textContent = PIECES[piece];
                         pieceDiv.dataset.piece = piece;
                         pieceDiv.dataset.fromSquare = squareName;
-                        pieceDiv.draggable = isPlayerTurn && getPieceColor(piece) === playerColor;
+                        pieceDiv.draggable = isPlayerTurn && getPieceColor(piece) === playerColor; // Only draggable if it's player's piece and their turn
 
                         // Add drag start/end listeners to the piece itself
                         pieceDiv.addEventListener('dragstart', handleDragStart);
                         pieceDiv.addEventListener('dragend', handleDragEnd);
+
+                        // Add click listener for showing moves
+                        if (isPlayerTurn && getPieceColor(piece) === playerColor) {
+                            pieceDiv.addEventListener('click', handlePieceClick);
+                        }
 
                         squareDiv.appendChild(pieceDiv);
                     }
@@ -688,6 +714,10 @@
                 if (fromSquareElement) {
                     fromSquareElement.classList.add('selected-square');
                 }
+            }
+            // Re-render dots if a piece was selected by click
+            if (gameState.selectedPieceByClick) {
+                displayMoveDots(gameState.selectedPieceByClick.from);
             }
         }
 
@@ -972,10 +1002,100 @@
         // --- Chess Game Logic and Interaction (Drag and Drop) ---
 
         /**
+         * Clears all currently displayed move dots from the board.
+         */
+        function clearMoveDots() {
+            document.querySelectorAll('.move-dot').forEach(dot => dot.remove());
+            // Also remove selected-square highlight from previously clicked piece
+            if (gameState.selectedPieceByClick && gameState.selectedPieceByClick.from) {
+                const prevSelectedSquare = document.getElementById(`square-${gameState.selectedPieceByClick.from}`);
+                if (prevSelectedSquare) {
+                    prevSelectedSquare.classList.remove('selected-square');
+                }
+            }
+            gameState.selectedPieceByClick = null; // Reset selected piece
+        }
+
+        /**
+         * Displays move dots for a given piece's legal moves.
+         * @param {string} fromSquare The square from which the piece is moving.
+         */
+        function displayMoveDots(fromSquare) {
+            clearMoveDots(); // Clear any existing dots first
+
+            const currentBoard = gameState.gameData.board;
+            const legalMoves = getLegalMovesForPiece(currentBoard, fromSquare);
+
+            legalMoves.forEach(move => {
+                const targetSquareElement = document.getElementById(`square-${move.to}`);
+                if (targetSquareElement) {
+                    const dot = document.createElement('div');
+                    dot.className = 'move-dot absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2';
+                    if (targetSquareElement.querySelector('.piece')) {
+                        dot.classList.add('has-piece'); // Add class for ring if capturing
+                    }
+                    targetSquareElement.appendChild(dot);
+
+                    // Allow clicking on the dot/square to make the move
+                    targetSquareElement.addEventListener('click', (e) => {
+                        // Prevent click on piece itself from triggering square move
+                        if (e.target.classList.contains('piece')) return;
+                        handleMoveFromClick(fromSquare, move.to);
+                    }, { once: true }); // Remove listener after first click
+                }
+            });
+
+            // Highlight the clicked piece's square
+            const clickedSquareElement = document.getElementById(`square-${fromSquare}`);
+            if (clickedSquareElement) {
+                clickedSquareElement.classList.add('selected-square');
+                gameState.selectedPieceByClick = { from: fromSquare }; // Store for re-rendering or clearing
+            }
+        }
+
+        /**
+         * Handles a move initiated by clicking a piece and then a target square/dot.
+         * @param {string} fromSquare The starting square.
+         * @param {string} toSquare The target square.
+         */
+        async function handleMoveFromClick(fromSquare, toSquare) {
+            // Simulate a drag-drop event for consistency with existing logic
+            // This is a simplified way to reuse handleDrop's core logic
+            gameState.draggingPiece = { piece: gameState.gameData.board[getCoords(fromSquare).row][getCoords(fromSquare).col], from: fromSquare };
+            // Temporarily set draggedOverSquare to trigger handleDrop's logic
+            gameState.draggedOverSquare = toSquare;
+
+            const targetSquareElement = document.getElementById(`square-${toSquare}`);
+            if (targetSquareElement) {
+                // Manually trigger the drop logic
+                await handleDrop({ preventDefault: () => {}, currentTarget: targetSquareElement });
+            }
+            clearMoveDots(); // Ensure dots are cleared after move attempt
+            gameState.selectedPieceByClick = null; // Clear selected piece by click
+        }
+
+        /**
+         * Handles the click event on a piece.
+         * @param {Event} e The click event.
+         */
+        function handlePieceClick(e) {
+            e.stopPropagation(); // Prevent click from bubbling to the square's drop listener
+            const fromSquare = e.currentTarget.dataset.fromSquare;
+            
+            // If the same piece is clicked again, clear dots. Otherwise, show new dots.
+            if (gameState.selectedPieceByClick && gameState.selectedPieceByClick.from === fromSquare) {
+                clearMoveDots();
+            } else {
+                displayMoveDots(fromSquare);
+            }
+        }
+
+        /**
          * Handles the start of a drag operation on a piece.
          * @param {Event} e The dragstart event.
          */
         function handleDragStart(e) {
+            clearMoveDots(); // Clear dots when starting a drag
             if (!gameState.gameData || gameState.gameData.status === 'checkmate' || gameState.gameData.status === 'stalemate') {
                 e.preventDefault(); // Prevent dragging if game is over
                 showMessage("Game is over. Cannot move pieces.", 'error');
@@ -1028,12 +1148,12 @@
          */
         async function handleDrop(e) {
             e.preventDefault();
-            if (!gameState.draggingPiece || !gameState.gameData || gameState.gameData.status !== 'playing' || !gameState.userId) {
+            if (!gameState.draggingPiece && !gameState.selectedPieceByClick) { // Ensure either drag or click initiated
                 resetDragState();
                 return;
             }
 
-            const { piece, from: fromSquare } = gameState.draggingPiece;
+            const fromSquare = (gameState.draggingPiece || gameState.selectedPieceByClick).from;
             const toSquare = e.currentTarget.dataset.square;
             const currentBoard = gameState.gameData.board;
             const currentTurn = gameState.gameData.turn; // 'white' or 'black'
@@ -1041,7 +1161,7 @@
 
             const playerColor = gameState.gameData.players.white?.id === gameState.userId ? 'w' : (gameState.gameData.players.black?.id === gameState.userId ? 'b' : null);
 
-            if (!playerColor || getPieceColor(piece) !== playerColor || getPieceColor(piece) !== currentPlayerColorChar) {
+            if (!playerColor || getPieceColor(currentBoard[getCoords(fromSquare).row][getCoords(fromSquare).col]) !== playerColor || getPieceColor(currentBoard[getCoords(fromSquare).row][getCoords(fromSquare).col]) !== currentPlayerColorChar) {
                 showMessage("It's not your turn or you're not controlling this piece.", 'error');
                 resetDragState();
                 return;
@@ -1104,7 +1224,7 @@
                 showMessage("Invalid move! Your king must be protected.", 'error');
             }
 
-            resetDragState();
+            resetDragState(); // Reset state after any move attempt
         }
 
         /**
@@ -1119,6 +1239,7 @@
          * Resets the drag and drop state and removes any temporary highlights.
          */
         function resetDragState() {
+            // Remove selected-square highlight
             if (gameState.draggingPiece && gameState.draggingPiece.from) {
                 const fromSquareElement = document.getElementById(`square-${gameState.draggingPiece.from}`);
                 if (fromSquareElement) {
@@ -1129,6 +1250,7 @@
                     }
                 }
             }
+            // Remove dragged-over highlight
             if (gameState.draggedOverSquare) {
                 const targetSquareElement = document.getElementById(`square-${gameState.draggedOverSquare}`);
                 if (targetSquareElement) {
@@ -1137,6 +1259,8 @@
             }
             gameState.draggingPiece = null;
             gameState.draggedOverSquare = null;
+            clearMoveDots(); // Ensure dots are cleared
+            gameState.selectedPieceByClick = null; // Clear selected piece by click
         }
     </script>
 </body>
