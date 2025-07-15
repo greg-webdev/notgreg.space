@@ -143,7 +143,7 @@
         // Changed .min.js to .js for unminified versions
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase configuration from user's input
         const firebaseConfig = {
@@ -607,14 +607,49 @@
             }
         });
 
-        document.getElementById('leave-game-btn').addEventListener('click', () => {
-            if (gameState.unsubscribeGame) {
-                gameState.unsubscribeGame(); // Unsubscribe from current game
+        document.getElementById('leave-game-btn').addEventListener('click', async () => {
+            if (!gameState.userId || !gameState.gameId || !gameState.gameData) {
+                showMessage("Not in a game to leave.", 'error');
+                return;
             }
-            gameState.gameId = null;
-            gameState.gameData = null;
-            showMessage("Left the current game.");
-            renderLobby(); // Go back to lobby view
+
+            try {
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameState.gameId);
+                const currentPlayerColor = gameState.gameData.players.white === gameState.userId ? 'white' : (gameState.gameData.players.black === gameState.userId ? 'black' : null);
+
+                if (currentPlayerColor) {
+                    // Update the player's slot to null
+                    const updatePayload = {};
+                    updatePayload[`players.${currentPlayerColor}`] = null;
+                    updatePayload.updatedAt = serverTimestamp();
+                    await updateDoc(gameDocRef, updatePayload);
+                    showMessage(`You left the game as ${currentPlayerColor}.`);
+
+                    // Re-fetch the game data to check if both players have left
+                    const updatedDocSnap = await getDoc(gameDocRef);
+                    if (updatedDocSnap.exists()) {
+                        const updatedGameData = updatedDocSnap.data();
+                        if (!updatedGameData.players.white && !updatedGameData.players.black) {
+                            // If both players are null, delete the game
+                            await deleteDoc(gameDocRef);
+                            showMessage("Game deleted as both players have left.", 'info');
+                        }
+                    }
+                } else {
+                    showMessage("You are not a registered player in this game.", 'error');
+                }
+            } catch (err) {
+                console.error("Error leaving game:", err);
+                showMessage(`Failed to leave game: ${err.message}`, 'error');
+            } finally {
+                // Always reset local game state and go to lobby
+                if (gameState.unsubscribeGame) {
+                    gameState.unsubscribeGame();
+                }
+                gameState.gameId = null;
+                gameState.gameData = null;
+                renderLobby();
+            }
         });
 
         // --- Chess Game Logic and Interaction (Drag and Drop) ---
