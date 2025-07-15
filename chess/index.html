@@ -82,6 +82,29 @@
             background-color: #2563eb; /* blue-600 */
             color: white;
         }
+
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background-color: #1f2937; /* gray-800 */
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-700 text-white p-4">
@@ -95,14 +118,17 @@
         <div id="message-display" class="message-box"></div>
 
         <div class="text-lg font-medium mb-4 text-gray-300">
-            Your User ID: <span id="user-id-display" class="font-mono text-blue-400 break-all">N/A</span>
+            Your Player Name: <span id="player-name-display" class="font-mono text-blue-400 break-all">Loading...</span>
         </div>
 
         <!-- Lobby View -->
         <div id="lobby-view" class="flex flex-col items-center w-full">
-            <button id="create-game-btn" class="w-full md:w-auto px-8 py-4 mb-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-xl shadow-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
-                Create New Game
-            </button>
+            <div class="flex items-center w-full md:w-auto mb-4">
+                <input type="text" id="create-game-id-input" placeholder="Enter New Game ID" class="flex-grow p-3 rounded-l-xl border-2 border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-green-500 text-lg" maxlength="20" />
+                <button id="create-game-btn" class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-r-xl shadow-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
+                    Create Game
+                </button>
+            </div>
 
             <div class="flex items-center w-full md:w-auto mb-4">
                 <input type="text" id="join-game-id-input" placeholder="Enter Game ID to join" class="flex-grow p-3 rounded-l-xl border-2 border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-lg" />
@@ -139,6 +165,17 @@
         </div>
     </div>
 
+    <!-- Player Name Modal -->
+    <div id="player-name-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-2xl font-bold mb-4">Enter Your Player Name</h3>
+            <input type="text" id="new-player-name-input" placeholder="e.g., ChessMaster123" class="w-full p-3 mb-4 rounded-lg border-2 border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-lg" maxlength="20" />
+            <button id="save-player-name-btn" class="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-lg rounded-xl shadow-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105">
+                Save Name
+            </button>
+        </div>
+    </div>
+
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -168,6 +205,7 @@
         const gameState = {
             user: null,
             userId: null,
+            playerName: null, // New: Stores the player's chosen name
             isAuthReady: false,
             gameId: null,
             gameData: null, // Stores the current game state from Firestore
@@ -567,8 +605,8 @@
             if (gameState.gameData) {
                 document.getElementById('game-id-display').textContent = gameState.gameId;
                 document.getElementById('current-turn-display').textContent = gameState.gameData.turn;
-                document.getElementById('white-player-display').textContent = gameState.gameData.players.white || 'Waiting...';
-                document.getElementById('black-player-display').textContent = gameState.gameData.players.black || 'Waiting...';
+                document.getElementById('white-player-display').textContent = gameState.gameData.players.white?.name || 'Waiting...';
+                document.getElementById('black-player-display').textContent = gameState.gameData.players.black?.name || 'Waiting...';
                 document.getElementById('game-status-display').textContent = gameState.gameData.status;
 
                 // The board data is stored as a JSON string, parse it before rendering
@@ -586,7 +624,7 @@
             const boardContainer = document.getElementById('chess-board-container');
             boardContainer.innerHTML = ''; // Clear existing board
 
-            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+            const playerColor = gameState.gameData.players.white?.id === gameState.userId ? 'w' : (gameState.gameData.players.black?.id === gameState.userId ? 'b' : null);
             const isPlayerTurn = playerColor && gameState.gameData.turn[0] === playerColor;
 
             const kingInCheckColor = isKingInCheck(board, 'w') ? 'w' : (isKingInCheck(board, 'b') ? 'b' : null);
@@ -653,14 +691,72 @@
             }
         }
 
+        /**
+         * Shows the player name input modal.
+         */
+        function showPlayerNameModal() {
+            document.getElementById('player-name-modal').classList.remove('hidden');
+            document.getElementById('new-player-name-input').focus();
+        }
+
+        /**
+         * Hides the player name input modal.
+         */
+        function hidePlayerNameModal() {
+            document.getElementById('player-name-modal').classList.add('hidden');
+        }
+
+        /**
+         * Saves the player name to Firestore.
+         * @param {string} name The player name to save.
+         */
+        async function savePlayerName(name) {
+            if (!gameState.userId) {
+                showMessage("Authentication not ready. Cannot save name.", 'error');
+                return;
+            }
+            if (!name.trim()) {
+                showMessage("Player name cannot be empty.", 'error');
+                return;
+            }
+            try {
+                const playerDocRef = doc(db, `artifacts/${appId}/public/data/players`, gameState.userId);
+                await setDoc(playerDocRef, { name: name.trim(), userId: gameState.userId, createdAt: serverTimestamp() }, { merge: true });
+                gameState.playerName = name.trim();
+                document.getElementById('player-name-display').textContent = gameState.playerName;
+                showMessage("Player name saved successfully!");
+                hidePlayerNameModal();
+                renderLobby(); // Render lobby after name is set
+            } catch (err) {
+                console.error("Error saving player name:", err);
+                showMessage(`Failed to save player name: ${err.message}`, 'error');
+            }
+        }
+
         // --- Firebase Initialization and Authentication ---
         document.addEventListener('DOMContentLoaded', () => {
             onAuthStateChanged(auth, async (currentUser) => {
                 if (currentUser) {
                     gameState.user = currentUser;
                     gameState.userId = currentUser.uid;
-                    document.getElementById('user-id-display').textContent = gameState.userId;
-                    showMessage('Signed in successfully!');
+                    
+                    // Check if player name exists
+                    const playerDocRef = doc(db, `artifacts/${appId}/public/data/players`, gameState.userId);
+                    const docSnap = await getDoc(playerDocRef);
+
+                    if (docSnap.exists() && docSnap.data().name) {
+                        gameState.playerName = docSnap.data().name;
+                        document.getElementById('player-name-display').textContent = gameState.playerName;
+                        showMessage('Signed in and name loaded successfully!');
+                        gameState.isAuthReady = true;
+                        renderLobby(); // Render lobby immediately if name exists
+                    } else {
+                        // Force player to create a name
+                        document.getElementById('player-name-display').textContent = 'Please set your name';
+                        showMessage('Please set your player name to continue.', 'info');
+                        showPlayerNameModal();
+                        gameState.isAuthReady = true; // Auth is ready, but name needs to be set
+                    }
                 } else {
                     // Sign in anonymously if no initial token, otherwise use custom token
                     try {
@@ -674,12 +770,17 @@
                         showMessage(`Authentication failed: ${authError.message}`, 'error');
                     }
                 }
-                gameState.isAuthReady = true; // Auth state is ready
-                // After auth is ready, check if a gameId is in local storage or needs to be rendered
-                if (gameState.gameId) {
-                    renderGame();
-                } else {
-                    renderLobby();
+            });
+
+            // Event listener for saving player name from modal
+            document.getElementById('save-player-name-btn').addEventListener('click', () => {
+                const newName = document.getElementById('new-player-name-input').value;
+                savePlayerName(newName);
+            });
+            // Allow pressing Enter in the name input to save
+            document.getElementById('new-player-name-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('save-player-name-btn').click();
                 }
             });
         });
@@ -728,24 +829,39 @@
         // --- Game Lobby Actions ---
 
         document.getElementById('create-game-btn').addEventListener('click', async () => {
-            if (!gameState.userId) {
-                showMessage("Please wait for authentication to complete.", 'error');
+            if (!gameState.userId || !gameState.playerName) {
+                showMessage("Please wait for authentication to complete and set your player name.", 'error');
+                if (gameState.isAuthReady && !gameState.playerName) {
+                    showPlayerNameModal();
+                }
                 return;
             }
+            const newGameId = document.getElementById('create-game-id-input').value.trim();
+            if (!newGameId) {
+                showMessage("Please enter a Game ID to create.", 'error');
+                return;
+            }
+
             try {
-                showMessage("Creating new game...");
-                const gamesCollectionRef = collection(db, `artifacts/${appId}/public/data/games`);
-                const newGameRef = await addDoc(gamesCollectionRef, {
-                    // Stringify the initialBoard before saving
+                showMessage(`Attempting to create game ${newGameId}...`);
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, newGameId);
+                const docSnap = await getDoc(gameDocRef);
+
+                if (docSnap.exists()) {
+                    showMessage(`Game ID "${newGameId}" already exists. Please choose a different one.`, 'error');
+                    return;
+                }
+
+                await setDoc(gameDocRef, { // Use setDoc with custom ID
                     board: JSON.stringify(initialBoard),
                     turn: 'white',
-                    players: { white: gameState.userId, black: null },
+                    players: { white: { id: gameState.userId, name: gameState.playerName }, black: null }, // Store player object
                     status: 'waiting', // 'waiting', 'playing', 'checkmate', 'stalemate', 'draw'
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                 });
-                gameState.gameId = newGameRef.id;
-                showMessage(`Game created with ID: ${newGameRef.id}. Share this ID with a friend!`);
+                gameState.gameId = newGameId;
+                showMessage(`Game created with ID: ${newGameId}. Share this ID with a friend!`);
                 setupGameListener(); // Start listening to the new game
                 renderGame(); // Switch to game view
             } catch (err) {
@@ -755,8 +871,11 @@
         });
 
         document.getElementById('join-game-btn').addEventListener('click', async () => {
-            if (!gameState.userId) {
-                showMessage("Please wait for authentication to complete.", 'error');
+            if (!gameState.userId || !gameState.playerName) {
+                showMessage("Please wait for authentication to complete and set your player name.", 'error');
+                if (gameState.isAuthReady && !gameState.playerName) {
+                    showPlayerNameModal();
+                }
                 return;
             }
             const idToJoin = document.getElementById('join-game-id-input').value.trim();
@@ -771,22 +890,22 @@
 
                 if (docSnap.exists()) {
                     const gameData = docSnap.data();
-                    if (gameData.status === 'waiting' && !gameData.players.black) {
+                    // Check if player is already in this game
+                    if (gameData.players.white?.id === gameState.userId || gameData.players.black?.id === gameState.userId) {
+                        gameState.gameId = idToJoin;
+                        showMessage(`Rejoined game ${idToJoin}.`);
+                        setupGameListener();
+                        renderGame();
+                    } else if (gameData.status === 'waiting' && !gameData.players.black) {
                         // Join as black player
                         await updateDoc(gameDocRef, {
-                            'players.black': gameState.userId,
+                            'players.black': { id: gameState.userId, name: gameState.playerName }, // Store player object
                             status: 'playing',
                             updatedAt: serverTimestamp(),
                         });
                         gameState.gameId = idToJoin;
                         showMessage(`Successfully joined game ${idToJoin} as Black!`);
                         setupGameListener(); // Start listening to the joined game
-                        renderGame(); // Switch to game view
-                    } else if (gameData.players.white === gameState.userId || gameData.players.black === gameState.userId) {
-                        // Rejoining own game
-                        gameState.gameId = idToJoin;
-                        showMessage(`Rejoined game ${idToJoin}.`);
-                        setupGameListener(); // Start listening to the rejoined game
                         renderGame(); // Switch to game view
                     } else {
                         showMessage("Game is already full or not in 'waiting' status.", 'error');
@@ -808,15 +927,20 @@
 
             try {
                 const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameState.gameId);
-                const currentPlayerColor = gameState.gameData.players.white === gameState.userId ? 'white' : (gameState.gameData.players.black === gameState.userId ? 'black' : null);
+                let currentPlayerColorSlot = null;
+                if (gameState.gameData.players.white?.id === gameState.userId) {
+                    currentPlayerColorSlot = 'white';
+                } else if (gameState.gameData.players.black?.id === gameState.userId) {
+                    currentPlayerColorSlot = 'black';
+                }
 
-                if (currentPlayerColor) {
+                if (currentPlayerColorSlot) {
                     // Update the player's slot to null
                     const updatePayload = {};
-                    updatePayload[`players.${currentPlayerColor}`] = null;
+                    updatePayload[`players.${currentPlayerColorSlot}`] = null;
                     updatePayload.updatedAt = serverTimestamp();
                     await updateDoc(gameDocRef, updatePayload);
-                    showMessage(`You left the game as ${currentPlayerColor}.`);
+                    showMessage(`You left the game as ${currentPlayerColorSlot}.`);
 
                     // Re-fetch the game data to check if both players have left
                     const updatedDocSnap = await getDoc(gameDocRef);
@@ -859,10 +983,10 @@
             }
             const piece = e.target.dataset.piece;
             const fromSquare = e.target.dataset.fromSquare;
-            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+            const playerColor = gameState.gameData.players.white?.id === gameState.userId ? 'w' : (gameState.gameData.players.black?.id === gameState.userId ? 'b' : null);
 
             if (!playerColor || getPieceColor(piece) !== playerColor || getPieceColor(piece) !== gameState.gameData.turn[0]) {
-                showMessage("It's not your turn or you're not a player in this game.", 'error');
+                showMessage("It's not your turn or you're not controlling this piece.", 'error');
                 e.preventDefault(); // Prevent dragging
                 return;
             }
@@ -915,7 +1039,7 @@
             const currentTurn = gameState.gameData.turn; // 'white' or 'black'
             const currentPlayerColorChar = currentTurn[0]; // 'w' or 'b'
 
-            const playerColor = gameState.gameData.players.white === gameState.userId ? 'w' : (gameState.gameData.players.black === gameState.userId ? 'b' : null);
+            const playerColor = gameState.gameData.players.white?.id === gameState.userId ? 'w' : (gameState.gameData.players.black?.id === gameState.userId ? 'b' : null);
 
             if (!playerColor || getPieceColor(piece) !== playerColor || getPieceColor(piece) !== currentPlayerColorChar) {
                 showMessage("It's not your turn or you're not controlling this piece.", 'error');
