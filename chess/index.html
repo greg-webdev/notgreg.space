@@ -23,7 +23,7 @@
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
-            touch-action: none; /* Prevent default touch actions like scrolling */
+            touch-action: none; /* Prevent default touch actions like scrolling/zooming */
         }
         .active-piece {
             /* Styles for pieces that can be dragged by the current player */
@@ -671,6 +671,9 @@
                     // Add drag and drop event listeners to each square
                     squareDiv.addEventListener('dragover', handleDragOver);
                     squareDiv.addEventListener('drop', handleDrop);
+                    // Add touchend listener to squares for click-to-move on touch devices
+                    squareDiv.addEventListener('touchend', handleSquareTouchEnd);
+
 
                     if (piece) {
                         const pieceDiv = document.createElement('div');
@@ -687,6 +690,7 @@
                         // Add click listener for showing moves
                         if (isPlayerTurn && getPieceColor(piece) === playerColor) {
                             pieceDiv.addEventListener('click', handlePieceClick);
+                            pieceDiv.addEventListener('touchstart', handlePieceTouchStart); // For touch devices
                         }
 
                         squareDiv.appendChild(pieceDiv);
@@ -1036,12 +1040,18 @@
                     }
                     targetSquareElement.appendChild(dot);
 
-                    // Allow clicking on the dot/square to make the move
-                    targetSquareElement.addEventListener('click', (e) => {
+                    // Add click and touchend listeners to the square for making the move
+                    const makeMoveHandler = async (e) => {
+                        e.preventDefault(); // Prevent default browser behavior (e.g., scrolling)
                         // Prevent click on piece itself from triggering square move
                         if (e.target.classList.contains('piece')) return;
-                        handleMoveFromClick(fromSquare, move.to);
-                    }, { once: true }); // Remove listener after first click
+                        await handleMoveFromClick(fromSquare, move.to);
+                        // Remove listeners after move attempt to prevent multiple triggers
+                        targetSquareElement.removeEventListener('click', makeMoveHandler);
+                        targetSquareElement.removeEventListener('touchend', makeMoveHandler);
+                    };
+                    targetSquareElement.addEventListener('click', makeMoveHandler);
+                    targetSquareElement.addEventListener('touchend', makeMoveHandler);
                 }
             });
 
@@ -1068,6 +1078,7 @@
             const targetSquareElement = document.getElementById(`square-${toSquare}`);
             if (targetSquareElement) {
                 // Manually trigger the drop logic
+                // Pass a dummy event object with preventDefault to match handleDrop's expectation
                 await handleDrop({ preventDefault: () => {}, currentTarget: targetSquareElement });
             }
             clearMoveDots(); // Ensure dots are cleared after move attempt
@@ -1087,6 +1098,37 @@
                 clearMoveDots();
             } else {
                 displayMoveDots(fromSquare);
+            }
+        }
+
+        /**
+         * Handles the touchstart event on a piece.
+         * @param {Event} e The touchstart event.
+         */
+        function handlePieceTouchStart(e) {
+            e.preventDefault(); // Prevent default touch behavior (e.g., scrolling, zooming)
+            e.stopPropagation(); // Prevent touch from bubbling to the square
+            const fromSquare = e.currentTarget.dataset.fromSquare;
+
+            // If the same piece is tapped again, clear dots. Otherwise, show new dots.
+            if (gameState.selectedPieceByClick && gameState.selectedPieceByClick.from === fromSquare) {
+                clearMoveDots();
+            } else {
+                displayMoveDots(fromSquare);
+            }
+        }
+
+        /**
+         * Handles the touchend event on a square. This is primarily for "click-to-move" on touch.
+         * @param {Event} e The touchend event.
+         */
+        function handleSquareTouchEnd(e) {
+            e.preventDefault(); // Prevent default touch behavior (e.g., scrolling, zooming)
+            // If a piece was selected by click, and this is a tap on a target square
+            if (gameState.selectedPieceByClick) {
+                // The actual move logic is now handled by the event listener attached to the dot/square
+                // in `displayMoveDots`, which calls `handleMoveFromClick`.
+                // This `handleSquareTouchEnd` is mainly to prevent default behavior and ensure the tap is caught.
             }
         }
 
