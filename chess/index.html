@@ -895,9 +895,9 @@
                 setupGameListener(); // Start listening to the new game
                 renderGame(); // Switch to game view
             } catch (err) {
-                console.error("Error creating game:", err);
-                showMessage(`Failed to create game: ${err.message}`, 'error');
-            }
+                    console.error("Error creating game:", err);
+                    showMessage(`Failed to create game: ${err.message}`, 'error');
+                }
         });
 
         document.getElementById('join-game-btn').addEventListener('click', async () => {
