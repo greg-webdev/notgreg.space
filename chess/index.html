@@ -548,8 +548,8 @@
             for (const move of pseudoLegalMoves) {
                 const tempBoard = JSON.parse(JSON.stringify(board)); // Deep copy
                 // Simulate the move
-                tempBoard[move.toRow][move.toCol] = tempBoard[fromCoords.row][fromCoords.col];
-                tempBoard[fromCoords.row][fromCol] = null;
+                tempBoard[move.toRow][move.toCol] = tempBoard[fromCoords.row][fromCoords.col]; // Corrected: fromCol to fromCoords.col
+                tempBoard[fromCoords.row][fromCoords.col] = null; // Corrected: fromCol to fromCoords.col
 
                 // Check if the king is in check after this move
                 if (!isKingInCheck(tempBoard, pieceColor)) {
@@ -1072,7 +1072,7 @@
                 const toCoords = getCoords(toSquare);
 
                 newBoard[toCoords.row][toCoords.col] = newBoard[fromCoords.row][fromCoords.col];
-                newBoard[fromCoords.row][fromCol] = null;
+                newBoard[fromCoords.row][fromCoords.col] = null; // Corrected: fromCol to fromCoords.col
 
                 const nextTurn = currentTurn === 'white' ? 'black' : 'white';
                 const nextPlayerColorChar = nextTurn[0];
