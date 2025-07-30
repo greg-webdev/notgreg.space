@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invisible 3D Balls (CPU)</title>
+    <style>
+        /* Basic styling to make the canvas full screen and remove scrollbars */
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            background-color: #000000; /* Black background for better contrast with particles */
+            font-family: 'Inter', sans-serif; /* Using Inter font */
+            color: #ffffff; /* White text color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Ensure body takes full viewport height */
+        }
+        canvas {
+            display: block; /* Remove extra space below canvas */
+            width: 100vw; /* Take full viewport width */
+            height: 100vh; /* Take full viewport height */
+            position: absolute; /* Position canvas absolutely to cover the whole screen */
+            top: 0;
+            left: 0;
+            z-index: 1; /* Ensure canvas is above controls once active */
+        }
+        #control-panel {
+            background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent black background */
+            padding: 30px;
+            border-radius: 15px; /* Rounded corners */
+            text-align: center;
+            z-index: 10; /* Ensure controls are above canvas initially */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); /* Glowing effect */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 90%; /* Responsive width */
+        }
+        #control-panel h1 {
+            margin-bottom: 25px;
+            font-size: 2.5em; /* Larger heading */
+            color: #00ffff; /* Cyan color for heading */
+            text-shadow: 0 0 10px #00ffff; /* Text glow */
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .radio-group label {
+            font-size: 1.2em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .radio-group input[type="radio"] {
+            appearance: none; /* Hide default radio button */
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00ffff; /* Cyan border */
+            border-radius: 50%;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .radio-group input[type="radio"]:checked {
+            background-color: #00ffff; /* Cyan fill when checked */
+            border-color: #00ffff;
+        }
+        .radio-group input[type="radio"]:checked::before {
+            content: '';
+            display: block;
+            width: 10px;
+            height: 10px;
+            background: #000000; /* Black dot in center */
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        button {
+            background-color: #00ffff; /* Cyan button */
+            color: #000000; /* Black text */
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.5em;
+            border-radius: 10px; /* Rounded corners for button */
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 255, 255, 0.4); /* Button shadow */
+        }
+        button:hover {
+            background-color: #00e6e6; /* Slightly darker cyan on hover */
+            transform: translateY(-3px); /* Lift effect on hover */
+            box-shadow: 0 8px 20px rgba(0, 255, 255, 0.6);
+        }
+        button:active {
+            transform: translateY(0); /* Press effect */
+            box-shadow: 0 3px 10px rgba(0, 255, 255, 0.3);
+        }
+
+        /* Hide canvas initially */
+        #cpu-canvas {
+            display: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #control-panel {
+                padding: 20px;
+                gap: 15px;
+            }
+            #control-panel h1 {
+                font-size: 2em;
+            }
+            .radio-group label {
+                font-size: 1em;
+            }
+            button {
+                padding: 12px 25px;
+                font-size: 1.2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="control-panel">
+        <h1>Choose Your Experience</h1>
+        <div class="radio-group">
+            <label>
+                <input type="radio" name="particleCount" value="1" checked>
+                1 Invisible 2D Ball (CPU)
+            </label>
+            <label>
+                <input type="radio" name="particleCount" value="100000">
+                100,000 Invisible 2D Balls (CPU - Warning: May be very slow!)
+            </label>
+        </div>
+        <button id="startButton">Start Animation</button>
+    </div>
+
+    <canvas id="cpu-canvas"></canvas>
+
+    <script>
+        // --- Global Variables ---
+        let canvas, ctx; // HTML Canvas and its 2D rendering context
+        let particles = []; // Array to hold particle objects
+        let currentNumParticles; // Variable to store the selected number of particles
+
+        // --- Configuration ---
+        const PARTICLE_RADIUS = 2; // Radius of each particle (increased for visibility)
+        const PARTICLE_OUTLINE_WIDTH = 1.5; // Thickness of the white outline (increased for visibility)
+        const PARTICLE_OPACITY = 0.05; // Overall opacity for the "neon" effect
+        const PARTICLE_SPEED_FACTOR = 0.5; // Controls the speed of particle movement (adjusted for 2D pixels)
+        const PARTICLE_SPREAD = 1000; // Defines the initial square area where particles are generated
+
+        // --- Initialization Function ---
+        function init(numParticles) {
+            currentNumParticles = numParticles; // Set the number of particles based on user selection
+
+            // Get the canvas element and its 2D rendering context
+            canvas = document.getElementById('cpu-canvas');
+            ctx = canvas.getContext('2d');
+
+            // Set canvas dimensions to full window size
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // Clear any existing particles
+            particles = [];
+
+            // Create particle objects
+            for (let i = 0; i < currentNumParticles; i++) {
+                particles.push({
+                    // Initial positions: Randomly spread within a square defined by PARTICLE_SPREAD
+                    x: (Math.random() * PARTICLE_SPREAD) - (PARTICLE_SPREAD / 2) + canvas.width / 2,
+                    y: (Math.random() * PARTICLE_SPREAD) - (PARTICLE_SPREAD / 2) + canvas.height / 2,
+                    // Initial velocities: Random small values for continuous movement
+                    vx: (Math.random() * 2 - 1) * PARTICLE_SPEED_FACTOR,
+                    vy: (Math.random() * 2 - 1) * PARTICLE_SPEED_FACTOR
+                });
+            }
+
+            // --- Event Listeners ---
+            // Handle window resizing to keep the canvas full screen and responsive
+            window.addEventListener('resize', onWindowResize);
+            // Mouse/Touch events for panning the view (simulating camera movement in 2D)
+            canvas.addEventListener('mousedown', onCanvasMouseDown);
+            canvas.addEventListener('mousemove', onCanvasMouseMove);
+            canvas.addEventListener('mouseup', onCanvasMouseUp);
+            canvas.addEventListener('touchstart', onCanvasTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', onCanvasTouchMove, { passive: false });
+            canvas.addEventListener('touchend', onCanvasTouchEnd);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            // requestAnimationFrame requests the browser to call animate() before the next repaint
+            requestAnimationFrame(animate);
+
+            // Clear the entire canvas for the new frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Set global alpha for transparency (neon effect)
+            ctx.globalAlpha = PARTICLE_OPACITY;
+
+            // Loop through each particle and update its position and draw it
+            for (let i = 0; i < currentNumParticles; i++) {
+                const p = particles[i];
+
+                // Update position
+                p.x += p.vx;
+                p.y += p.vy;
+
+                // Wrap around X
+                if (p.x > canvas.width) {
+                    p.x = 0;
+                } else if (p.x < 0) {
+                    p.x = canvas.width;
+                }
+
+                // Wrap around Y
+                if (p.y > canvas.height) {
+                    p.y = 0;
+                } else if (p.y < 0) {
+                    p.y = canvas.height;
+                }
+
+                // Draw the particle
+                ctx.beginPath(); // Start a new path
+                // arc(x, y, radius, startAngle, endAngle)
+                ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2); // Draw a circle
+
+                // Set styles for the "neon outline"
+                ctx.strokeStyle = `rgba(255, 255, 255, 1)`; // Pure white for the outline
+                ctx.lineWidth = PARTICLE_OUTLINE_WIDTH; // Set outline thickness
+                ctx.stroke(); // Draw the outline
+
+                // Set fill style for the "invisible" center
+                ctx.fillStyle = `rgba(255, 255, 255, 0)`; // Fully transparent white for the fill
+                ctx.fill(); // Fill the circle (it will be transparent)
+            }
+        }
+
+        // --- Event Handlers ---
+
+        // Handles window resizing to maintain full-screen responsiveness
+        function onWindowResize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Re-initialize particles to spread them correctly across new dimensions
+            // This will reset their positions but ensures they fill the new screen size
+            init(currentNumParticles);
+        }
+
+        let isDragging = false;
+        let lastMouseX, lastMouseY;
+
+        function onCanvasMouseDown(event) {
+            isDragging = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function onCanvasMouseMove(event) {
+            if (isDragging) {
+                const dx = event.clientX - lastMouseX;
+                const dy = event.clientY - lastMouseY;
+
+                // Move all particles based on mouse drag
+                for (let i = 0; i < currentNumParticles; i++) {
+                    particles[i].x += dx;
+                    particles[i].y += dy;
+                }
+
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
+        }
+
+        function onCanvasMouseUp() {
+            isDragging = false;
+        }
+
+        function onCanvasTouchStart(event) {
+            event.preventDefault(); // Prevent scrolling
+            if (event.touches.length === 1) {
+                isDragging = true;
+                lastMouseX = event.touches[0].clientX;
+                lastMouseY = event.touches[0].clientY;
+            }
+        }
+
+        function onCanvasTouchMove(event) {
+            event.preventDefault(); // Prevent scrolling
+            if (isDragging && event.touches.length === 1) {
+                const dx = event.touches[0].clientX - lastMouseX;
+                const dy = event.touches[0].clientY - lastMouseY;
+
+                for (let i = 0; i < currentNumParticles; i++) {
+                    particles[i].x += dx;
+                    particles[i].y += dy;
+                }
+
+                lastMouseX = event.touches[0].clientX;
+                lastMouseY = event.touches[0].clientY;
+            }
+        }
+
+        function onCanvasTouchEnd() {
+            isDragging = false;
+        }
+
+
+        // --- Control Panel Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const controlPanel = document.getElementById('control-panel');
+            const startButton = document.getElementById('startButton');
+
+            startButton.addEventListener('click', () => {
+                const selectedValue = document.querySelector('input[name="particleCount"]:checked').value;
+                const numParticles = parseInt(selectedValue);
+
+                // Hide the control panel
+                controlPanel.style.display = 'none';
+
+                // Initialize and start the animation with the selected number of particles
+                init(numParticles);
+                document.getElementById('cpu-canvas').style.display = 'block'; // Show the canvas
+                animate();
+            });
+        });
+    </script>
+</body>
+</html>
