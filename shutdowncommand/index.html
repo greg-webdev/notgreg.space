@@ -1,1 +1,39 @@
-<a href="https://greg-webdev.github.io/shutdowncommand/d.bat" class="Lmvvew _3zJSg" aria-label="“download”"></a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download File</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font and overall page aesthetics */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Full viewport height */
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-xl shadow-lg text-center max-w-sm w-full">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">Download</h1>
+        <!--
+            The anchor tag acts as the download button.
+            'href' points to the file to be downloaded.
+            'download' attribute suggests the filename for the user's browser.
+            Tailwind classes are used for styling the button.
+        -->
+        <a href="https://greg-webdev.github.io/shutdowncommand/d.bat" download="d.bat"
+           class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg
+                  transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+            Download script for shutdown or msg
+        </a>
+        <p class="text-sm text-gray-500 mt-4">Click the button above to download it.</p>
+    </div>
+</body>
+</html>
