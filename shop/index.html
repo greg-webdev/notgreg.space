@@ -516,7 +516,7 @@
     <script type="module">
         // Import the Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Your Firebase configuration
@@ -831,7 +831,13 @@
         /**
          * Handles Google sign-in using a popup.
          */
-        function signInWithGoogle() {
+        async function signInWithGoogle() {
+            const currentUser = auth.currentUser;
+            if (currentUser && currentUser.isAnonymous) {
+                console.log("Signing out anonymous user before Google sign-in.");
+                await signOut(auth);
+            }
+
             try {
                 signInWithPopup(auth, provider)
                     .then((result) => {
@@ -869,10 +875,10 @@
          */
         onAuthStateChanged(auth, (user) => {
             authUi.innerHTML = ''; // Clear previous content
-            if (user) {
-                // User is signed in
+            if (user && user.displayName) {
+                // User is signed in with a Google account
                 const welcomeMessage = document.createElement('span');
-                welcomeMessage.textContent = `Welcome, ${user.displayName || user.email || 'User'}`;
+                welcomeMessage.textContent = `Welcome, ${user.displayName}`;
 
                 const signOutButton = document.createElement('button');
                 signOutButton.id = 'signout-button';
@@ -882,7 +888,7 @@
                 authUi.appendChild(welcomeMessage);
                 authUi.appendChild(signOutButton);
             } else {
-                // User is signed out
+                // User is anonymous or not signed in
                 const signInButton = document.createElement('button');
                 signInButton.id = 'google-signin-button';
                 signInButton.textContent = 'Sign in with Google';
