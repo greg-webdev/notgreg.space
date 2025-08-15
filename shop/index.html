@@ -265,6 +265,26 @@
             color: #0056b3;
         }
 
+        /* Tiny Admin button styling */
+        #admin-button {
+            background: none;
+            color: #dc3545;
+            border: none;
+            padding: 5px;
+            font-size: 2px;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+            user-select: none;
+            position: absolute; /* Position it absolutely within the modal */
+            bottom: 10px;
+            left: 10px;
+        }
+
+        #admin-button:hover {
+            color: #c82333;
+        }
+
         /* New payment processing modal */
         #payment-modal, #terms-modal {
             position: fixed;
@@ -360,6 +380,73 @@
         #close-terms-modal:hover {
             background-color: #5a6268;
         }
+
+        /* Styling for the new admin page */
+        #admin-page {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            display: none; /* Initially hidden */
+        }
+
+        #admin-page h2 {
+            text-align: center;
+            color: #212529;
+            margin-bottom: 20px;
+        }
+
+        #orders-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .order-item {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .order-item h4 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+
+        .order-item ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+
+        .order-item ul li {
+            margin-bottom: 5px;
+        }
+
+        .back-to-shop-admin {
+            margin-top: 20px;
+            background-color: #6c757d;
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        
+        .back-to-shop-admin:hover {
+            background-color: #5a6268;
+        }
+
+        .loading-message {
+            text-align: center;
+            font-style: italic;
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
@@ -384,6 +471,16 @@
             <button id="t-and-c-button">T&C</button>
             <button id="place-order">Place Order</button>
         </div>
+    </div>
+
+    <!-- The new admin page view, initially hidden -->
+    <div id="admin-page">
+        <h2>Admin Dashboard</h2>
+        <button id="back-to-shop-from-admin" class="back-to-shop-admin">Back to Shopping</button>
+        <p class="loading-message">Loading orders...</p>
+        <ul id="orders-list">
+            <!-- Orders will be dynamically added here -->
+        </ul>
     </div>
 
     <!-- The new checkout button container -->
@@ -412,6 +509,7 @@
             <p>2. i will <span class="large-caps">NOT</span> let you exchange the things that you bought.</p>
             <p>3. price is <span class="large-caps">FIXED</span>.</p>
             <button id="close-terms-modal">Close</button>
+            <button id="admin-button">admin</button>
         </div>
     </div>
 
@@ -419,10 +517,10 @@
         // Import the Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Your Firebase configuration
-        const firebaseConfig = {
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyCBY-fCvk7eo6R7A0WIfBlnCHXm6wo3NnI",
             authDomain: "halahalahalahahaee.firebaseapp.com",
             projectId: "halahalahalahahaee",
@@ -430,6 +528,7 @@
             messagingSenderId: "460954860301",
             appId: "1:460954860301:web:61006c929b5a1df8734e44"
         };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -441,6 +540,7 @@
         const authUi = document.getElementById('auth-ui');
         const shopContainer = document.getElementById('shop-container');
         const checkoutPage = document.getElementById('checkout-page');
+        const adminPage = document.getElementById('admin-page');
         const messageBox = document.getElementById('message-box');
         const checkoutButton = document.getElementById('checkout-button');
         const cartItemsList = document.getElementById('cart-items');
@@ -449,25 +549,16 @@
         const placeOrderButton = document.getElementById('place-order');
         const tAndCButton = document.getElementById('t-and-c-button');
         const closeTermsModalButton = document.getElementById('close-terms-modal');
+        const adminButton = document.getElementById('admin-button');
+        const backToShopFromAdminButton = document.getElementById('back-to-shop-from-admin');
+        const ordersList = document.getElementById('orders-list');
+        const loadingMessage = document.querySelector('.loading-message');
 
         const paymentModal = document.getElementById('payment-modal');
         const paymentStatusText = document.getElementById('payment-status-text');
         const paymentIcon = document.getElementById('payment-icon');
-
         const termsModal = document.getElementById('terms-modal');
         
-        // Use the initial auth token for sign-in
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        if (initialAuthToken) {
-            signInWithCustomToken(auth, initialAuthToken).catch((error) => {
-                console.error("Error signing in with custom token:", error);
-            });
-        } else {
-            signInAnonymously(auth).catch((error) => {
-                console.error("Error signing in anonymously:", error);
-            });
-        }
-
         // Store items and prices as objects for better data management
         const shopItems = [
             { name: 'PC (no HDD)', price: 20.00 },
@@ -482,11 +573,34 @@
 
         // Global cart array to store items added
         let cart = [];
+        
+        /**
+         * Use the initial auth token for sign-in or sign in anonymously.
+         */
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } catch (error) {
+                        console.error("Error signing in with custom token:", error);
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously due to custom token failure.");
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously.");
+                }
+            }
+        });
 
         /**
          * Renders all shop items on the main page.
          */
         function renderShopItems() {
+            shopContainer.innerHTML = ''; // Clear previous items to prevent duplicates
             shopItems.forEach(item => {
                 const itemElement = document.createElement('div');
                 itemElement.classList.add('item');
@@ -495,12 +609,27 @@
                     <img src="https://placehold.co/250x150/d3d3d3/000000?text=${encodeURIComponent(item.name)}" alt="${item.name}">
                     <h3>${item.name}</h3>
                     <span class="price">$${item.price.toFixed(2)}</span>
-                    <button onclick="addToCart('${item.name}')">Add to Cart</button>
+                    <button class="add-to-cart-btn" data-item-name="${item.name}">Add to Cart</button>
                 `;
                 shopContainer.appendChild(itemElement);
             });
+            // Attach event listeners after rendering the buttons
+            setupAddToCartButtons();
         }
         
+        /**
+         * Sets up event listeners for all "Add to Cart" buttons.
+         */
+        function setupAddToCartButtons() {
+            const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
+            addToCartButtons.forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const itemName = event.target.dataset.itemName;
+                    addToCart(itemName);
+                });
+            });
+        }
+
         /**
          * Updates the text of the checkout button with the current cart count.
          */
@@ -558,103 +687,146 @@
         }
 
         /**
-         * Switches the view to the checkout page.
+         * Toggles between the shop, checkout, and admin pages.
+         * @param {string} page - The page to show ('shop', 'checkout', or 'admin').
          */
-        function goToCheckout() {
+        function togglePage(page) {
             shopContainer.style.display = 'none';
-            checkoutPage.style.display = 'block';
-            checkoutButton.style.display = 'none';
-            renderCart();
-        }
-
-        /**
-         * Switches the view back to the shop page.
-         */
-        function goToShop() {
-            shopContainer.style.display = 'grid';
             checkoutPage.style.display = 'none';
-            checkoutButton.style.display = 'block';
-        }
+            adminPage.style.display = 'none';
+            checkoutButton.style.display = 'none';
 
-        /**
-         * Simulates a payment process and updates the UI.
-         */
-        function simulatePayment() {
-            // Show the payment modal
-            paymentModal.style.display = 'flex';
-            setTimeout(() => paymentModal.style.opacity = 1, 10);
-
-            // Reset modal content for new transaction
-            paymentStatusText.textContent = 'Processing payment...';
-            paymentIcon.innerHTML = '<div class="spinner"></div>';
-            
-            // Simulate a network request with a random success/failure
-            setTimeout(() => {
-                const isSuccess = Math.random() > 0.1; // 90% chance of success
-                
-                if (isSuccess) {
-                    paymentStatusText.textContent = 'Payment Successful!';
-                    paymentIcon.innerHTML = '<span class="success-icon">&#10004;</span>';
-                    
-                    setTimeout(() => {
-                        // Clear cart and redirect
-                        cart = [];
-                        updateCheckoutButton();
-                        hidePaymentModal();
-                        goToShop();
-                    }, 2000); // Hide modal after 2 seconds
-                } else {
-                    paymentStatusText.textContent = 'Payment Failed. Please try again.';
-                    paymentIcon.innerHTML = '<span class="error-icon">&#10007;</span>';
-                    
-                    setTimeout(() => {
-                        hidePaymentModal();
-                    }, 2000); // Hide modal after 2 seconds, stay on checkout page
-                    showTemporaryMessage('Payment failed. Please try again.');
-                }
-
-            }, 3000); // Payment process takes 3 seconds
-        }
-
-        /**
-         * Hides the payment modal.
-         */
-        function hidePaymentModal() {
-            paymentModal.style.opacity = 0;
-            setTimeout(() => {
-                paymentModal.style.display = 'none';
-            }, 500);
-        }
-
-        /**
-         * Shows the terms and conditions modal.
-         */
-        function showTermsAndConditions() {
-            termsModal.style.display = 'flex';
-            setTimeout(() => termsModal.style.opacity = 1, 10);
-        }
-
-        /**
-         * Hides the terms and conditions modal.
-         */
-        function hideTermsAndConditions() {
-            termsModal.style.opacity = 0;
-            setTimeout(() => {
-                termsModal.style.display = 'none';
-            }, 500);
-        }
-
-        /**
-         * Handles the final order placement, now showing a QR code.
-         */
-        function placeOrder() {
-            if (cart.length > 0) {
-                // Now we call the simulated payment function
-                simulatePayment();
-            } else {
-                showTemporaryMessage('Your cart is empty!');
+            if (page === 'shop') {
+                shopContainer.style.display = 'grid';
+                checkoutButton.style.display = 'block';
+            } else if (page === 'checkout') {
+                checkoutPage.style.display = 'block';
+                renderCart();
+            } else if (page === 'admin') {
+                adminPage.style.display = 'block';
+                renderAdminPage();
             }
         }
+
+        /**
+         * Handles the final order placement and saves it to Firestore.
+         */
+        async function placeOrder() {
+            if (cart.length === 0) {
+                showTemporaryMessage('Your cart is empty!');
+                return;
+            }
+
+            const user = auth.currentUser;
+            if (!user) {
+                showTemporaryMessage('Please sign in to place an order.');
+                return;
+            }
+
+            // Show a loading state
+            paymentModal.style.display = 'flex';
+            setTimeout(() => paymentModal.style.opacity = 1, 10);
+            paymentStatusText.textContent = 'Placing order...';
+            paymentIcon.innerHTML = '<div class="spinner"></div>';
+
+            try {
+                // Save the order to Firestore
+                const ordersCollection = collection(db, `/artifacts/${appId}/public/data/orders`);
+                const orderData = {
+                    userId: user.uid,
+                    userEmail: user.email,
+                    items: cart,
+                    timestamp: serverTimestamp()
+                };
+                await addDoc(ordersCollection, orderData);
+
+                // Show success message
+                paymentStatusText.textContent = 'Order Placed Successfully!';
+                paymentIcon.innerHTML = '<span class="success-icon">&#10004;</span>';
+
+                // Clear cart and redirect to shop after a delay
+                cart = [];
+                updateCheckoutButton();
+                
+                setTimeout(() => {
+                    paymentModal.style.opacity = 0;
+                    setTimeout(() => paymentModal.style.display = 'none', 500);
+                    togglePage('shop');
+                }, 2000);
+            } catch (error) {
+                console.error("Error placing order:", error);
+                paymentStatusText.textContent = 'Order Failed. Please try again.';
+                paymentIcon.innerHTML = '<span class="error-icon">&#10007;</span>';
+                
+                setTimeout(() => {
+                    paymentModal.style.opacity = 0;
+                    setTimeout(() => paymentModal.style.display = 'none', 500);
+                }, 2000);
+                showTemporaryMessage('Order failed. Please try again.');
+            }
+        }
+
+        /**
+         * Renders the admin page and fetches orders from Firestore in real-time.
+         */
+        function renderAdminPage() {
+            const user = auth.currentUser;
+            ordersList.innerHTML = '';
+            
+            if (!user || user.isAnonymous) {
+                loadingMessage.textContent = 'Please sign in with a Google account to view the admin page.';
+                return;
+            }
+            
+            loadingMessage.textContent = 'Loading orders...';
+            
+            const ordersCollection = collection(db, `/artifacts/${appId}/public/data/orders`);
+            
+            // Set up a real-time listener for the orders collection
+            onSnapshot(ordersCollection, (querySnapshot) => {
+                const orders = [];
+                querySnapshot.forEach((doc) => {
+                    orders.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Clear the list before rendering new items
+                ordersList.innerHTML = '';
+                loadingMessage.style.display = 'none';
+
+                if (orders.length === 0) {
+                    ordersList.innerHTML = '<p style="text-align: center;">No orders have been placed yet.</p>';
+                    return;
+                }
+
+                // Sort orders by timestamp in descending order
+                orders.sort((a, b) => b.timestamp - a.timestamp);
+
+                orders.forEach(order => {
+                    const orderElement = document.createElement('li');
+                    orderElement.classList.add('order-item');
+                    
+                    const orderDate = order.timestamp ? new Date(order.timestamp.toDate()).toLocaleString() : 'N/A';
+                    
+                    let itemsHtml = order.items.map(item => `
+                        <li>${item.name} - $${item.price.toFixed(2)}</li>
+                    `).join('');
+
+                    orderElement.innerHTML = `
+                        <h4>Order ID: ${order.id}</h4>
+                        <p><strong>User ID:</strong> ${order.userId}</p>
+                        <p><strong>User Email:</strong> ${order.userEmail || 'N/A'}</p>
+                        <p><strong>Date:</strong> ${orderDate}</p>
+                        <p><strong>Items:</strong></p>
+                        <ul>${itemsHtml}</ul>
+                    `;
+                    ordersList.appendChild(orderElement);
+                });
+            }, (error) => {
+                console.error("Error fetching orders: ", error);
+                loadingMessage.textContent = 'Error loading orders. Please try again later.';
+            });
+        }
+
 
         /**
          * Handles Google sign-in using a popup.
@@ -663,18 +835,12 @@
             try {
                 signInWithPopup(auth, provider)
                     .then((result) => {
-                        // This gives you a Google Access Token. You can use it to access the Google API.
-                        const credential = GoogleAuthProvider.credentialFromResult(result);
-                        const token = credential.accessToken;
-                        // The signed-in user info.
                         const user = result.user;
                         console.log("User signed in successfully:", user.displayName);
                     }).catch((error) => {
-                        // Handle Errors here.
                         const errorCode = error.code;
                         const errorMessage = error.message;
                         console.error("Sign-in error:", errorCode, errorMessage);
-                        // Check if the error is due to the popup being closed by the user
                         if (errorCode !== "auth/popup-closed-by-user") {
                             showTemporaryMessage(`Sign-in failed: ${errorMessage}`);
                         }
@@ -692,6 +858,7 @@
             auth.signOut().then(() => {
                 console.log("User signed out.");
                 showTemporaryMessage("You have been signed out.");
+                togglePage('shop'); // Go back to shop page after sign out
             }).catch((error) => {
                 console.error("Sign-out error:", error);
             });
@@ -726,11 +893,34 @@
         });
 
         // Event listeners
-        checkoutButton.addEventListener('click', goToCheckout);
-        backToShopButton.addEventListener('click', goToShop);
+        checkoutButton.addEventListener('click', () => togglePage('checkout'));
+        backToShopButton.addEventListener('click', () => togglePage('shop'));
         placeOrderButton.addEventListener('click', placeOrder);
         tAndCButton.addEventListener('click', showTermsAndConditions);
         closeTermsModalButton.addEventListener('click', hideTermsAndConditions);
+        adminButton.addEventListener('click', () => {
+            hideTermsAndConditions(); // Close T&C modal
+            togglePage('admin');
+        });
+        backToShopFromAdminButton.addEventListener('click', () => togglePage('shop'));
+
+        /**
+         * Shows the terms and conditions modal.
+         */
+        function showTermsAndConditions() {
+            termsModal.style.display = 'flex';
+            setTimeout(() => termsModal.style.opacity = 1, 10);
+        }
+
+        /**
+         * Hides the terms and conditions modal.
+         */
+        function hideTermsAndConditions() {
+            termsModal.style.opacity = 0;
+            setTimeout(() => {
+                termsModal.style.display = 'none';
+            }, 500);
+        }
 
         // Initial setup
         renderShopItems();
