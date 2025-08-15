@@ -11,7 +11,7 @@
             margin: 0;
             padding: 20px;
             background-color: #e9ecef;
-            color: #343a40;
+            color: #343a0;
             line-height: 1.6;
             padding-bottom: 80px; /* Add padding to prevent the button from covering content */
             user-select: none; /* Make all text on the website unselectable */
@@ -255,6 +255,18 @@
             justify-content: space-between;
             align-items: center; /* Align items vertically */
             margin-top: 20px;
+        }
+
+        /* New styling for the QR warning text */
+        .qr-warning-text {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #dc3545; /* A red color for a warning feel */
+            text-align: center;
+            padding: 10px;
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            margin: 15px 0;
         }
 
         .checkout-actions button {
@@ -691,6 +703,7 @@
         <div id="cart-total"></div>
         <div class="checkout-actions">
             <button id="back-to-shop">Back to Shopping</button>
+            <p class="qr-warning-text">scan and pay through the qr code, it will be verified or you will not get the item</p>
             <button id="t-and-c-button">T&C</button>
             <button id="proceed-to-payment">Proceed to Payment</button>
         </div>
