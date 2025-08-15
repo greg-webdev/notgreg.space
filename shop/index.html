@@ -582,6 +582,27 @@
         .delete-order-btn:hover {
             background-color: #c82333;
         }
+
+        /* Styling for the new name input field */
+        .name-input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .name-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .name-input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1em;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+        }
     </style>
 </head>
 <body>
@@ -590,7 +611,6 @@
 
     <!-- The main shop view -->
     <div id="shop-container">
-        <p style="text-align: center; font-style: italic;">Loading shop items...</p>
         <!-- JavaScript will populate this section -->
     </div>
 
@@ -647,6 +667,13 @@
                 <div id="payment-status-side">
                     <h3 id="payment-status-text">Confirm Your Payment</h3>
                     <p id="payment-instructions">Scan the QR code on the right and click the button below to confirm.</p>
+                    
+                    <!-- NEW: Input field for the user's name -->
+                    <div class="name-input-group">
+                        <label for="user-name-input">Your Name:</label>
+                        <input type="text" id="user-name-input" placeholder="e.g., John Doe" required>
+                    </div>
+
                     <button id="confirm-place-order">Confirm & Place Order</button>
                 </div>
                 <div id="qr-code-display">
@@ -668,7 +695,7 @@
             apiKey: "AIzaSyCBY-fCvk7eo6R7A0WIfBlnCHXm6wo3NnI",
             authDomain: "halahalahalahahaee.firebaseapp.com",
             projectId: "halahalahalahahaee",
-            storageBucket: "halahalahalahahaee.firebasestorage.app",
+            storageBucket: "halahalahalahalahaee.firebasestorage.app",
             messagingSenderId: "460954860301",
             appId: "1:460954860301:web:61006c929b5a1df8734e44"
         };
@@ -699,6 +726,7 @@
         const ordersList = document.getElementById('orders-list');
         const loadingMessage = document.querySelector('.loading-message');
         const adminUserIdSpan = document.getElementById('admin-user-id');
+        const userNameInput = document.getElementById('user-name-input');
 
         const termsModal = document.getElementById('terms-modal');
         const paymentModal = document.getElementById('payment-modal');
@@ -879,12 +907,19 @@
                 return;
             }
 
+            // Get the user's name from the input field
+            const userName = userNameInput.value.trim();
+            if (userName === '') {
+                showTemporaryMessage('Please enter your name to place the order.');
+                return;
+            }
+
             // Set button to loading state
             confirmPlaceOrderButton.disabled = true;
             paymentStatusText.textContent = 'Processing payment...';
             paymentInstructions.innerHTML = '<div class="spinner"></div>';
             
-            // Wait for 33 seconds to simulate the extended payment process
+            // Wait for 2 seconds to simulate the payment process
             setTimeout(async () => {
                 let ipAddress = 'N/A';
                 let location = 'N/A';
@@ -917,6 +952,7 @@
                     const orderData = {
                         userId: user.uid,
                         userEmail: user.email,
+                        userName: userName,
                         items: cart,
                         ipAddress: ipAddress, // Add the IP address to the order data
                         location: location,   // Add the location to the order data
@@ -949,7 +985,7 @@
                     confirmPlaceOrderButton.disabled = false;
                     confirmPlaceOrderButton.innerHTML = 'Confirm & Place Order';
                 }
-            }, 33000); // 33 seconds total delay
+            }, 2000); // 2 seconds total delay
         }
 
         /**
@@ -1003,20 +1039,23 @@
                 orders.sort((a, b) => b.timestamp - a.timestamp);
 
                 orders.forEach(order => {
-                    const orderElement = document.createElement('li');
-                    orderElement.classList.add('order-item');
-                    
                     const orderDate = order.timestamp ? new Date(order.timestamp.toDate()).toLocaleString() : 'N/A';
                     
                     let itemsHtml = order.items.map(item => `
                         <li>${item.name} - $${item.price.toFixed(2)}</li>
                     `).join('');
 
+                    const userName = order.userName || order.userEmail;
+
+                    const orderElement = document.createElement('li');
+                    orderElement.classList.add('order-item');
+
                     orderElement.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h4>Order ID: ${order.id}</h4>
                             <button class="delete-order-btn" data-order-id="${order.id}">Delete Order</button>
                         </div>
+                        <p><strong>Ordered by:</strong> ${userName}</p>
                         <p><strong>User ID:</strong> ${order.userId}</p>
                         <p><strong>User Email:</strong> ${order.userEmail || 'N/A'}</p>
                         <p><strong>Date:</strong> ${orderDate}</p>
@@ -1125,6 +1164,9 @@
             togglePage('checkout'); // Ensure checkout page is active before showing modal
             paymentModal.style.display = 'flex';
             setTimeout(() => paymentModal.style.opacity = 1, 10);
+            
+            // Reset the name input field when opening the modal
+            userNameInput.value = '';
         }
 
         /**
