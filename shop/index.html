@@ -718,8 +718,9 @@
             }
 
             const user = auth.currentUser;
-            if (!user) {
-                showTemporaryMessage('Please sign in to place an order.');
+            // CHECK if the user is authenticated and not anonymous
+            if (!user || user.isAnonymous) {
+                showTemporaryMessage('Please sign in with a Google account to place an order.');
                 return;
             }
 
@@ -728,6 +729,32 @@
             setTimeout(() => paymentModal.style.opacity = 1, 10);
             paymentStatusText.textContent = 'Placing order...';
             paymentIcon.innerHTML = '<div class="spinner"></div>';
+            
+            let ipAddress = 'N/A';
+            let location = 'N/A';
+
+            try {
+                // Fetch the user's IP address
+                const ipResponse = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipResponse.json();
+                ipAddress = ipData.ip || 'N/A';
+            } catch (error) {
+                console.error("Error fetching IP address:", error);
+            }
+
+            if (ipAddress !== 'N/A') {
+                try {
+                    // Fetch the location based on the IP address
+                    const locationResponse = await fetch(`http://ip-api.com/json/${ipAddress}`);
+                    const locationData = await locationResponse.json();
+                    if (locationData.status === 'success') {
+                        location = `${locationData.city}, ${locationData.regionName}, ${locationData.country}`;
+                    }
+                } catch (error) {
+                    console.error("Error fetching location:", error);
+                }
+            }
+
 
             try {
                 // Save the order to Firestore
@@ -736,6 +763,8 @@
                     userId: user.uid,
                     userEmail: user.email,
                     items: cart,
+                    ipAddress: ipAddress, // Add the IP address to the order data
+                    location: location,   // Add the location to the order data
                     timestamp: serverTimestamp()
                 };
                 await addDoc(ordersCollection, orderData);
@@ -816,6 +845,8 @@
                         <p><strong>User ID:</strong> ${order.userId}</p>
                         <p><strong>User Email:</strong> ${order.userEmail || 'N/A'}</p>
                         <p><strong>Date:</strong> ${orderDate}</p>
+                        <p><strong>IP Address:</strong> ${order.ipAddress || 'N/A'}</p>
+                        <p><strong>Location:</strong> ${order.location || 'N/A'}</p>
                         <p><strong>Items:</strong></p>
                         <ul>${itemsHtml}</ul>
                     `;
