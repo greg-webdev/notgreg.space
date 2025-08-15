@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Shop</title>
+    <style>
+        /* Basic styling for the body and overall layout */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #e9ecef;
+            color: #343a40;
+            line-height: 1.6;
+            padding-bottom: 80px; /* Add padding to prevent the button from covering content */
+            user-select: none; /* Make all text on the website unselectable */
+        }
+
+        /* Styling for the authentication UI container */
+        #auth-ui {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        /* Styling for the sign-in button */
+        #google-signin-button {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        #google-signin-button:hover {
+            background-color: #357ae8;
+        }
+
+        /* Styling for the sign-out button */
+        #signout-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        #signout-button:hover {
+            background-color: #c82333;
+        }
+
+        /* Container for the shop items, using a responsive grid */
+        #shop-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Styling for each individual item card */
+        .item {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Image styling */
+        .item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            object-fit: cover;
+        }
+
+        /* Item title styling */
+        .item h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: #212529;
+        }
+
+        /* Price styling */
+        .item .price {
+            font-size: 1.2em;
+            color: #007bff;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        /* Button styling */
+        .item button {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+
+        .item button:hover {
+            background-color: #218838;
+            transform: scale(1.02);
+        }
+
+        .item button:active {
+            transform: scale(0.98);
+        }
+
+        /* Styling for the checkout button at the bottom */
+        #checkout-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            padding: 15px 20px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            box-sizing: border-box;
+            z-index: 999;
+        }
+
+        #checkout-button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            min-width: 200px;
+        }
+        
+        #checkout-button:hover {
+            background-color: #0056b3;
+            transform: scale(1.02);
+        }
+
+        #checkout-button:active {
+            transform: scale(0.98);
+        }
+
+        /* Message box for "add to cart" confirmation */
+        #message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(40, 167, 69, 0.95);
+            color: #fff;
+            padding: 20px 30px;
+            border-radius: 10px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: none; /* Initially hidden */
+            font-weight: bold;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Styling for the checkout page */
+        #checkout-page {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            display: none; /* Initially hidden */
+        }
+        
+        #checkout-page h2 {
+            text-align: center;
+            color: #212529;
+            margin-bottom: 20px;
+        }
+        
+        #cart-items {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        #cart-items li {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        #cart-items li:last-child {
+            border-bottom: none;
+        }
+        
+        #cart-total {
+            text-align: right;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #343a40;
+        }
+        
+        .checkout-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* Align items vertically */
+            margin-top: 20px;
+        }
+
+        .checkout-actions button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .checkout-actions button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Tiny T&C button styling */
+        #t-and-c-button {
+            background: none;
+            color: #007bff;
+            border: none;
+            padding: 5px;
+            font-size: 2px; /* Font size updated to 2px */
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+            user-select: none; /* Text is now unselectable */
+        }
+
+        #t-and-c-button:hover {
+            color: #0056b3;
+        }
+
+        /* New payment processing modal */
+        #payment-modal, #terms-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #payment-modal-content, #terms-modal-content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+        }
+
+        #payment-modal-content h3 {
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            color: #212529;
+        }
+
+        #terms-modal-content h3 {
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            color: #212529;
+            text-align: center;
+        }
+
+        #terms-modal-content p {
+            font-size: 1em;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        /* New styling for larger capitalized text */
+        .large-caps {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #007bff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .success-icon, .error-icon {
+            font-size: 4em;
+            margin: 20px auto;
+        }
+
+        .success-icon {
+            color: #28a745;
+        }
+
+        .error-icon {
+            color: #dc3545;
+        }
+
+        #close-terms-modal {
+            background-color: #6c757d;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            margin-top: 20px;
+        }
+
+        #close-terms-modal:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication UI container at the top -->
+    <div id="auth-ui"></div>
+
+    <!-- The main shop view -->
+    <div id="shop-container">
+        <!-- JavaScript will populate this section -->
+    </div>
+
+    <!-- The checkout page view, initially hidden -->
+    <div id="checkout-page">
+        <h2>Your Shopping Cart</h2>
+        <ul id="cart-items">
+            <!-- Cart items will be dynamically added here -->
+        </ul>
+        <div id="cart-total"></div>
+        <div class="checkout-actions">
+            <button id="back-to-shop">Back to Shopping</button>
+            <!-- New T&C button added here -->
+            <button id="t-and-c-button">T&C</button>
+            <button id="place-order">Place Order</button>
+        </div>
+    </div>
+
+    <!-- The new checkout button container -->
+    <div id="checkout-container">
+        <button id="checkout-button">Checkout (0 items)</button>
+    </div>
+
+    <!-- The custom message box -->
+    <div id="message-box"></div>
+    
+    <!-- New payment processing modal -->
+    <div id="payment-modal">
+        <div id="payment-modal-content">
+            <h3 id="payment-status-text">Processing payment...</h3>
+            <div id="payment-icon">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New T&C modal, initially hidden -->
+    <div id="terms-modal">
+        <div id="terms-modal-content">
+            <h3>Terms & Conditions</h3>
+            <p>1. greg will <span class="large-caps">NOT</span> refund you even if you return the things.</p>
+            <p>2. i will <span class="large-caps">NOT</span> let you exchange the things that you bought.</p>
+            <p>3. price is <span class="large-caps">FIXED</span>.</p>
+            <button id="close-terms-modal">Close</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBY-fCvk7eo6R7A0WIfBlnCHXm6wo3NnI",
+            authDomain: "halahalahalahahaee.firebaseapp.com",
+            projectId: "halahalahalahahaee",
+            storageBucket: "halahalahalahahaee.firebasestorage.app",
+            messagingSenderId: "460954860301",
+            appId: "1:460954860301:web:61006c929b5a1df8734e44"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // Get all necessary DOM elements
+        const authUi = document.getElementById('auth-ui');
+        const shopContainer = document.getElementById('shop-container');
+        const checkoutPage = document.getElementById('checkout-page');
+        const messageBox = document.getElementById('message-box');
+        const checkoutButton = document.getElementById('checkout-button');
+        const cartItemsList = document.getElementById('cart-items');
+        const cartTotalDisplay = document.getElementById('cart-total');
+        const backToShopButton = document.getElementById('back-to-shop');
+        const placeOrderButton = document.getElementById('place-order');
+        const tAndCButton = document.getElementById('t-and-c-button');
+        const closeTermsModalButton = document.getElementById('close-terms-modal');
+
+        const paymentModal = document.getElementById('payment-modal');
+        const paymentStatusText = document.getElementById('payment-status-text');
+        const paymentIcon = document.getElementById('payment-icon');
+
+        const termsModal = document.getElementById('terms-modal');
+        
+        // Use the initial auth token for sign-in
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        if (initialAuthToken) {
+            signInWithCustomToken(auth, initialAuthToken).catch((error) => {
+                console.error("Error signing in with custom token:", error);
+            });
+        } else {
+            signInAnonymously(auth).catch((error) => {
+                console.error("Error signing in anonymously:", error);
+            });
+        }
+
+        // Store items and prices as objects for better data management
+        const shopItems = [
+            { name: 'PC (no HDD)', price: 20.00 },
+            { name: 'PC (HDD)', price: 25.00 },
+            { name: 'Nvidia GeForce GTX 1660 Ti', price: 629.00 },
+            { name: '300W power supply', price: 20.00 },
+            { name: 'HDD (500GB)', price: 20.00 },
+            { name: 'HDD (1TB)', price: 25.00 },
+            { name: 'SGUNITE 2.7 (1 card)', price: 2.00 },
+            { name: 'More Chips double chocolate (1 pack)', price: 3.50 }
+        ];
+
+        // Global cart array to store items added
+        let cart = [];
+
+        /**
+         * Renders all shop items on the main page.
+         */
+        function renderShopItems() {
+            shopItems.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.classList.add('item');
+
+                itemElement.innerHTML = `
+                    <img src="https://placehold.co/250x150/d3d3d3/000000?text=${encodeURIComponent(item.name)}" alt="${item.name}">
+                    <h3>${item.name}</h3>
+                    <span class="price">$${item.price.toFixed(2)}</span>
+                    <button onclick="addToCart('${item.name}')">Add to Cart</button>
+                `;
+                shopContainer.appendChild(itemElement);
+            });
+        }
+        
+        /**
+         * Updates the text of the checkout button with the current cart count.
+         */
+        function updateCheckoutButton() {
+            checkoutButton.textContent = `Checkout (${cart.length} items)`;
+        }
+
+        /**
+         * Renders the cart items and total on the checkout page.
+         */
+        function renderCart() {
+            cartItemsList.innerHTML = '';
+            let total = 0;
+            
+            cart.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${item.name} - $${item.price.toFixed(2)}`;
+                cartItemsList.appendChild(listItem);
+                total += item.price;
+            });
+            
+            cartTotalDisplay.textContent = `Total: $${total.toFixed(2)}`;
+        }
+
+        /**
+         * Shows a custom message box with a given message.
+         * @param {string} message - The message to display.
+         */
+        function showTemporaryMessage(message) {
+            messageBox.textContent = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.opacity = 1;
+            }, 10);
+
+            setTimeout(() => {
+                messageBox.style.opacity = 0;
+                setTimeout(() => {
+                    messageBox.style.display = 'none';
+                }, 500);
+            }, 2000);
+        }
+
+        /**
+         * Adds an item to the cart and updates the UI.
+         * @param {string} itemName - The name of the item being added.
+         */
+        function addToCart(itemName) {
+            const itemToAdd = shopItems.find(item => item.name === itemName);
+            if (itemToAdd) {
+                cart.push(itemToAdd);
+                updateCheckoutButton();
+                showTemporaryMessage(`${itemName} has been added to your cart!`);
+            }
+        }
+
+        /**
+         * Switches the view to the checkout page.
+         */
+        function goToCheckout() {
+            shopContainer.style.display = 'none';
+            checkoutPage.style.display = 'block';
+            checkoutButton.style.display = 'none';
+            renderCart();
+        }
+
+        /**
+         * Switches the view back to the shop page.
+         */
+        function goToShop() {
+            shopContainer.style.display = 'grid';
+            checkoutPage.style.display = 'none';
+            checkoutButton.style.display = 'block';
+        }
+
+        /**
+         * Simulates a payment process and updates the UI.
+         */
+        function simulatePayment() {
+            // Show the payment modal
+            paymentModal.style.display = 'flex';
+            setTimeout(() => paymentModal.style.opacity = 1, 10);
+
+            // Reset modal content for new transaction
+            paymentStatusText.textContent = 'Processing payment...';
+            paymentIcon.innerHTML = '<div class="spinner"></div>';
+            
+            // Simulate a network request with a random success/failure
+            setTimeout(() => {
+                const isSuccess = Math.random() > 0.1; // 90% chance of success
+                
+                if (isSuccess) {
+                    paymentStatusText.textContent = 'Payment Successful!';
+                    paymentIcon.innerHTML = '<span class="success-icon">&#10004;</span>';
+                    
+                    setTimeout(() => {
+                        // Clear cart and redirect
+                        cart = [];
+                        updateCheckoutButton();
+                        hidePaymentModal();
+                        goToShop();
+                    }, 2000); // Hide modal after 2 seconds
+                } else {
+                    paymentStatusText.textContent = 'Payment Failed. Please try again.';
+                    paymentIcon.innerHTML = '<span class="error-icon">&#10007;</span>';
+                    
+                    setTimeout(() => {
+                        hidePaymentModal();
+                    }, 2000); // Hide modal after 2 seconds, stay on checkout page
+                    showTemporaryMessage('Payment failed. Please try again.');
+                }
+
+            }, 3000); // Payment process takes 3 seconds
+        }
+
+        /**
+         * Hides the payment modal.
+         */
+        function hidePaymentModal() {
+            paymentModal.style.opacity = 0;
+            setTimeout(() => {
+                paymentModal.style.display = 'none';
+            }, 500);
+        }
+
+        /**
+         * Shows the terms and conditions modal.
+         */
+        function showTermsAndConditions() {
+            termsModal.style.display = 'flex';
+            setTimeout(() => termsModal.style.opacity = 1, 10);
+        }
+
+        /**
+         * Hides the terms and conditions modal.
+         */
+        function hideTermsAndConditions() {
+            termsModal.style.opacity = 0;
+            setTimeout(() => {
+                termsModal.style.display = 'none';
+            }, 500);
+        }
+
+        /**
+         * Handles the final order placement, now showing a QR code.
+         */
+        function placeOrder() {
+            if (cart.length > 0) {
+                // Now we call the simulated payment function
+                simulatePayment();
+            } else {
+                showTemporaryMessage('Your cart is empty!');
+            }
+        }
+
+        /**
+         * Handles Google sign-in using a popup.
+         */
+        function signInWithGoogle() {
+            try {
+                signInWithPopup(auth, provider)
+                    .then((result) => {
+                        // This gives you a Google Access Token. You can use it to access the Google API.
+                        const credential = GoogleAuthProvider.credentialFromResult(result);
+                        const token = credential.accessToken;
+                        // The signed-in user info.
+                        const user = result.user;
+                        console.log("User signed in successfully:", user.displayName);
+                    }).catch((error) => {
+                        // Handle Errors here.
+                        const errorCode = error.code;
+                        const errorMessage = error.message;
+                        console.error("Sign-in error:", errorCode, errorMessage);
+                        // Check if the error is due to the popup being closed by the user
+                        if (errorCode !== "auth/popup-closed-by-user") {
+                            showTemporaryMessage(`Sign-in failed: ${errorMessage}`);
+                        }
+                    });
+            } catch (e) {
+                console.error("Popup was likely blocked by the browser.", e);
+                showTemporaryMessage("Sign-in popup blocked. Please enable popups for this site in your browser settings.");
+            }
+        }
+        
+        /**
+         * Handles user sign-out.
+         */
+        function signOutUser() {
+            auth.signOut().then(() => {
+                console.log("User signed out.");
+                showTemporaryMessage("You have been signed out.");
+            }).catch((error) => {
+                console.error("Sign-out error:", error);
+            });
+        }
+
+        /**
+         * Listens for authentication state changes and updates the UI.
+         */
+        onAuthStateChanged(auth, (user) => {
+            authUi.innerHTML = ''; // Clear previous content
+            if (user) {
+                // User is signed in
+                const welcomeMessage = document.createElement('span');
+                welcomeMessage.textContent = `Welcome, ${user.displayName || user.email || 'User'}`;
+
+                const signOutButton = document.createElement('button');
+                signOutButton.id = 'signout-button';
+                signOutButton.textContent = 'Sign Out';
+                signOutButton.onclick = signOutUser;
+                
+                authUi.appendChild(welcomeMessage);
+                authUi.appendChild(signOutButton);
+            } else {
+                // User is signed out
+                const signInButton = document.createElement('button');
+                signInButton.id = 'google-signin-button';
+                signInButton.textContent = 'Sign in with Google';
+                signInButton.onclick = signInWithGoogle;
+
+                authUi.appendChild(signInButton);
+            }
+        });
+
+        // Event listeners
+        checkoutButton.addEventListener('click', goToCheckout);
+        backToShopButton.addEventListener('click', goToShop);
+        placeOrderButton.addEventListener('click', placeOrder);
+        tAndCButton.addEventListener('click', showTermsAndConditions);
+        closeTermsModalButton.addEventListener('click', hideTermsAndConditions);
+
+        // Initial setup
+        renderShopItems();
+        updateCheckoutButton();
+    </script>
+</body>
+</html>
