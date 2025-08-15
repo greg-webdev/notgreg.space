@@ -479,6 +479,24 @@
             font-style: italic;
             color: #6c757d;
         }
+        
+        #admin-panel-toggle {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            font-size: 1.1em;
+        }
+
+        #admin-panel-toggle:hover {
+            background-color: #c82333;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
 
         /* New styles for payment modal and section */
         #payment-modal {
@@ -611,7 +629,7 @@
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
-            border-radius: 8px;
+            border-radius: 8-px;
             font-size: 1em;
             box-sizing: border-box; /* Ensures padding doesn't affect width */
         }
@@ -736,7 +754,8 @@
             <p>2. i will <span class="large-caps">NOT</span> let you exchange the things that you bought.</p>
             <p>3. price is <span class="large-caps">FIXED</span>.</p>
             <button id="close-terms-modal">Close</button>
-            <button id="admin-button">admin</button>
+            <!-- A new button for the admin panel, hidden by default -->
+            <button id="admin-panel-button">Admin Panel</button>
         </div>
     </div>
 
@@ -747,14 +766,8 @@
             <div id="payment-section">
                 <div id="payment-status-side">
                     <h3 id="payment-status-text">Confirm Your Payment</h3>
-                    <p id="payment-instructions">Scan the QR code on the right and click the button below to confirm.</p>
+                    <p id="payment-instructions">Scan the QR code on the right and click the button below to confirm. Your order will be placed under your Google account name.</p>
                     
-                    <!-- NEW: Input field for the user's name -->
-                    <div class="name-input-group">
-                        <label for="user-name-input">Your Name:</label>
-                        <input type="text" id="user-name-input" placeholder="e.g., John Doe" required>
-                    </div>
-
                     <button id="confirm-place-order">Confirm & Place Order</button>
                 </div>
                 <div id="qr-code-display">
@@ -814,12 +827,11 @@
         const confirmPlaceOrderButton = document.getElementById('confirm-place-order');
         const tAndCButton = document.getElementById('t-and-c-button');
         const closeTermsModalButton = document.getElementById('close-terms-modal');
-        const adminButton = document.getElementById('admin-button');
+        const adminPanelButton = document.getElementById('admin-panel-button');
         const backToShopFromAdminButton = document.getElementById('back-to-shop-from-admin');
         const ordersList = document.getElementById('orders-list');
         const loadingMessage = document.querySelector('.loading-message');
         const adminUserIdSpan = document.getElementById('admin-user-id');
-        const userNameInput = document.getElementById('user-name-input');
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
         const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
@@ -847,6 +859,9 @@
         // Global cart array to store items added
         let cart = [];
         
+        // Hardcoded admin email address as requested
+        const ADMIN_EMAIL = 'gregbloxd@gmail.com';
+
         /**
          * Use the initial auth token for sign-in or sign in anonymously.
          */
@@ -979,8 +994,16 @@
                 checkoutPage.style.display = 'block';
                 renderCart();
             } else if (page === 'admin') {
-                adminPage.style.display = 'block';
-                renderAdminPage();
+                // SECURITY WARNING: This check is purely client-side and can be bypassed.
+                // A more secure implementation would involve checking user roles on the server.
+                const user = auth.currentUser;
+                if (user && user.email === ADMIN_EMAIL) {
+                    adminPage.style.display = 'block';
+                    renderAdminPage();
+                } else {
+                    showTemporaryMessage('Unauthorised access');
+                    togglePage('shop');
+                }
             }
         }
 
@@ -1000,13 +1023,6 @@
                 // Re-enable the button and hide spinner
                 confirmPlaceOrderButton.disabled = false;
                 confirmPlaceOrderButton.innerHTML = 'Confirm & Place Order';
-                return;
-            }
-
-            // Get the user's name from the input field
-            const userName = userNameInput.value.trim();
-            if (userName === '') {
-                showTemporaryMessage('Please enter your name to place the order.');
                 return;
             }
 
@@ -1047,8 +1063,8 @@
                     const ordersCollection = collection(db, `/artifacts/${appId}/public/data/orders`);
                     const orderData = {
                         userId: user.uid,
+                        userName: user.displayName, // Use the user's Google display name
                         userEmail: user.email,
-                        userName: userName,
                         items: cart,
                         ipAddress: ipAddress, // Add the IP address to the order data
                         location: location,   // Add the location to the order data
@@ -1091,14 +1107,10 @@
          */
         async function deleteOrder(orderId, orderUserId) {
             const user = auth.currentUser;
-            if (!user || user.isAnonymous) {
-                showTemporaryMessage('You must be signed in to delete an order.');
-                return;
-            }
-            
-            // Only allow the user to delete their own orders
-            if (user.uid !== orderUserId) {
-                showTemporaryMessage('You can only delete your own orders.');
+            // SECURITY WARNING: This check is purely client-side and can be bypassed.
+            // A more secure implementation would involve Firestore Security Rules.
+            if (!user || user.email !== ADMIN_EMAIL) {
+                showTemporaryMessage('Unauthorised access');
                 return;
             }
 
@@ -1137,8 +1149,8 @@
             const user = auth.currentUser;
             ordersList.innerHTML = '';
             
-            if (!user || user.isAnonymous) {
-                loadingMessage.textContent = 'Please sign in with a Google account to view the admin page.';
+            if (!user || user.email !== ADMIN_EMAIL) {
+                loadingMessage.textContent = 'Unauthorised access.';
                 return;
             }
             
@@ -1173,15 +1185,20 @@
                     `).join('');
 
                     const userName = order.userName || order.userEmail;
-                    const isCurrentUserOrder = user && user.uid === order.userId;
 
                     const orderElement = document.createElement('li');
                     orderElement.classList.add('order-item');
+                    
+                    // Only display the delete button if the user is the admin
+                    let deleteButtonHtml = '';
+                    if (user.email === ADMIN_EMAIL) {
+                        deleteButtonHtml = `<button class="delete-order-btn" data-order-id="${order.id}" data-user-id="${order.userId}">Delete Order</button>`;
+                    }
 
                     orderElement.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h4>Order ID: ${order.id}</h4>
-                            ${isCurrentUserOrder ? `<button class="delete-order-btn" data-order-id="${order.id}" data-user-id="${order.userId}">Delete Order</button>` : ''}
+                            ${deleteButtonHtml}
                         </div>
                         <p><strong>Ordered by:</strong> ${userName}</p>
                         <p><strong>User ID:</strong> ${order.userId}</p>
@@ -1271,6 +1288,15 @@
                 
                 authUi.appendChild(welcomeMessage);
                 authUi.appendChild(signOutButton);
+                
+                // Add Admin button if the user is the admin
+                if (user.email === ADMIN_EMAIL) {
+                    const adminButton = document.createElement('button');
+                    adminButton.id = 'admin-panel-toggle';
+                    adminButton.textContent = 'Admin Panel';
+                    adminButton.onclick = () => togglePage('admin');
+                    authUi.appendChild(adminButton);
+                }
             } else {
                 // User is anonymous or not signed in
                 const signInButton = document.createElement('button');
@@ -1293,9 +1319,6 @@
             togglePage('checkout'); // Ensure checkout page is active before showing modal
             paymentModal.style.display = 'flex';
             setTimeout(() => paymentModal.style.opacity = 1, 10);
-            
-            // Reset the name input field when opening the modal
-            userNameInput.value = '';
         }
 
         /**
@@ -1318,23 +1341,7 @@
                 confirmationModal.style.display = 'none';
             }, 500);
         }
-
-        // Event listeners
-        checkoutButton.addEventListener('click', () => togglePage('checkout'));
-        backToShopButton.addEventListener('click', () => {
-            togglePage('shop');
-        });
-        proceedToPaymentButton.addEventListener('click', proceedToPayment);
-        confirmPlaceOrderButton.addEventListener('click', placeOrder);
-        tAndCButton.addEventListener('click', showTermsAndConditions);
-        closeTermsModalButton.addEventListener('click', hideTermsAndConditions);
-        adminButton.addEventListener('click', () => {
-            hideTermsAndConditions(); // Close T&C modal
-            togglePage('admin');
-        });
-        backToShopFromAdminButton.addEventListener('click', () => togglePage('shop'));
-        closePaymentModalButton.addEventListener('click', closePaymentModal);
-
+        
         /**
          * Shows the terms and conditions modal.
          */
@@ -1352,6 +1359,34 @@
                 termsModal.style.display = 'none';
             }, 500);
         }
+
+        // Event listeners
+        checkoutButton.addEventListener('click', () => togglePage('checkout'));
+        backToShopButton.addEventListener('click', () => {
+            togglePage('shop');
+        });
+        proceedToPaymentButton.addEventListener('click', proceedToPayment);
+        confirmPlaceOrderButton.addEventListener('click', placeOrder);
+        tAndCButton.addEventListener('click', showTermsAndConditions);
+        closeTermsModalButton.addEventListener('click', hideTermsAndConditions);
+        
+        // Listener for the new admin panel button inside the T&C modal
+        adminPanelButton.addEventListener('click', () => {
+             // SECURITY WARNING: This check is purely client-side and can be bypassed.
+            // A more secure implementation would involve checking user roles on the server.
+            const user = auth.currentUser;
+            if (user && user.email === ADMIN_EMAIL) {
+                hideTermsAndConditions(); // Close T&C modal
+                togglePage('admin');
+            } else {
+                showTemporaryMessage('Unauthorised access');
+                hideTermsAndConditions();
+            }
+        });
+
+        backToShopFromAdminButton.addEventListener('click', () => togglePage('shop'));
+        closePaymentModalButton.addEventListener('click', closePaymentModal);
+
 
         // Initial setup
         renderShopItems();
