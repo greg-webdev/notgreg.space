@@ -846,14 +846,15 @@
 
         // Store items and prices as objects for better data management
         const shopItems = [
-            { name: 'PC (no HDD)', price: 20.00 },
-            { name: 'PC (HDD)', price: 25.00 },
-            { name: 'Nvidia GeForce GTX 1660 Ti', price: 629.00 },
-            { name: '300W power supply', price: 20.00 },
-            { name: 'HDD (500GB)', price: 20.00 },
-            { name: 'HDD (1TB)', price: 25.00 },
-            { name: 'SGUNITE 2.7 (1 card)', price: 2.00 },
-            { name: 'More Chips double chocolate (1 pack)', price: 3.50 }
+            { name: 'PC (no HDD)', price: 20.00, image: 'https://placehold.co/300x200/cccccc/333333?text=PC+no+HDD' },
+            { name: 'PC (HDD)', price: 25.00, image: 'https://placehold.co/300x200/cccccc/333333?text=PC+with+HDD' },
+            { name: 'Nvidia GeForce GTX 1660 Ti', price: 629.00, image: '20250816_074710.jpg' },
+            { name: '300W power supply', price: 20.00, image: '20250816_080040.jpg' },
+            { name: 'HDD (500GB)', price: 20.00, image: '20250816_081011.jpg' },
+            { name: 'HDD (1TB)', price: 25.00, image: '2025-08-16 08.06.19.jpg' },
+            { name: 'SGUNITE 2.7 (1 card)', price: 2.00, image: 'https://placehold.co/300x200/cccccc/333333?text=SGUNITE+2.7' },
+            { name: 'More Chips double chocolate (1 pack)', price: 3.50, image: 'https://placehold.co/300x200/cccccc/333333?text=Chips' },
+            { name: 'Thinkpad Edge', price: 899.99, image: 'thinkpaded.png' }
         ];
 
         // Global cart array to store items added
@@ -896,7 +897,7 @@
                 itemElement.classList.add('item');
 
                 itemElement.innerHTML = `
-                    <img src="https://placehold.co/300x200/cccccc/333333?text=${encodeURIComponent(item.name)}" alt="${item.name}">
+                    <img src="${item.image}" alt="${item.name}">
                     <h3>${item.name}</h3>
                     <span class="price">$${item.price.toFixed(2)}</span>
                     <button class="add-to-cart-btn" data-item-name="${item.name}">Add to Cart</button>
