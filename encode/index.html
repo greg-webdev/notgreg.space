@@ -61,28 +61,6 @@
         #file-input {
             display: none;
         }
-
-        .select-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        #mode-select {
-            background-color: #3b3b5b;
-            color: #e0e0e0;
-            border: 2px solid #5a5a7a;
-            padding: 0.75rem;
-            border-radius: 9999px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: border-color 0.2s ease;
-        }
-
-        #mode-select:focus {
-            outline: none;
-            border-color: #6a11cb;
-        }
         
         .btn-primary {
             background: linear-gradient(135deg, #f72585 0%, #b5179e 100%);
@@ -116,12 +94,13 @@
             border-radius: 1rem;
             box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
             border: 2px solid #5a5a7a;
+            background-color: #000;
         }
 
         #status-message {
             text-align: center;
             font-weight: 600;
-            min-height: 24px; /* Maintain layout space */
+            min-height: 24px;
         }
     </style>
 </head>
@@ -130,7 +109,7 @@
 <div class="container">
     <h1 class="text-3xl font-bold text-center mb-4 text-blue-300">SSTV Encoder</h1>
     <p class="text-center text-gray-400">
-        Encode an image into an audio signal using various Slow-Scan Television modes.
+        Encode an image into a Scottie S1 audio signal and download it as a WAV file.
     </p>
 
     <div class="input-group">
@@ -140,337 +119,241 @@
         <input type="file" id="file-input" accept="image/*">
     </div>
 
-    <div class="select-group">
-        <label for="mode-select" class="text-center font-bold">Select SSTV Mode:</label>
-        <select id="mode-select">
-            <option value="robot36">Robot 36</option>
-            <option value="martin1">Martin 1</option>
-            <option value="martin2">Martin 2</option>
-            <option value="scottie1">Scottie 1</option>
-            <option value="pd120">PD120</option>
-        </select>
-    </div>
-
     <div class="flex flex-col sm:flex-row gap-4 justify-center">
-        <button id="encode-btn" class="btn-primary" disabled>
-            <i class="fas fa-cog fa-spin"></i> Encoding...
-        </button>
-        <button id="download-btn" class="btn-primary hidden">
+        <button id="download-btn" class="btn-primary" disabled>
             <i class="fas fa-download"></i> Download SSTV Audio
-        </button>
-        <button id="stop-btn" class="btn-primary hidden">
-            <i class="fas fa-stop"></i> Stop
         </button>
     </div>
 
     <div class="flex justify-center">
-        <canvas id="image-canvas" width="320" height="240"></canvas>
+        <canvas id="image-canvas" width="320" height="256"></canvas>
     </div>
 
-    <p id="status-message" class="text-green-400"></p>
+    <p id="status-message" class="text-green-400">Please select an image to begin encoding.</p>
 </div>
 
 <script>
-    // Constants for SSTV modes
-    const SAMPLES_PER_SECOND = 44100;
-    const FREQ_SYNC = 1200;
-    const FREQ_BLACK = 1500;
-    const FREQ_WHITE = 2300;
-    const FREQ_VIS_START = 1900;
-    const FREQ_VIS_END = 1200;
-    const FREQ_VIS_DATA = [1100, 1300, 1500, 1700, 1900, 2100, 2300, 2500];
-
-    // Define all modes and their parameters in a single object
-    const MODES = {
-        robot36: {
-            vis: [0, 0, 1, 1, 1, 1, 0, 0], // 0x3C
-            lineDuration: 0.13824, // 138.24ms (Y/U/V channels)
-            sync: 0.009,
-            porch: 0.003,
-            visBit: 0.030,
-            blackFreq: 1500,
-            whiteFreq: 2300
-        },
-        martin1: {
-            vis: [0, 0, 1, 0, 1, 1, 0, 0], // 0x2C
-            lineDuration: 0.1464, // 146.4ms (R/G/B channels)
-            sync: 0.0048,
-            porch: 0.0015,
-            visBit: 0.010,
-            blackFreq: 1500,
-            whiteFreq: 2300
-        },
-        martin2: {
-            vis: [0, 0, 1, 0, 0, 1, 0, 0], // 0x24
-            lineDuration: 0.237, // 237ms (R/G/B channels)
-            sync: 0.0048,
-            porch: 0.0015,
-            visBit: 0.010,
-            blackFreq: 1500,
-            whiteFreq: 2300
-        },
-        scottie1: {
-            vis: [0, 0, 1, 1, 1, 1, 0, 0], // 0x3C
-            lineDuration: 0.11024, // 110.24ms (R/G/B channels)
-            sync: 0.009,
-            porch: 0.0015,
-            visBit: 0.030,
-            blackFreq: 1500,
-            whiteFreq: 2300
-        },
-        pd120: {
-            // Note: PD120 is a digital mode and is more complex.
-            // This implementation is a simplification and will play a single tone
-            // to indicate the mode has been selected.
-            vis: null, // No VIS for this simplified version
-            lineDuration: 0.120,
-            sync: 0,
-            porch: 0,
-            visBit: 0,
-            blackFreq: 1500,
-            whiteFreq: 2300
-        }
-    };
-
-    const IMAGE_WIDTH = 320;
-    const IMAGE_HEIGHT = 240;
-
-    let audioContext;
-    let audioBuffer;
-
     // UI elements
     const fileInput = document.getElementById('file-input');
-    const encodeBtn = document.getElementById('encode-btn');
     const downloadBtn = document.getElementById('download-btn');
-    const stopBtn = document.getElementById('stop-btn');
     const canvas = document.getElementById('image-canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const statusMessage = document.getElementById('status-message');
-    const modeSelect = document.getElementById('mode-select');
-
-    /**
-     * Encodes a single pixel's color value to an SSTV frequency.
-     * @param {number} value - The pixel value (0-255).
-     * @param {number} blackFreq - The frequency for black.
-     * @param {number} whiteFreq - The frequency for white.
-     * @returns {number} The corresponding frequency in Hz.
-     */
-    function valueToFrequency(value, blackFreq, whiteFreq) {
-        return blackFreq + (value / 255) * (whiteFreq - blackFreq);
-    }
     
-    /**
-     * Generates a single tone and adds it to the audio buffer.
-     * @param {Float32Array} buffer - The audio buffer to write to.
-     * @param {number} startSample - The starting index in the buffer.
-     * @param {number} frequency - The frequency of the tone in Hz.
-     * @param {number} duration - The duration of the tone in seconds.
-     * @returns {number} The number of samples written.
-     */
-    function generateTone(buffer, startSample, frequency, duration) {
-        const numSamples = Math.floor(duration * SAMPLES_PER_SECOND);
-        for (let i = 0; i < numSamples; i++) {
-            const time = i / SAMPLES_PER_SECOND;
-            const value = Math.sin(2 * Math.PI * frequency * time);
-            buffer[startSample + i] = value;
+    // SSTV Constants (Scottie S1 mode)
+    const SAMPLES_PER_SECOND = 44100;
+    const WIDTH = 320;
+    const HEIGHT = 256;
+    const DELAY = 0.1; // In seconds.
+    const MODE = 60; // Scottie S1
+    const COLOR_LOW = 1500;
+    const COLOR_HIGH = 2300;
+    
+    // Total length is recalculated based on the new header structure
+    // This value is more accurate
+    const TOTAL_LENGTH = 1000 * (0.3 + 0.01 + 0.3 + (7 * 0.03 + 0.03 + 0.03) + 256 * ((9 + 1.5) / 1000 + 0.432 * 3));
+    
+    let audioContext;
+    let audioBuffer;
+
+    // Helper class to manage SSTV tones
+    class Tone {
+        #context;
+        #audioBuffer;
+        #currentSample;
+        
+        constructor(context, length) {
+            this.#context = context;
+            this.#audioBuffer = this.#context.createBuffer(1, length, SAMPLES_PER_SECOND);
+            this.#currentSample = 0;
         }
-        return numSamples;
+
+        // Generates a tone and adds it to the internal buffer
+        tone(frequency, duration) {
+            const numSamples = Math.floor(duration * SAMPLES_PER_SECOND / 1000);
+            const channelData = this.#audioBuffer.getChannelData(0);
+            
+            for (let i = 0; i < numSamples; i++) {
+                const time = i / SAMPLES_PER_SECOND;
+                const value = Math.sin(2 * Math.PI * frequency * time);
+                if (this.#currentSample + i < channelData.length) {
+                    channelData[this.#currentSample + i] = value;
+                }
+            }
+            this.#currentSample += numSamples;
+        }
+
+        // Encodes the VIS (Vertical Interval Signaling) mode
+        mode(mode) {
+            // Start bit
+            this.tone(1200, 30);
+            
+            // 7 data bits (LSB first)
+            const bits = Array.from(
+                mode.toString(2).padStart(7, '0'),
+                Number
+            ).reverse();
+
+            for (const bit of bits) {
+                this.tone(bit ? 1100 : 1300, 30);
+            }
+            
+            // Even parity bit
+            const parity = bits.reduce((sum, curr) => sum ^ curr, 0);
+            this.tone(parity ? 1100 : 1300, 30);
+            
+            // Stop bit
+            this.tone(1200, 30);
+        }
+
+        getBuffer() {
+            return this.#audioBuffer;
+        }
     }
 
     /**
-     * Pre-encodes the entire audio signal into a buffer.
+     * Writes the image data to an audio buffer using SSTV protocols.
+     * @param {ImageData} imageData - The image data to encode.
+     * @param {Tone} tone - The Tone object to write to.
      */
-    async function preEncodeSSTV() {
-        encodeBtn.classList.remove('hidden');
-        downloadBtn.classList.add('hidden');
-        encodeBtn.disabled = true;
-        statusMessage.textContent = "Encoding SSTV signal... This may take a moment.";
-        
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
+    function writeImageToTone(imageData, tone) {
+        // Calibration Header
+        tone.tone(1900, 300);
+        tone.tone(1200, 10);
+        tone.tone(1900, 300);
+        tone.mode(MODE);
 
-        const selectedMode = modeSelect.value;
-        const modeParams = MODES[selectedMode];
-        const imageData = ctx.getImageData(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
-        const data = imageData.data;
-        
-        // Calculate total duration for buffer size
-        let totalDuration = 0;
-        if (modeParams.vis) {
-            totalDuration += 0.3 + 0.01 + 0.01; // Calibration
-            totalDuration += modeParams.vis.length * modeParams.visBit + 0.01; // VIS
-        } else {
-            totalDuration += 6; // Simplified PD120 tone duration
-        }
-        totalDuration += IMAGE_HEIGHT * (modeParams.lineDuration);
+        // Start sync (first line only)
+        tone.tone(1200, 9);
+        for (let y = 0; y < HEIGHT; y++) {
+            const start = y * WIDTH * 4;
 
-        const totalSamples = Math.floor(totalDuration * SAMPLES_PER_SECOND);
-        audioBuffer = audioContext.createBuffer(1, totalSamples, SAMPLES_PER_SECOND);
-        const channelData = audioBuffer.getChannelData(0);
-        let currentSample = 0;
-
-        // Step 1: Pre-encode sync pulse
-        if (modeParams.sync > 0) {
-            currentSample += generateTone(channelData, currentSample, FREQ_SYNC, modeParams.sync);
-            currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, modeParams.porch);
-        }
-
-        // Step 2: Pre-encode calibration header & VIS
-        if (modeParams.vis) {
-            currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, 0.3);
-            currentSample += generateTone(channelData, currentSample, FREQ_VIS_START, 0.01);
-            currentSample += generateTone(channelData, currentSample, FREQ_VIS_END, 0.01);
-
-            for (const bit of modeParams.vis) {
-                const freq = FREQ_VIS_DATA[bit];
-                currentSample += generateTone(channelData, currentSample, freq, modeParams.visBit);
-            }
-            currentSample += generateTone(channelData, currentSample, FREQ_VIS_END, 0.01);
-        } else {
-            currentSample += generateTone(channelData, currentSample, 1000, 2);
-            currentSample += generateTone(channelData, currentSample, 1500, 2);
-            currentSample += generateTone(channelData, currentSample, 2000, 2);
-        }
-
-        // Step 3: Pre-encode the image data line by line
-        const pixelDuration = (modeParams.lineDuration - (modeParams.sync + modeParams.porch)) / IMAGE_WIDTH;
-
-        for (let y = 0; y < IMAGE_HEIGHT; y++) {
-            if (modeParams.sync > 0) {
-                currentSample += generateTone(channelData, currentSample, FREQ_SYNC, modeParams.sync);
-                currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, modeParams.porch);
-            }
-
-            for (let x = 0; x < IMAGE_WIDTH; x++) {
-                const i = (y * IMAGE_WIDTH + x) * 4;
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-
-                currentSample += generateTone(channelData, currentSample, valueToFrequency(r, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
-                currentSample += generateTone(channelData, currentSample, valueToFrequency(g, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
-                currentSample += generateTone(channelData, currentSample, valueToFrequency(b, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
+            for (const channel of [1, 2, 0]) { // G, B, R channels
+                if (channel === 0) {
+                    // Horizontal sync (red only)
+                    tone.tone(1200, 9);
+                }
+                // Separator tone
+                tone.tone(1500, 1.5);
+                for (let x = 0; x < WIDTH; x++) {
+                    const value = imageData.data[start + x * 4 + channel];
+                    tone.tone(
+                        COLOR_LOW + (COLOR_HIGH - COLOR_LOW) * (value / 255),
+                        0.432
+                    );
+                }
             }
         }
-
-        statusMessage.textContent = "Encoding complete! Ready for download.";
-        encodeBtn.classList.add('hidden');
-        downloadBtn.classList.remove('hidden');
-        downloadBtn.disabled = false;
     }
 
     /**
-     * Converts an AudioBuffer to a WAV Blob.
-     * @param {AudioBuffer} audioBuffer - The buffer to convert.
-     * @returns {Blob} The WAV file as a Blob.
+     * Creates a WAV file header.
+     * @param {number} byteCount - Total data size in bytes.
+     * @param {number} sampleRate - The sample rate.
+     * @param {number} channelCount - The number of audio channels.
+     * @returns {DataView} The WAV header.
      */
-    function createWavFile(audioBuffer) {
-        const numChannels = audioBuffer.numberOfChannels;
-        const sampleRate = audioBuffer.sampleRate;
-        const buffer = audioBuffer.getChannelData(0);
-        const numSamples = buffer.length;
-
-        // Create a new buffer for the WAV file (44-byte header + data)
-        const wavBuffer = new ArrayBuffer(44 + numSamples * 2);
-        const view = new DataView(wavBuffer);
-        const writeString = (view, offset, string) => {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        };
-
+    const encoder = new TextEncoder();
+    function createWavHeader(byteCount, sampleRate, channelCount = 1) {
+        const header = new DataView(new ArrayBuffer(44));
+        const byteView = new Uint8Array(header.buffer);
+        
         // RIFF chunk
-        writeString(view, 0, 'RIFF');
-        view.setUint32(4, 36 + numSamples * 2, true); // File size
-        writeString(view, 8, 'WAVE');
+        byteView.set(encoder.encode('RIFF'), 0);
+        header.setUint32(4, byteCount + 36, true);
+        byteView.set(encoder.encode('WAVE'), 8);
 
         // fmt chunk
-        writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true); // Sub-chunk size (16 for PCM)
-        view.setUint16(20, 1, true); // Audio format (1 for PCM)
-        view.setUint16(22, numChannels, true); // Number of channels
-        view.setUint32(24, sampleRate, true); // Sample rate
-        view.setUint32(28, sampleRate * numChannels * 2, true); // Byte rate
-        view.setUint16(32, numChannels * 2, true); // Block align
-        view.setUint16(34, 16, true); // Bits per sample
+        byteView.set(encoder.encode('fmt '), 12);
+        header.setUint32(16, 16, true);
+        header.setUint16(20, 1, true); // Audio format: PCM
+        header.setUint16(22, channelCount, true);
+        header.setUint32(24, sampleRate, true);
+        header.setUint32(28, sampleRate * 4, true); // Byte rate
+        header.setUint16(32, channelCount * 2, true); // Block align
+        header.setUint16(34, 16, true); // Bits per sample
 
         // data chunk
-        writeString(view, 36, 'data');
-        view.setUint32(40, numSamples * 2, true); // Data size
+        byteView.set(encoder.encode('data'), 36);
+        header.setUint32(40, byteCount, true);
 
-        // Write the PCM data
-        let offset = 44;
-        for (let i = 0; i < numSamples; i++) {
-            const s = Math.max(-1, Math.min(1, buffer[i]));
-            view.setInt16(offset, s * 0x7FFF, true);
-            offset += 2;
-        }
-
-        return new Blob([wavBuffer], { type: 'audio/wav' });
+        return header;
     }
 
     /**
-     * Downloads the pre-encoded SSTV audio buffer as a WAV file.
-     */
-    function downloadSSTV() {
-        if (!audioBuffer) {
-            statusMessage.textContent = "No audio data to download. Please encode an image first.";
-            return;
-        }
-        
-        statusMessage.textContent = "Creating WAV file for download...";
-        const wavBlob = createWavFile(audioBuffer);
-        
-        const url = URL.createObjectURL(wavBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `sstv_${modeSelect.value}.wav`;
-        document.body.appendChild(a);
-        a.click();
-        
-        // Clean up
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        statusMessage.textContent = "Download complete!";
-        downloadBtn.disabled = true;
-    }
-
-    /**
-     * Renders the uploaded image to the canvas for preview.
+     * Renders the image to the canvas and then encodes it to a WAV file for download.
      * @param {File} file - The image file object.
      */
-    function renderImageToCanvas(file) {
+    async function encodeAndDownload(file) {
+        downloadBtn.disabled = true;
+        statusMessage.textContent = "Loading image...";
+        
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
-                statusMessage.textContent = "Image loaded. Encoding SSTV signal...";
-                preEncodeSSTV(); // Start encoding immediately after loading the image
+                ctx.drawImage(img, 0, 0, WIDTH, HEIGHT);
+                
+                statusMessage.textContent = "Encoding SSTV signal...";
+
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const totalSamples = Math.ceil(TOTAL_LENGTH * SAMPLES_PER_SECOND / 1000);
+                const tone = new Tone(audioContext, totalSamples);
+                writeImageToTone(ctx.getImageData(0, 0, WIDTH, HEIGHT), tone);
+                
+                const buffer = tone.getBuffer();
+                const floats = buffer.getChannelData(0);
+                
+                // Convert floating-point samples to 16-bit integers
+                const view = new DataView(new ArrayBuffer(floats.length * 2));
+                for (const [i, float] of floats.entries()) {
+                    view.setInt16(i * 2, Math.min(Math.max(float, -1), 1) * 0x7fff, true);
+                }
+
+                // Create the WAV Blob
+                const blob = new Blob([createWavHeader(view.byteLength, SAMPLES_PER_SECOND), view], {
+                    type: 'audio/wav'
+                });
+
+                // Trigger the download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sstv-image.wav';
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                statusMessage.textContent = "Download complete!";
+                downloadBtn.disabled = false;
             };
             img.src = event.target.result;
         };
         reader.readAsDataURL(file);
     }
-    
+
     // Add event listeners
     fileInput.addEventListener('change', (event) => {
         if (event.target.files.length > 0) {
-            renderImageToCanvas(event.target.files[0]);
+            downloadBtn.disabled = false;
+            statusMessage.textContent = `Image selected. Ready to encode.`;
         }
     });
 
-    modeSelect.addEventListener('change', () => {
-      if (fileInput.files.length > 0) {
-        statusMessage.textContent = "Mode changed. Re-encoding SSTV signal...";
-        preEncodeSSTV();
-      }
+    downloadBtn.addEventListener('click', () => {
+        if (fileInput.files.length > 0) {
+            encodeAndDownload(fileInput.files[0]);
+        } else {
+            statusMessage.textContent = "Please select an image first.";
+        }
     });
-
-    downloadBtn.addEventListener('click', downloadSSTV);
 </script>
 
 </body>
