@@ -153,9 +153,12 @@
 
     <div class="flex flex-col sm:flex-row gap-4 justify-center">
         <button id="encode-btn" class="btn-primary" disabled>
-            <i class="fas fa-play"></i> Start Encoding
+            <i class="fas fa-cog fa-spin"></i> Encoding...
         </button>
-        <button id="stop-btn" class="btn-primary" disabled>
+        <button id="play-btn" class="btn-primary hidden">
+            <i class="fas fa-play"></i> Play SSTV
+        </button>
+        <button id="stop-btn" class="btn-primary hidden">
             <i class="fas fa-stop"></i> Stop
         </button>
     </div>
@@ -233,47 +236,18 @@
     const IMAGE_HEIGHT = 240;
 
     let audioContext;
-    let isPlaying = false;
+    let audioBuffer;
+    let sourceNode;
 
     // UI elements
     const fileInput = document.getElementById('file-input');
     const encodeBtn = document.getElementById('encode-btn');
+    const playBtn = document.getElementById('play-btn');
     const stopBtn = document.getElementById('stop-btn');
     const canvas = document.getElementById('image-canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const statusMessage = document.getElementById('status-message');
     const modeSelect = document.getElementById('mode-select');
-
-    /**
-     * Helper function to play a single tone for a given duration.
-     * @param {number} frequency - The frequency of the tone in Hz.
-     * @param {number} duration - The duration of the tone in seconds.
-     * @returns {Promise<void>} A promise that resolves when the tone has finished playing.
-     */
-    function playTone(frequency, duration) {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-
-        return new Promise(resolve => {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(1, audioContext.currentTime);
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + duration);
-
-            oscillator.onended = () => {
-                resolve();
-            };
-        });
-    }
 
     /**
      * Encodes a single pixel's color value to an SSTV frequency.
@@ -285,63 +259,89 @@
     function valueToFrequency(value, blackFreq, whiteFreq) {
         return blackFreq + (value / 255) * (whiteFreq - blackFreq);
     }
+    
+    /**
+     * Generates a single tone and adds it to the audio buffer.
+     * @param {Float32Array} buffer - The audio buffer to write to.
+     * @param {number} startSample - The starting index in the buffer.
+     * @param {number} frequency - The frequency of the tone in Hz.
+     * @param {number} duration - The duration of the tone in seconds.
+     * @returns {number} The number of samples written.
+     */
+    function generateTone(buffer, startSample, frequency, duration) {
+        const numSamples = Math.floor(duration * SAMPLES_PER_SECOND);
+        for (let i = 0; i < numSamples; i++) {
+            const time = i / SAMPLES_PER_SECOND;
+            const value = Math.sin(2 * Math.PI * frequency * time);
+            buffer[startSample + i] = value;
+        }
+        return numSamples;
+    }
 
     /**
-     * The main function to encode and play the SSTV signal.
+     * Pre-encodes the entire audio signal into a buffer.
      */
-    async function startEncoding() {
-        if (isPlaying) {
-            statusMessage.textContent = "Encoding is already in progress.";
-            return;
-        }
-
-        isPlaying = true;
+    async function preEncodeSSTV() {
+        encodeBtn.classList.remove('hidden');
+        playBtn.classList.add('hidden');
+        stopBtn.classList.add('hidden');
         encodeBtn.disabled = true;
-        stopBtn.disabled = false;
-        statusMessage.textContent = "Starting encoding...";
+        statusMessage.textContent = "Encoding SSTV signal... This may take a moment.";
+        
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
 
         const selectedMode = modeSelect.value;
         const modeParams = MODES[selectedMode];
-
-        // Step 1: Play sync pulse
-        if (modeParams.sync > 0) {
-            statusMessage.textContent = "Playing Sync Pulse...";
-            await playTone(FREQ_SYNC, modeParams.sync);
-            await playTone(modeParams.blackFreq, modeParams.porch); // Porch
-        }
-
-        // Step 2: Play calibration header & VIS
-        if (modeParams.vis) {
-            statusMessage.textContent = "Playing Calibration Tones...";
-            await playTone(modeParams.blackFreq, 0.3);
-            await playTone(FREQ_VIS_START, 0.01);
-            await playTone(FREQ_VIS_END, 0.01);
-
-            statusMessage.textContent = "Playing VIS Code...";
-            for (const bit of modeParams.vis) {
-                const freq = FREQ_VIS_DATA[bit];
-                await playTone(freq, modeParams.visBit);
-            }
-            await playTone(FREQ_VIS_END, 0.01);
-        } else {
-            // Placeholder for modes without VIS in this simplified example
-            statusMessage.textContent = `Simplified PD120 mode selected. Playing mode tone...`;
-            await playTone(1000, 2); // Play a tone for 2 seconds to signify the mode.
-            await playTone(1500, 2);
-            await playTone(2000, 2);
-        }
-
-        // Step 3: Transmit the image data line by line
         const imageData = ctx.getImageData(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
         const data = imageData.data;
-        const pixelDuration = (modeParams.lineDuration - modeParams.sync - modeParams.porch) / IMAGE_WIDTH;
+        
+        // Calculate total duration for buffer size
+        let totalDuration = 0;
+        if (modeParams.vis) {
+            totalDuration += 0.3 + 0.01 + 0.01; // Calibration
+            totalDuration += modeParams.vis.length * modeParams.visBit + 0.01; // VIS
+        } else {
+            totalDuration += 6; // Simplified PD120 tone duration
+        }
+        totalDuration += IMAGE_HEIGHT * (modeParams.lineDuration);
+
+        const totalSamples = Math.floor(totalDuration * SAMPLES_PER_SECOND);
+        audioBuffer = audioContext.createBuffer(1, totalSamples, SAMPLES_PER_SECOND);
+        const channelData = audioBuffer.getChannelData(0);
+        let currentSample = 0;
+
+        // Step 1: Pre-encode sync pulse
+        if (modeParams.sync > 0) {
+            currentSample += generateTone(channelData, currentSample, FREQ_SYNC, modeParams.sync);
+            currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, modeParams.porch);
+        }
+
+        // Step 2: Pre-encode calibration header & VIS
+        if (modeParams.vis) {
+            currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, 0.3);
+            currentSample += generateTone(channelData, currentSample, FREQ_VIS_START, 0.01);
+            currentSample += generateTone(channelData, currentSample, FREQ_VIS_END, 0.01);
+
+            for (const bit of modeParams.vis) {
+                const freq = FREQ_VIS_DATA[bit];
+                currentSample += generateTone(channelData, currentSample, freq, modeParams.visBit);
+            }
+            currentSample += generateTone(channelData, currentSample, FREQ_VIS_END, 0.01);
+        } else {
+            currentSample += generateTone(channelData, currentSample, 1000, 2);
+            currentSample += generateTone(channelData, currentSample, 1500, 2);
+            currentSample += generateTone(channelData, currentSample, 2000, 2);
+        }
+
+        // Step 3: Pre-encode the image data line by line
+        const pixelDuration = (modeParams.lineDuration - (modeParams.sync + modeParams.porch)) / IMAGE_WIDTH;
 
         for (let y = 0; y < IMAGE_HEIGHT; y++) {
-            statusMessage.textContent = `Encoding line ${y + 1} of ${IMAGE_HEIGHT} for ${selectedMode}...`;
-            
             if (modeParams.sync > 0) {
-                await playTone(FREQ_SYNC, modeParams.sync);
-                await playTone(modeParams.blackFreq, modeParams.porch);
+                currentSample += generateTone(channelData, currentSample, FREQ_SYNC, modeParams.sync);
+                currentSample += generateTone(channelData, currentSample, modeParams.blackFreq, modeParams.porch);
             }
 
             for (let x = 0; x < IMAGE_WIDTH; x++) {
@@ -350,37 +350,57 @@
                 const g = data[i + 1];
                 const b = data[i + 2];
 
-                // Play Red component
-                await playTone(valueToFrequency(r, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
-                // Play Green component
-                await playTone(valueToFrequency(g, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
-                // Play Blue component
-                await playTone(valueToFrequency(b, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
+                currentSample += generateTone(channelData, currentSample, valueToFrequency(r, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
+                currentSample += generateTone(channelData, currentSample, valueToFrequency(g, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
+                currentSample += generateTone(channelData, currentSample, valueToFrequency(b, modeParams.blackFreq, modeParams.whiteFreq), pixelDuration / 3);
             }
         }
-        
-        statusMessage.textContent = "Encoding complete!";
-        isPlaying = false;
-        encodeBtn.disabled = false;
-        stopBtn.disabled = true;
+
+        statusMessage.textContent = "Encoding complete! Ready to play.";
+        encodeBtn.classList.add('hidden');
+        playBtn.classList.remove('hidden');
+        playBtn.disabled = false;
     }
 
     /**
-     * Stops the encoding process.
+     * Plays the pre-encoded audio buffer.
      */
-    function stopEncoding() {
-        if (audioContext) {
-            audioContext.close().then(() => {
-                audioContext = null;
-                isPlaying = false;
-                encodeBtn.disabled = false;
-                stopBtn.disabled = true;
-                statusMessage.textContent = "Encoding stopped.";
-            }).catch(e => {
-                console.error("Error stopping audio context:", e);
-                statusMessage.textContent = "Error stopping encoding.";
-            });
+    function playSSTV() {
+        if (!audioBuffer) {
+            statusMessage.textContent = "No audio data to play. Please encode an image first.";
+            return;
         }
+
+        if (sourceNode) {
+            sourceNode.stop();
+            sourceNode.disconnect();
+        }
+
+        sourceNode = audioContext.createBufferSource();
+        sourceNode.buffer = audioBuffer;
+        sourceNode.connect(audioContext.destination);
+        sourceNode.start();
+
+        playBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        statusMessage.textContent = "Playing SSTV signal...";
+        
+        sourceNode.onended = () => {
+            stopSSTV();
+        };
+    }
+
+    /**
+     * Stops the playback of the audio.
+     */
+    function stopSSTV() {
+        if (sourceNode) {
+            sourceNode.stop();
+            sourceNode.disconnect();
+        }
+        playBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        statusMessage.textContent = "Playback stopped.";
     }
 
     /**
@@ -394,8 +414,8 @@
             img.onload = () => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
-                encodeBtn.disabled = false;
-                statusMessage.textContent = "Image loaded. Ready to encode!";
+                statusMessage.textContent = "Image loaded. Encoding SSTV signal...";
+                preEncodeSSTV(); // Start encoding immediately after loading the image
             };
             img.src = event.target.result;
         };
@@ -409,8 +429,15 @@
         }
     });
 
-    encodeBtn.addEventListener('click', startEncoding);
-    stopBtn.addEventListener('click', stopEncoding);
+    modeSelect.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        statusMessage.textContent = "Mode changed. Re-encoding SSTV signal...";
+        preEncodeSSTV();
+      }
+    });
+
+    playBtn.addEventListener('click', playSSTV);
+    stopBtn.addEventListener('click', stopSSTV);
 </script>
 
 </body>
