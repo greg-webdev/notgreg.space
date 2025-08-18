@@ -155,8 +155,8 @@
         <button id="encode-btn" class="btn-primary" disabled>
             <i class="fas fa-cog fa-spin"></i> Encoding...
         </button>
-        <button id="play-btn" class="btn-primary hidden">
-            <i class="fas fa-play"></i> Play SSTV
+        <button id="download-btn" class="btn-primary hidden">
+            <i class="fas fa-download"></i> Download SSTV Audio
         </button>
         <button id="stop-btn" class="btn-primary hidden">
             <i class="fas fa-stop"></i> Stop
@@ -237,12 +237,11 @@
 
     let audioContext;
     let audioBuffer;
-    let sourceNode;
 
     // UI elements
     const fileInput = document.getElementById('file-input');
     const encodeBtn = document.getElementById('encode-btn');
-    const playBtn = document.getElementById('play-btn');
+    const downloadBtn = document.getElementById('download-btn');
     const stopBtn = document.getElementById('stop-btn');
     const canvas = document.getElementById('image-canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -283,8 +282,7 @@
      */
     async function preEncodeSSTV() {
         encodeBtn.classList.remove('hidden');
-        playBtn.classList.add('hidden');
-        stopBtn.classList.add('hidden');
+        downloadBtn.classList.add('hidden');
         encodeBtn.disabled = true;
         statusMessage.textContent = "Encoding SSTV signal... This may take a moment.";
         
@@ -356,51 +354,87 @@
             }
         }
 
-        statusMessage.textContent = "Encoding complete! Ready to play.";
+        statusMessage.textContent = "Encoding complete! Ready for download.";
         encodeBtn.classList.add('hidden');
-        playBtn.classList.remove('hidden');
-        playBtn.disabled = false;
+        downloadBtn.classList.remove('hidden');
+        downloadBtn.disabled = false;
     }
 
     /**
-     * Plays the pre-encoded audio buffer.
+     * Converts an AudioBuffer to a WAV Blob.
+     * @param {AudioBuffer} audioBuffer - The buffer to convert.
+     * @returns {Blob} The WAV file as a Blob.
      */
-    function playSSTV() {
+    function createWavFile(audioBuffer) {
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const buffer = audioBuffer.getChannelData(0);
+        const numSamples = buffer.length;
+
+        // Create a new buffer for the WAV file (44-byte header + data)
+        const wavBuffer = new ArrayBuffer(44 + numSamples * 2);
+        const view = new DataView(wavBuffer);
+        const writeString = (view, offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        // RIFF chunk
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + numSamples * 2, true); // File size
+        writeString(view, 8, 'WAVE');
+
+        // fmt chunk
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true); // Sub-chunk size (16 for PCM)
+        view.setUint16(20, 1, true); // Audio format (1 for PCM)
+        view.setUint16(22, numChannels, true); // Number of channels
+        view.setUint32(24, sampleRate, true); // Sample rate
+        view.setUint32(28, sampleRate * numChannels * 2, true); // Byte rate
+        view.setUint16(32, numChannels * 2, true); // Block align
+        view.setUint16(34, 16, true); // Bits per sample
+
+        // data chunk
+        writeString(view, 36, 'data');
+        view.setUint32(40, numSamples * 2, true); // Data size
+
+        // Write the PCM data
+        let offset = 44;
+        for (let i = 0; i < numSamples; i++) {
+            const s = Math.max(-1, Math.min(1, buffer[i]));
+            view.setInt16(offset, s * 0x7FFF, true);
+            offset += 2;
+        }
+
+        return new Blob([wavBuffer], { type: 'audio/wav' });
+    }
+
+    /**
+     * Downloads the pre-encoded SSTV audio buffer as a WAV file.
+     */
+    function downloadSSTV() {
         if (!audioBuffer) {
-            statusMessage.textContent = "No audio data to play. Please encode an image first.";
+            statusMessage.textContent = "No audio data to download. Please encode an image first.";
             return;
         }
-
-        if (sourceNode) {
-            sourceNode.stop();
-            sourceNode.disconnect();
-        }
-
-        sourceNode = audioContext.createBufferSource();
-        sourceNode.buffer = audioBuffer;
-        sourceNode.connect(audioContext.destination);
-        sourceNode.start();
-
-        playBtn.classList.add('hidden');
-        stopBtn.classList.remove('hidden');
-        statusMessage.textContent = "Playing SSTV signal...";
         
-        sourceNode.onended = () => {
-            stopSSTV();
-        };
-    }
-
-    /**
-     * Stops the playback of the audio.
-     */
-    function stopSSTV() {
-        if (sourceNode) {
-            sourceNode.stop();
-            sourceNode.disconnect();
-        }
-        playBtn.classList.remove('hidden');
-        stopBtn.classList.add('hidden');
-        statusMessage.textContent = "Playback stopped.";
+        statusMessage.textContent = "Creating WAV file for download...";
+        const wavBlob = createWavFile(audioBuffer);
+        
+        const url = URL.createObjectURL(wavBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sstv_${modeSelect.value}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        statusMessage.textContent = "Download complete!";
+        downloadBtn.disabled = true;
     }
 
     /**
@@ -436,8 +470,7 @@
       }
     });
 
-    playBtn.addEventListener('click', playSSTV);
-    stopBtn.addEventListener('click', stopSSTV);
+    downloadBtn.addEventListener('click', downloadSSTV);
 </script>
 
 </body>
