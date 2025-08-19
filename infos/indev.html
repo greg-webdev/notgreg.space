@@ -1,0 +1,85 @@
+<!--
+  Ancient Chinese Inventions Infographic
+  This version includes a footer at the very bottom of the page.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancient Chinese Inventions</title>
+    <!-- Use Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Link to a Google Font for a more decorative heading style -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <style>
+      /* Apply the Inter font to the body for content text */
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      /* Apply a decorative font to the headings */
+      .decorative-font {
+        font-family: 'Playfair Display', serif;
+      }
+      /* Custom styles for the infographic sections to mimic the image's rounded shapes */
+      .infographic-section {
+        @apply flex flex-col items-center p-12 bg-white rounded-[4rem] shadow-xl transition-transform duration-300 ease-in-out hover:scale-105;
+      }
+      /* Custom styles for the body text for enhanced readability */
+      .infographic-text {
+        @apply text-lg leading-relaxed text-justify text-gray-800;
+      }
+    </style>
+</head>
+<!-- The body height is now set to min-h-screen to ensure the footer stays at the bottom. -->
+<body class="bg-[#D72323] flex flex-col min-h-screen justify-center py-16">
+
+    <!-- Main container for the infographic, maintaining the fixed width and centering. -->
+    <div class="container mx-auto p-4 md:p-8 w-[800px] flex-grow">
+
+        <!-- Title Section - updated with a decorative font and gold text -->
+        <header class="text-center mb-16">
+            <h1 class="decorative-font text-5xl md:text-6xl font-extrabold tracking-tight text-[#F9C104] drop-shadow-lg">Ancient Chinese Inventions</h1>
+            <p class="text-xl md:text-2xl text-white mt-4 decorative-font">Innovations that shaped the world</p>
+        </header>
+
+        <!-- Stacks the sections vertically with large gaps between them to mimic the image's layout. -->
+        <div class="flex flex-col gap-12">
+
+            <!-- Silk Section -->
+            <div class="infographic-section">
+                <h2 class="decorative-font text-4xl font-bold text-gray-800 mb-6">Silk</h2>
+                <p class="infographic-text">
+                    Silk, a luxurious and valuable textile, was first produced in Neolithic China. Discovered around 6000 BCE, the intricate process of raising silkworms and weaving their threads was a closely guarded secret for centuries. This monopoly on silk production gave China a significant economic advantage and was a cornerstone of the ancient Silk Road trade routes, connecting the East and West. Silk was not just a fabric; it was a form of currency, a symbol of status, and a testament to Chinese ingenuity.
+                </p>
+            </div>
+
+            <!-- Gunpowder Section -->
+            <div class="infographic-section">
+                <h2 class="decorative-font text-4xl font-bold text-gray-800 mb-6">Gunpowder</h2>
+                <p class="infographic-text">
+                    Gunpowder was an accidental discovery by Chinese alchemists in the 9th century, who were searching for an elixir of immortality. Initially, it was used for fireworks and signaling. Its explosive and propulsive properties, however, were soon realized, leading to its application in warfare. The invention of gunpowder-based weapons like cannons and bombs revolutionized military technology worldwide, fundamentally changing the nature of warfare and statecraft across continents.
+                </p>
+            </div>
+
+            <!-- Porcelain Section -->
+            <div class="infographic-section">
+                <h2 class="decorative-font text-4xl font-bold text-gray-800 mb-6">Porcelain</h2>
+                <p class="infographic-text">
+                    Porcelain, a type of ceramic known for its delicate beauty and durability, was perfected in China during the Tang dynasty. Unlike other ceramics, true porcelain is fired at extremely high temperatures, giving it its characteristic white color, translucence, and resilience. Chinese porcelain became a highly sought-after commodity globally, often referred to as "china," and was a significant part of the country's export trade. Its creation involved a masterful blend of artistry and scientific knowledge.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- The footer is now positioned at the absolute bottom of the page container. -->
+    <footer class="mt-12 text-center text-white text-sm opacity-80">
+      &copy; 2013 Gregory. All Rights Reserved.
+    </footer>
+
+</body>
+</html>
