@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Downloads</title>
+    <!-- Inter font for a clean, modern look -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main container for the downloads page -->
+    <div class="bg-white p-8 md:p-12 rounded-2xl shadow-xl w-full max-w-2xl text-center">
+        <!-- Title section -->
+        <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-6">Software Downloads</h1>
+
+        <!-- Description -->
+        <p class="text-lg text-gray-600 mb-8">
+            Find and download the software you need. Click the button below to get started.
+        </p>
+
+        <!-- Download item card -->
+        <div class="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-md">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <!-- Placeholder icon for Adobe Photoshop -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500 mr-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"></path>
+                        <path d="M12 12a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"></path>
+                        <path d="M12 12v-4"></path>
+                        <path d="M16 12h-4"></path>
+                    </svg>
+                    <div>
+                        <h2 class="text-2xl font-semibold text-gray-800">Adobe Photoshop</h2>
+                        <p class="text-sm text-gray-500">Image editing software</p>
+                    </div>
+                </div>
+
+                <!-- Download button -->
+                <a href="adobe-installer.exe" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                    Download
+                </a>
+            </div>
+        </div>
+        
+    </div>
+
+</body>
+</html>
