@@ -1,0 +1,361 @@
+<!-- 
+  This is a self-contained 3D game built with HTML, CSS, and JavaScript.
+  It uses three.js for 3D rendering, cannon.js for physics, and Firebase Firestore
+  for real-time multiplayer functionality.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Cube Game</title>
+  <style>
+    /* Global styles for the page */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #1a1a1a;
+      font-family: 'Inter', sans-serif;
+      color: white;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+
+    /* Styles for the canvas element */
+    canvas {
+      display: block;
+      outline: none;
+      border: 2px solid #333;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      background-color: #222;
+    }
+
+    /* Styles for the main UI container */
+    #ui {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(30, 30, 30, 0.8);
+      padding: 12px 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 100;
+    }
+
+    h1, p {
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #00ffaa;
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 0.9rem;
+      color: #bbb;
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 600px) {
+      #ui {
+        padding: 8px 16px;
+        top: 10px;
+      }
+      h1 {
+        font-size: 1.2rem;
+      }
+      p {
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+
+  <!-- Import the necessary JavaScript libraries from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Global variables from the Canvas environment
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let userId = null;
+    let authReady = false;
+
+    // A map to hold all player data and their 3D objects
+    const players = {};
+    const playerCubes = {};
+
+    // Three.js and Cannon.js variables
+    let scene, camera, renderer, world;
+    let playerBody, playerMesh;
+
+    // Keyboard input state
+    const keyboard = {};
+
+    // Initial setup for authentication and data listening
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        userId = user.uid;
+        document.getElementById('userIdDisplay').textContent = `Your User ID: ${userId}`;
+        authReady = true;
+        setupInitialGame();
+        listenForPlayerUpdates();
+      } else {
+        // Sign in anonymously if no user is found
+        await signInAnonymously(auth);
+      }
+    });
+
+    // Function to handle initial sign-in
+    async function handleSignIn() {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Firebase Auth Error:", error);
+      }
+    }
+
+    /**
+     * Sets up the initial game world, including the 3D scene, physics,
+     * and the player's cube. This runs only after authentication is complete.
+     */
+    function setupInitialGame() {
+      // 1. Scene setup
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1a1a1a);
+      
+      // 2. Camera setup
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 10, 20);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+      // 3. Renderer setup
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      
+      // 4. Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 10, 7);
+      scene.add(directionalLight);
+
+      // 5. Physics world (Cannon.js)
+      world = new CANNON.World();
+      world.gravity.set(0, -9.82, 0); // Standard gravity
+      world.broadphase = new CANNON.NaiveBroadphase();
+
+      // 6. Ground plane (3D and Physics)
+      const groundMaterial = new CANNON.Material();
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      world.addBody(groundBody);
+
+      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundMaterialThree = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
+      const groundMesh = new THREE.Mesh(groundGeometry, groundMaterialThree);
+      groundMesh.rotation.x = -Math.PI / 2;
+      scene.add(groundMesh);
+
+      // 7. Player's cube (3D and Physics)
+      const playerShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1));
+      playerBody = new CANNON.Body({ mass: 5, shape: playerShape, position: new CANNON.Vec3(0, 10, 0) });
+      world.addBody(playerBody);
+
+      const playerGeometry = new THREE.BoxGeometry(2, 2, 2);
+      const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x00ffaa, metalness: 0.5, roughness: 0.5 });
+      playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+      playerMesh.castShadow = true;
+      scene.add(playerMesh);
+
+      // Start the animation loop
+      animate();
+    }
+
+    /**
+     * Listens for real-time updates from other players in Firestore.
+     * This is the core of the multiplayer functionality.
+     */
+    function listenForPlayerUpdates() {
+      if (!authReady) return; // Ensure auth is ready before listening
+
+      const playersRef = collection(db, `artifacts/${appId}/public/data/players`);
+      onSnapshot(playersRef, (snapshot) => {
+        snapshot.docChanges().forEach(change => {
+          const playerData = change.doc.data();
+          const playerId = change.doc.id;
+          
+          if (playerId === userId) {
+            // Ignore updates from the current user as they are handled locally
+            return;
+          }
+
+          if (change.type === "added" || change.type === "modified") {
+            // Add or update the player's cube
+            if (!playerCubes[playerId]) {
+              const otherPlayerGeometry = new THREE.BoxGeometry(2, 2, 2);
+              const otherPlayerMaterial = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff, metalness: 0.5, roughness: 0.5 });
+              const otherPlayerMesh = new THREE.Mesh(otherPlayerGeometry, otherPlayerMaterial);
+              scene.add(otherPlayerMesh);
+              playerCubes[playerId] = otherPlayerMesh;
+            }
+
+            const cubeMesh = playerCubes[playerId];
+            if (playerData.position && playerData.rotation) {
+              cubeMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
+              cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
+            }
+          }
+
+          if (change.type === "removed") {
+            // Remove the cube from the scene if the player disconnected
+            if (playerCubes[playerId]) {
+              scene.remove(playerCubes[playerId]);
+              delete playerCubes[playerId];
+            }
+          }
+        });
+      });
+    }
+
+    /**
+     * Updates the current user's cube position and rotation in Firestore.
+     */
+    function updateMyPositionInFirestore() {
+      if (!authReady) return;
+      const playerRef = doc(db, `artifacts/${appId}/public/data/players/${userId}`);
+      setDoc(playerRef, {
+        position: {
+          x: playerBody.position.x,
+          y: playerBody.position.y,
+          z: playerBody.position.z,
+        },
+        rotation: {
+          x: playerBody.quaternion.x,
+          y: playerBody.quaternion.y,
+          z: playerBody.quaternion.z,
+          w: playerBody.quaternion.w,
+        },
+        // You could add more data here like score, name, etc.
+      }, { merge: true });
+    }
+
+    /**
+     * The main game loop that updates physics and renders the scene.
+     */
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (!authReady) return;
+
+      // Update physics world
+      world.step(1/60);
+
+      // Update player cube position from physics body
+      playerMesh.position.copy(playerBody.position);
+      playerMesh.quaternion.copy(playerBody.quaternion);
+
+      // Handle keyboard input and apply forces
+      const force = 50;
+      const jumpForce = 400;
+
+      if (keyboard['ArrowUp'] || keyboard['KeyW']) {
+        playerBody.applyLocalForce(new CANNON.Vec3(0, 0, -force), playerBody.position);
+      }
+      if (keyboard['ArrowDown'] || keyboard['KeyS']) {
+        playerBody.applyLocalForce(new CANNON.Vec3(0, 0, force), playerBody.position);
+      }
+      if (keyboard['ArrowLeft'] || keyboard['KeyA']) {
+        playerBody.applyLocalForce(new CANNON.Vec3(-force, 0, 0), playerBody.position);
+      }
+      if (keyboard['ArrowRight'] || keyboard['KeyD']) {
+        playerBody.applyLocalForce(new CANNON.Vec3(force, 0, 0), playerBody.position);
+      }
+      if (keyboard['Space']) {
+        // Simple jump logic: check if on the ground
+        if (Math.abs(playerBody.velocity.y) < 0.1) {
+          playerBody.applyImpulse(new CANNON.Vec3(0, jumpForce, 0), playerBody.position);
+        }
+      }
+
+      // Update camera position to follow the player
+      const cameraOffset = new THREE.Vector3(0, 5, 15);
+      camera.position.copy(playerMesh.position).add(cameraOffset);
+      camera.lookAt(playerMesh.position);
+
+      // Render the scene
+      renderer.render(scene, camera);
+
+      // Update position in Firebase periodically to reduce writes
+      if (Math.random() < 0.2) { // Update ~20% of frames
+         updateMyPositionInFirestore();
+      }
+    }
+
+    // Event listeners for user input
+    window.addEventListener('keydown', (event) => {
+      keyboard[event.code] = true;
+    });
+
+    window.addEventListener('keyup', (event) => {
+      keyboard[event.code] = false;
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      if (renderer && camera) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    // Start authentication flow on window load
+    window.onload = function() {
+      handleSignIn();
+    };
+  </script>
+</head>
+<body>
+  <!-- UI overlay for instructions and user ID -->
+  <div id="ui">
+    <h1>3D Cube Game</h1>
+    <p>Move with Arrow Keys or WASD, Jump with Space</p>
+    <p id="userIdDisplay">Connecting...</p>
+  </div>
+  
+  <!-- Canvas for the 3D game -->
+  <canvas id="gameCanvas"></canvas>
+</body>
+</html>
