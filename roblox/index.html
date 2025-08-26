@@ -68,6 +68,29 @@
       color: #bbb;
     }
 
+    /* New button styles */
+    #tpButton {
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      color: #fff;
+      background-color: #4CAF50;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s ease;
+    }
+
+    #tpButton:hover {
+      background-color: #45a049;
+    }
+
+    #tpButton:active {
+      background-color: #3e8e41;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
     /* Responsive adjustments for smaller screens */
     @media (max-width: 600px) {
       #ui {
@@ -98,9 +121,15 @@
     const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
     // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+    let app, db, auth;
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+    } catch (error) {
+      console.error("Firebase Initialization Error:", error);
+      document.getElementById('userIdDisplay').textContent = `Initialization Failed: ${error.message}`;
+    }
 
     let userId = null;
     let authReady = false;
@@ -117,20 +146,23 @@
     const keyboard = {};
 
     // Initial setup for authentication and data listening
-    onAuthStateChanged(auth, (user) => {
-      const userIdDisplay = document.getElementById('userIdDisplay');
-      if (user) {
-        userId = user.uid;
-        userIdDisplay.textContent = `Your User ID: ${userId}`;
-        authReady = true;
-        setupInitialGame();
-        listenForPlayerUpdates();
-      } else {
-        userId = null;
-        userIdDisplay.textContent = 'Connection failed. Check console for details.';
-        authReady = false;
-      }
-    });
+    if (auth) {
+      onAuthStateChanged(auth, (user) => {
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        if (user) {
+          userId = user.uid;
+          userIdDisplay.textContent = `Your User ID: ${userId}`;
+          authReady = true;
+          setupInitialGame();
+          listenForPlayerUpdates();
+        } else {
+          userId = null;
+          userIdDisplay.textContent = 'Connection failed. Check console for details.';
+          authReady = false;
+        }
+      });
+    }
+
 
     /**
      * Function to handle initial sign-in with better error handling.
@@ -196,7 +228,50 @@
       groundMesh.rotation.x = -Math.PI / 2;
       scene.add(groundMesh);
 
-      // 7. Player's cube (3D and Physics)
+      // 7. Add a ceiling (3D and Physics)
+      const ceilingHeight = 20; // Define the height of the ceiling
+      
+      // Physics ceiling
+      const ceilingBody = new CANNON.Body({ mass: 0, shape: groundShape, position: new CANNON.Vec3(0, ceilingHeight, 0) });
+      ceilingBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
+      world.addBody(ceilingBody);
+
+      // Visible ceiling mesh
+      const ceilingGeometry = new THREE.PlaneGeometry(100, 100);
+      const ceilingMaterialThree = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
+      const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterialThree);
+      ceilingMesh.rotation.x = Math.PI / 2;
+      ceilingMesh.position.y = ceilingHeight;
+      scene.add(ceilingMesh);
+
+      // 8. Add invisible walls to prevent falling off the map
+      // The position is the origin point, and the quaternion sets the orientation (which way the plane's normal faces).
+      const wallShape = new CANNON.Plane();
+      
+      // Front Wall: Prevents movement past z = -50.
+      // Plane's normal faces towards positive Z by default.
+      const wallFront = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, -50) });
+      world.addBody(wallFront);
+      
+      // Back Wall: Prevents movement past z = 50.
+      // Plane's normal needs to face towards negative Z. Rotate 180 degrees around Y.
+      const wallBack = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, 50) });
+      wallBack.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI);
+      world.addBody(wallBack);
+
+      // Left Wall: Prevents movement past x = -50.
+      // Plane's normal needs to face towards positive X. Rotate 90 degrees around Y.
+      const wallLeft = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(-50, 0, 0) });
+      wallLeft.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
+      world.addBody(wallLeft);
+      
+      // Right Wall: Prevents movement past x = 50.
+      // Plane's normal needs to face towards negative X. Rotate -90 degrees around Y.
+      const wallRight = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(50, 0, 0) });
+      wallRight.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
+      world.addBody(wallRight);
+
+      // 9. Player's cube (3D and Physics)
       const playerShape = new CANNON.Box(new CANNON.Vec3(1, 1, 1));
       playerBody = new CANNON.Body({ mass: 5, shape: playerShape, position: new CANNON.Vec3(0, 10, 0) });
       world.addBody(playerBody);
@@ -340,6 +415,24 @@
       keyboard[event.code] = false;
     });
 
+    // Add event listener for the teleport button
+    document.addEventListener('DOMContentLoaded', () => {
+      const tpButton = document.getElementById('tpButton');
+      if (tpButton) {
+        tpButton.addEventListener('click', () => {
+          if (playerBody) {
+            // Teleport the player back to the spawn point
+            playerBody.position.set(0, 10, 0);
+            playerBody.velocity.set(0, 0, 0); // Stop any existing movement
+            playerBody.angularVelocity.set(0, 0, 0); // Stop any existing rotation
+
+            // Immediately update Firestore so other players see the teleport
+            updateMyPositionInFirestore();
+          }
+        });
+      }
+    });
+
     // Handle window resize
     window.addEventListener('resize', () => {
       if (renderer && camera) {
@@ -351,7 +444,9 @@
 
     // Start authentication flow on window load
     window.onload = function() {
-      handleSignIn();
+      if (auth) {
+        handleSignIn();
+      }
     };
   </script>
 </head>
@@ -360,6 +455,7 @@
   <div id="ui">
     <h1>3D Cube Game</h1>
     <p>Move with Arrow Keys or WASD, Jump with Space</p>
+    <button id="tpButton">Teleport to Spawn</button>
     <p id="userIdDisplay">Connecting...</p>
   </div>
   
