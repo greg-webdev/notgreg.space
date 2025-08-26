@@ -118,7 +118,15 @@
 
     // Global variables from the Canvas environment
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    // Use the provided Firebase configuration from the user's image
+    const firebaseConfig = {
+      apiKey: "AIzaSyB8jSaahILxSfST2Q46YEFSmF8szmNHIU",
+      authDomain: "my-awsome-project-ids.firebaseapp.com",
+      projectId: "my-awsome-project-ids",
+      storageBucket: "my-awsome-project-ids.appspot.com",
+      messagingSenderId: "342082456671",
+      appId: "1:342082456671:web:1e3c23e8f8c4b22c8c4391"
+    };
 
     // Initialize Firebase
     let app, db, auth;
