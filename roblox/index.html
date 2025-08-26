@@ -123,6 +123,9 @@
     // Initialize Firebase
     let app, db, auth;
     try {
+      if (!firebaseConfig.projectId) {
+        throw new Error("Missing 'projectId' in Firebase configuration. The application cannot connect to the database.");
+      }
       app = initializeApp(firebaseConfig);
       db = getFirestore(app);
       auth = getAuth(app);
@@ -235,14 +238,6 @@
       const ceilingBody = new CANNON.Body({ mass: 0, shape: groundShape, position: new CANNON.Vec3(0, ceilingHeight, 0) });
       ceilingBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
       world.addBody(ceilingBody);
-
-      // Visible ceiling mesh
-      const ceilingGeometry = new THREE.PlaneGeometry(100, 100);
-      const ceilingMaterialThree = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
-      const ceilingMesh = new THREE.Mesh(ceilingGeometry, ceilingMaterialThree);
-      ceilingMesh.rotation.x = Math.PI / 2;
-      ceilingMesh.position.y = ceilingHeight;
-      scene.add(ceilingMesh);
 
       // 8. Add invisible walls to prevent falling off the map
       // The position is the origin point, and the quaternion sets the orientation (which way the plane's normal faces).
