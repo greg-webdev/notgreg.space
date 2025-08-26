@@ -249,11 +249,17 @@
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
       
-      // 2. Camera setup
+      // 2. Camera setup - We will now use a third-person camera
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 5, 15);
       
-      // The camera will now be directly controlled, not via a pivot.
+      // --- NEW: Create a pivot point for the camera to orbit around ---
+      cameraPivot = new THREE.Object3D();
+      scene.add(cameraPivot);
+
+      // Position the camera relative to the pivot
+      camera.position.set(0, 3, 7);
+      camera.lookAt(0, 0, 0); // Make the camera look at the pivot point
+      cameraPivot.add(camera);
       
       // 3. Renderer setup
       renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
@@ -327,8 +333,9 @@
       world.addBody(playerBody);
 
       // Create the player's mesh using the new function
-      playerMesh = createPlayerMesh(1, 0x00ffaa);
-      scene.add(playerMesh);
+      playerMesh = createPlayerMesh(1, 0xff0000); // Changed color to red
+      // Add the player mesh to the camera pivot so it moves with the camera
+      cameraPivot.add(playerMesh);
     }
 
     /**
@@ -415,40 +422,37 @@
             playerBody.velocity.set(0, 0, 0);
             playerBody.angularVelocity.set(0, 0, 0);
         }
-
-        // Update player ball position from physics body
-        playerMesh.position.copy(playerBody.position);
         
-        // Update the camera's position to follow the player
-        camera.position.copy(playerMesh.position);
+        // Update the pivot's position to match the player body's position
+        cameraPivot.position.copy(playerBody.position);
 
-        // Update the player mesh's rotation to match the camera's Y-axis rotation
-        playerMesh.rotation.y = camera.rotation.y;
+        // This line makes the face always face away from the camera.
+        playerMesh.rotation.y = camera.rotation.y + Math.PI;
 
         // Handle keyboard input and apply forces
-        const force = 50;
+        const force = 15;
         const jumpForce = 400;
         
-        // Get the camera's forward and right directions based on its rotation
-        // The camera's quaternion now directly determines movement direction
-        const forwardVector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        // Get the camera's forward and right vectors
+        const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
 
         // Normalize these vectors to ensure consistent speed
-        forwardVector.normalize();
-        rightVector.normalize();
+        cameraForward.normalize();
+        cameraRight.normalize();
 
+        // Use the camera's orientation to apply impulse for movement.
         if (keyboard['ArrowUp'] || keyboard['KeyW']) {
-          playerBody.applyImpulse(new CANNON.Vec3(forwardVector.x * force, 0, forwardVector.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(cameraForward.x * force, 0, cameraForward.z * force), playerBody.position);
         }
         if (keyboard['ArrowDown'] || keyboard['KeyS']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-forwardVector.x * force, 0, -forwardVector.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(-cameraForward.x * force, 0, -cameraForward.z * force), playerBody.position);
         }
         if (keyboard['ArrowLeft'] || keyboard['KeyA']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-rightVector.x * force, 0, -rightVector.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(-cameraRight.x * force, 0, -cameraRight.z * force), playerBody.position);
         }
         if (keyboard['ArrowRight'] || keyboard['KeyD']) {
-          playerBody.applyImpulse(new CANNON.Vec3(rightVector.x * force, 0, rightVector.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(cameraRight.x * force, 0, cameraRight.z * force), playerBody.position);
         }
         if (keyboard['Space']) {
           // Simple jump logic: check if on the ground
@@ -519,18 +523,13 @@
         if (!isRightMouseDown) return;
 
         const deltaX = event.clientX - lastMouseX;
-        const deltaY = event.clientY - lastMouseY;
         const rotationSpeed = 0.005;
 
-        // Apply mouse movement to camera rotation
-        camera.rotation.y -= deltaX * rotationSpeed;
-        camera.rotation.x -= deltaY * rotationSpeed;
-
-        // Clamp the vertical rotation to prevent flipping
-        camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+        // Only rotate the camera pivot around the Y-axis to keep the horizon level.
+        // We commented out the X-axis rotation to stop the camera from tilting.
+        cameraPivot.rotation.y -= deltaX * rotationSpeed;
         
         lastMouseX = event.clientX;
-        lastMouseY = event.clientY;
     });
 
 
