@@ -433,27 +433,32 @@
         const force = 15;
         const jumpForce = 400;
         
-        // Get the camera's forward and right vectors
-        const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        // --- START OF FIX ---
+        // Get the forward and right vectors from the cameraPivot, since its rotation
+        // is what we are controlling with the mouse. This ensures movement is
+        // relative to where the camera is looking.
+        const pivotForward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraPivot.quaternion);
+        const pivotRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraPivot.quaternion);
 
         // Normalize these vectors to ensure consistent speed
-        cameraForward.normalize();
-        cameraRight.normalize();
+        pivotForward.normalize();
+        pivotRight.normalize();
 
-        // Use the camera's orientation to apply impulse for movement.
+        // Use the pivot's orientation to apply impulse for movement.
         if (keyboard['ArrowUp'] || keyboard['KeyW']) {
-          playerBody.applyImpulse(new CANNON.Vec3(cameraForward.x * force, 0, cameraForward.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(pivotForward.x * force, 0, pivotForward.z * force), playerBody.position);
         }
         if (keyboard['ArrowDown'] || keyboard['KeyS']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-cameraForward.x * force, 0, -cameraForward.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(-pivotForward.x * force, 0, -pivotForward.z * force), playerBody.position);
         }
         if (keyboard['ArrowLeft'] || keyboard['KeyA']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-cameraRight.x * force, 0, -cameraRight.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(-pivotRight.x * force, 0, -pivotRight.z * force), playerBody.position);
         }
         if (keyboard['ArrowRight'] || keyboard['KeyD']) {
-          playerBody.applyImpulse(new CANNON.Vec3(cameraRight.x * force, 0, cameraRight.z * force), playerBody.position);
+          playerBody.applyImpulse(new CANNON.Vec3(pivotRight.x * force, 0, pivotRight.z * force), playerBody.position);
         }
+        // --- END OF FIX ---
+
         if (keyboard['Space']) {
           // Simple jump logic: check if on the ground
           if (Math.abs(playerBody.velocity.y) < 0.1) {
