@@ -49,6 +49,17 @@
       flex-direction: column;
       align-items: center;
       z-index: 100;
+      transition: all 0.5s ease-in-out;
+      width: 300px;
+    }
+    
+    /* CSS class to collapse the UI, now only hides the inner content */
+    #ui.collapsed #menu-content {
+        opacity: 0;
+        height: 0;
+        padding: 0;
+        margin: 0;
+        pointer-events: none;
     }
 
     h1, p {
@@ -68,29 +79,45 @@
       color: #bbb;
     }
 
-    /* New button styles */
-    #tpButton {
+    /* New button and input styles */
+    #nameInput, #saveNameButton, #tpButton, #collapseButton {
       margin-top: 12px;
       padding: 8px 16px;
       font-size: 0.9rem;
       color: #fff;
-      background-color: #4CAF50;
       border: none;
       border-radius: 8px;
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
       transition: background-color 0.3s ease;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    #nameInput {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      text-align: center;
     }
 
-    #tpButton:hover {
-      background-color: #45a049;
+    #saveNameButton {
+      background-color: #007bff;
     }
+    #saveNameButton:hover { background-color: #0056b3; }
+    #saveNameButton:active { background-color: #004494; }
 
-    #tpButton:active {
-      background-color: #3e8e41;
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    #tpButton {
+      background-color: #4CAF50;
     }
-
+    #tpButton:hover { background-color: #45a049; }
+    #tpButton:active { background-color: #3e8e41; }
+    
+    #collapseButton {
+        background-color: #555;
+    }
+    #collapseButton:hover { background-color: #444; }
+    #collapseButton:active { background-color: #333; }
+    
     /* Responsive adjustments for smaller screens */
     @media (max-width: 600px) {
       #ui {
@@ -232,14 +259,55 @@
 
       return glowMesh;
     }
+    
+    /**
+     * Creates a nametag sprite that always faces the camera.
+     * @param {string} name The name to display.
+     * @returns {THREE.Sprite} The nametag sprite.
+     */
+    function createNametag(name) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      
+      // --- CHANGE: Smaller font size for nametag ---
+      const font = 'Bold 32px Inter';
+      context.font = font;
+      
+      const metrics = context.measureText(name);
+      const textWidth = metrics.width;
+      const textHeight = 32; // Font size
+      
+      canvas.width = textWidth + 10;
+      canvas.height = textHeight + 10;
+      
+      context.font = font;
+      context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#fff';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(name, canvas.width / 2, canvas.height / 2);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture });
+      const sprite = new THREE.Sprite(material);
+      
+      // --- CHANGE: Smaller scale factor for the nametag ---
+      const scaleFactor = 0.03;
+      sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
+      
+      return sprite;
+    }
+
 
     /**
      * Creates a new ball mesh with an attached face and a glowing outline.
      * @param {number} radius The radius of the ball.
      * @param {string} color The hex color for the ball material.
-     * @returns {THREE.Mesh} The new mesh object.
+     * @param {string} name The name for the nametag.
+     * @returns {THREE.Group} The new mesh object group.
      */
-    function createPlayerMesh(radius, color) {
+    function createPlayerMesh(radius, color, name) {
         const ballGeometry = new THREE.SphereGeometry(radius, 32, 32);
         const ballMaterial = new THREE.MeshStandardMaterial({ color: color, metalness: 0.5, roughness: 0.5 });
         const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
@@ -272,6 +340,11 @@
         // Add a glowing outline to the ball mesh
         const glowMesh = createGlowMesh(ballMesh, color);
         ballMesh.add(glowMesh);
+        
+        const nametag = createNametag(name || 'Player');
+        // Position the nametag above the ball
+        nametag.position.y = radius + 1;
+        ballMesh.add(nametag);
 
         return ballMesh;
     }
@@ -314,6 +387,10 @@
       world.gravity.set(0, -9.82, 0); // Standard gravity
       world.broadphase = new CANNON.NaiveBroadphase();
 
+      // --- MAP SIZE INCREASE ---
+      const mapSize = 500;
+      const wallPosition = mapSize / 2;
+
       // 6. Ground plane (3D and Physics)
       const groundMaterial = new CANNON.Material();
       const groundShape = new CANNON.Plane();
@@ -322,7 +399,7 @@
       groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
       world.addBody(groundBody);
 
-      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundGeometry = new THREE.PlaneGeometry(mapSize, mapSize);
       const groundMaterialThree = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide });
       const groundMesh = new THREE.Mesh(groundGeometry, groundMaterialThree);
       groundMesh.rotation.x = -Math.PI / 2;
@@ -340,26 +417,22 @@
       // The position is the origin point, and the quaternion sets the orientation (which way the plane's normal faces).
       const wallShape = new CANNON.Plane();
       
-      // Front Wall: Prevents movement past z = -50.
-      // Plane's normal faces towards positive Z by default.
-      const wallFront = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, -50) });
+      // Front Wall: Prevents movement past z = -wallPosition.
+      const wallFront = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, -wallPosition) });
       world.addBody(wallFront);
       
-      // Back Wall: Prevents movement past z = 50.
-      // Plane's normal needs to face towards negative Z. Rotate 180 degrees around Y.
-      const wallBack = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, 50) });
+      // Back Wall: Prevents movement past z = wallPosition.
+      const wallBack = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, wallPosition) });
       wallBack.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI);
       world.addBody(wallBack);
 
-      // Left Wall: Prevents movement past x = -50.
-      // Plane's normal needs to face towards positive X. Rotate 90 degrees around Y.
-      const wallLeft = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(-50, 0, 0) });
+      // Left Wall: Prevents movement past x = -wallPosition.
+      const wallLeft = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(-wallPosition, 0, 0) });
       wallLeft.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
       world.addBody(wallLeft);
       
-      // Right Wall: Prevents movement past x = 50.
-      // Plane's normal needs to face towards negative X. Rotate -90 degrees around Y.
-      const wallRight = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(50, 0, 0) });
+      // Right Wall: Prevents movement past x = wallPosition.
+      const wallRight = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(wallPosition, 0, 0) });
       wallRight.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
       world.addBody(wallRight);
 
@@ -369,7 +442,7 @@
       world.addBody(playerBody);
 
       // Create the player's mesh using the new function
-      playerMesh = createPlayerMesh(1, 0xff0000); // Changed color to red
+      playerMesh = createPlayerMesh(1, 0xff0000, document.getElementById('nameInput').value); // Changed color to red
       // Add the player mesh to the camera pivot so it moves with the camera
       cameraPivot.add(playerMesh);
     }
@@ -397,15 +470,28 @@
             if (!playerCubes[playerId]) {
               // Create a sphere with a random color for other players
               const randomColor = Math.random() * 0xffffff;
-              const otherPlayerMesh = createPlayerMesh(1, randomColor);
+              const otherPlayerMesh = createPlayerMesh(1, randomColor, playerData.name);
               scene.add(otherPlayerMesh);
               playerCubes[playerId] = otherPlayerMesh;
-            }
-
-            const cubeMesh = playerCubes[playerId];
-            if (playerData.position && playerData.rotation) {
-              cubeMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
-              cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
+            } else {
+              // Update existing player's position and name
+              const cubeMesh = playerCubes[playerId];
+              if (playerData.position) {
+                cubeMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
+              }
+              if (playerData.rotation) {
+                cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
+              }
+              if (playerData.name) {
+                // Update the nametag if the name has changed
+                const nametag = cubeMesh.children.find(child => child.isSprite);
+                if (nametag && nametag.name !== playerData.name) {
+                    const newNametag = createNametag(playerData.name);
+                    newNametag.position.copy(nametag.position);
+                    cubeMesh.remove(nametag);
+                    cubeMesh.add(newNametag);
+                }
+              }
             }
           }
 
@@ -426,7 +512,9 @@
     function updateMyPositionInFirestore() {
       if (!authReady) return;
       const playerRef = doc(db, `artifacts/${appId}/public/data/players/${userId}`);
+      const myName = document.getElementById('nameInput').value || 'Player';
       setDoc(playerRef, {
+        name: myName,
         position: {
           x: playerBody.position.x,
           y: playerBody.position.y,
@@ -438,7 +526,7 @@
           z: playerBody.quaternion.z,
           w: playerBody.quaternion.w,
         },
-        // You could add more data here like score, name, etc.
+        // You could add more data here like score, etc.
       }, { merge: true });
     }
 
@@ -541,6 +629,41 @@
       }
     });
 
+    // Event listener for the "Save Name" button
+    document.addEventListener('DOMContentLoaded', () => {
+        const saveNameButton = document.getElementById('saveNameButton');
+        const nameInput = document.getElementById('nameInput');
+        if (saveNameButton && nameInput) {
+            saveNameButton.addEventListener('click', () => {
+                const newName = nameInput.value.trim();
+                if (newName) {
+                    // Update the player's nametag locally
+                    const nametag = playerMesh.children.find(child => child.isSprite);
+                    if (nametag) {
+                        const newNametag = createNametag(newName);
+                        newNametag.position.copy(nametag.position);
+                        playerMesh.remove(nametag);
+                        playerMesh.add(newNametag);
+                    }
+                    // Trigger a Firestore update to save the new name
+                    updateMyPositionInFirestore();
+                }
+            });
+        }
+    });
+
+    // --- NEW: Event listener for the collapse button ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const collapseButton = document.getElementById('collapseButton');
+        const uiContainer = document.getElementById('ui');
+        if (collapseButton && uiContainer) {
+            collapseButton.addEventListener('click', () => {
+                // Toggle the 'collapsed' class to show/hide the menu
+                uiContainer.classList.toggle('collapsed');
+            });
+        }
+    });
+
     // Camera control event listeners
     window.addEventListener('contextmenu', (event) => {
         event.preventDefault();
@@ -594,11 +717,20 @@
 <body>
   <!-- UI overlay for instructions and user ID -->
   <div id="ui">
-    <h1>3D Ball Game</h1>
-    <p>Move with Arrow Keys or WASD (relative to camera), Jump with Space</p>
-    <p>Drag with Right Mouse to look around</p>
-    <button id="tpButton">Teleport to Spawn</button>
-    <p id="userIdDisplay">Connecting...</p>
+    <!-- NEW: All content to be collapsed is now inside a separate div -->
+    <div id="menu-content">
+      <h1>3D Ball Game</h1>
+      <p>Move with Arrow Keys or WASD (relative to camera), Jump with Space</p>
+      <p>Drag with Right Mouse to look around</p>
+      <div>
+          <input type="text" id="nameInput" placeholder="Enter your name">
+          <button id="saveNameButton">Save Name</button>
+      </div>
+      <button id="tpButton">Teleport to Spawn</button>
+      <p id="userIdDisplay">Connecting...</p>
+    </div>
+    <!-- NEW: The toggle button is now outside the collapsible content -->
+    <button id="collapseButton">Toggle Menu</button>
   </div>
   
   <!-- Canvas for the 3D game -->
