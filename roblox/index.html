@@ -91,7 +91,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Global variables from the Canvas environment
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -117,21 +117,27 @@
     const keyboard = {};
 
     // Initial setup for authentication and data listening
-    onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, (user) => {
+      const userIdDisplay = document.getElementById('userIdDisplay');
       if (user) {
         userId = user.uid;
-        document.getElementById('userIdDisplay').textContent = `Your User ID: ${userId}`;
+        userIdDisplay.textContent = `Your User ID: ${userId}`;
         authReady = true;
         setupInitialGame();
         listenForPlayerUpdates();
       } else {
-        // Sign in anonymously if no user is found
-        await signInAnonymously(auth);
+        userId = null;
+        userIdDisplay.textContent = 'Connection failed. Check console for details.';
+        authReady = false;
       }
     });
 
-    // Function to handle initial sign-in
+    /**
+     * Function to handle initial sign-in with better error handling.
+     */
     async function handleSignIn() {
+      const userIdDisplay = document.getElementById('userIdDisplay');
+      userIdDisplay.textContent = 'Connecting...';
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
@@ -140,6 +146,8 @@
         }
       } catch (error) {
         console.error("Firebase Auth Error:", error);
+        userIdDisplay.textContent = `Connection failed: ${error.message}`;
+        authReady = false;
       }
     }
 
