@@ -64,7 +64,7 @@
         }
 
         /* Styles for Canvas-based Illusions */
-        #cube-canvas, #checker-canvas, #dots-canvas {
+        #cube-canvas, #checker-canvas {
             display: block;
             touch-action: none;
             cursor: default;
@@ -72,7 +72,6 @@
 
         #cube-canvas { background-color: #000; }
         #checker-canvas { background-color: #0d0d0d; }
-        #dots-canvas { background-color: #6A5ACD; /* Default background for dots */ }
 
 
         /* Ensure controls panel is visible and non-intrusive */
@@ -96,10 +95,10 @@
         <div id="home-view" class="flex flex-col items-center justify-center w-full h-full p-8 text-white text-center">
             <h1 class="text-6xl font-extrabold text-teal-400 mb-8">Welcome to the Dynamic Hub</h1>
             <p class="text-xl text-gray-400 mb-10 max-w-xl">
-                Explore four unique visual illusions: a mouse-controlled color field, a pixelated bouncing cube, a customizable checkerboard pattern, and a static grid designed to play tricks on your peripheral vision.
+                Explore three unique visual illusions: a mouse-controlled color field, a pixelated bouncing cube, and a customizable checkerboard pattern.
             </p>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:space-x-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:space-x-4">
                 <!-- Button 1: Color Shifting Illusion -->
                 <button onclick="showView('color-illusion-view')" class="px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
                     1. Color-Shifting
@@ -113,11 +112,6 @@
                 <!-- Button 3: Checkerboard Illusion -->
                 <button onclick="showView('checker-view')" class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
                     3. Checkerboard
-                </button>
-
-                 <!-- Button 4: 9 Purple Dots Illusion -->
-                <button onclick="showView('dots-view')" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
-                    4. Disappearing Dots
                 </button>
             </div>
         </div>
@@ -158,21 +152,6 @@
                 ← Go Back
             </button>
         </div>
-
-        <!-- 5. 9 Purple Dots Illusion View (Static Dots) -->
-        <div id="dots-view" class="hidden w-full h-full flex items-center justify-center relative">
-            <canvas id="dots-canvas" class="clickable w-full h-full"></canvas>
-
-            <div class="absolute top-4 right-4 text-white text-right p-4 rounded-xl bg-black bg-opacity-30">
-                <p class="font-bold text-xl text-indigo-400 mb-2">9 Purple Dots Illusion</p>
-                <p class="text-sm">Stare at the center dot and watch the other dots disappear from your peripheral vision.</p>
-            </div>
-            
-            <!-- Back button -->
-            <button onclick="showView('home-view')" class="absolute top-4 left-4 z-20 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-md transition">
-                ← Go Back
-            </button>
-        </div>
     </div>
     
     <script>
@@ -180,7 +159,6 @@
         let colorIllusionInitialized = false;
         let cubeIllusionInitialized = false;
         let checkerIllusionInitialized = false;
-        let dotsIllusionInitialized = false;
 
         /**
          * Switches the active view and ensures the illusion is only initialized once.
@@ -192,7 +170,6 @@
             document.getElementById('color-illusion-view').classList.add('hidden');
             document.getElementById('cube-view').classList.add('hidden');
             document.getElementById('checker-view').classList.add('hidden');
-            document.getElementById('dots-view').classList.add('hidden');
 
             // Show the requested view
             document.getElementById(viewId).classList.remove('hidden');
@@ -234,82 +211,9 @@
                     console.error("Failed to initialize checker illusion:", e);
                 }
             }
-
-            if (viewId === 'dots-view' && !dotsIllusionInitialized) {
-                try {
-                    const dotsViewContainer = document.getElementById('dots-view');
-                    const canvas = document.getElementById('dots-canvas');
-                    canvas.width = dotsViewContainer.clientWidth;
-                    canvas.height = dotsViewContainer.clientHeight;
-                    
-                    initializeDotsIllusion();
-                    dotsIllusionInitialized = true;
-                } catch (e) {
-                    console.error("Failed to initialize dots illusion:", e);
-                }
-            }
         }
         
-        // --- 1. 9 PURPLE DOTS ILLUSION LOGIC (Canvas-based) ---
-        function initializeDotsIllusion() {
-            const canvas = document.getElementById("dots-canvas");
-            const ctx = canvas.getContext("2d");
-            
-            // Colors matching the uploaded image's aesthetic
-            const DOT_COLOR = '#8A2BE2'; // BlueViolet (Bright Purple)
-            const BG_COLOR = '#6A5ACD';  // Slate Blue (Blue-Violet Background)
-            const GRID_SIZE = 3;         // 3x3 grid
-
-            // Function to draw the static illusion
-            function drawDots() {
-                // Set initial responsive size
-                canvas.width = canvas.parentElement.clientWidth;
-                canvas.height = canvas.parentElement.clientHeight;
-
-                // 1. Draw Background
-                ctx.fillStyle = BG_COLOR;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // 2. Calculate drawing parameters
-                const padding = Math.min(canvas.width, canvas.height) * 0.15; // 15% padding
-                const drawingAreaSize = Math.min(canvas.width, canvas.height) - 2 * padding;
-                const dotSpacing = drawingAreaSize / (GRID_SIZE - 1);
-                
-                // Determine a responsive radius (e.g., 1/3 of the spacing)
-                const dotRadius = dotSpacing / 3;
-
-                // Calculate the start position to center the grid
-                const startX = canvas.width / 2 - drawingAreaSize / 2;
-                const startY = canvas.height / 2 - drawingAreaSize / 2;
-
-                // 3. Draw the 9 dots
-                ctx.fillStyle = DOT_COLOR;
-                for (let row = 0; row < GRID_SIZE; row++) {
-                    for (let col = 0; col < GRID_SIZE; col++) {
-                        const centerX = startX + col * dotSpacing;
-                        const centerY = startY + row * dotSpacing;
-
-                        ctx.beginPath();
-                        ctx.arc(centerX, centerY, dotRadius, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            }
-
-            // Initial draw
-            drawDots();
-
-            // Handle window resizing
-            window.addEventListener('resize', () => {
-                // Only redraw if the current view is active
-                if (!document.getElementById('dots-view').classList.contains('hidden')) {
-                    drawDots();
-                }
-            });
-        }
-
-
-        // --- 2. POV STATIC CUBE ILLUSION LOGIC (Canvas-based) ---
+        // --- 1. POV STATIC CUBE ILLUSION LOGIC (Canvas-based) ---
         
         class CubeAnimation {
             constructor(canvasId) {
@@ -466,7 +370,7 @@
         }
 
 
-        // --- 3. COLOR SHIFTING ILLUSION LOGIC (DOM-based) ---
+        // --- 2. COLOR SHIFTING ILLUSION LOGIC (DOM-based) ---
 
         function initializeColorIllusion() {
             var innerDiv, circleDiv, mainEl, topEl, bottomEl, arrowEl, theToy;
@@ -581,7 +485,7 @@
             });
         }
         
-        // --- 4. CHECKERBOARD ILLUSION LOGIC (Canvas-based) ---
+        // --- 3. CHECKERBOARD ILLUSION LOGIC (Canvas-based) ---
         function initializeCheckerIllusion() {
             const canvas = document.getElementById("checker-canvas");
             const ctx = canvas.getContext("2d");
