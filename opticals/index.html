@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Web Hub</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Tweakpane library required by the provided JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/tweakpane@3.0.7/dist/tweakpane.min.js"></script>
+    <style>
+        /* General Setup */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d0d0d;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Styling for the Color-Shifting Illusion */
+        .the-toy {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            background-color: rgb(130, 130, 130);
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        /* Styles required by the injected JavaScript (Color-Shifting) */
+        .circle {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .inner {
+            width: 50px;
+            height: 50px;
+            background: rgb(150, 150, 150);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 25px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            position: absolute;
+        }
+        
+        .shifter {
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        /* Styles for Canvas-based Illusions */
+        #cube-canvas, #checker-canvas, #dots-canvas {
+            display: block;
+            touch-action: none;
+            cursor: default;
+        }
+
+        #cube-canvas { background-color: #000; }
+        #checker-canvas { background-color: #0d0d0d; }
+        #dots-canvas { background-color: #6A5ACD; /* Default background for dots */ }
+
+
+        /* Ensure controls panel is visible and non-intrusive */
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+        }
+
+        /* Utility classes */
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Main Container -->
+    <div id="main-container" class="w-full h-screen max-w-full">
+
+        <!-- 1. Home View -->
+        <div id="home-view" class="flex flex-col items-center justify-center w-full h-full p-8 text-white text-center">
+            <h1 class="text-6xl font-extrabold text-teal-400 mb-8">Welcome to the Dynamic Hub</h1>
+            <p class="text-xl text-gray-400 mb-10 max-w-xl">
+                Explore four unique visual illusions: a mouse-controlled color field, a pixelated bouncing cube, a customizable checkerboard pattern, and a static grid designed to play tricks on your peripheral vision.
+            </p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:space-x-4">
+                <!-- Button 1: Color Shifting Illusion -->
+                <button onclick="showView('color-illusion-view')" class="px-6 py-3 bg-teal-600 hover:bg-teal-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
+                    1. Color-Shifting
+                </button>
+                
+                <!-- Button 2: POV Static Cube Illusion -->
+                <button onclick="showView('cube-view')" class="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
+                    2. POV Static Cube
+                </button>
+
+                <!-- Button 3: Checkerboard Illusion -->
+                <button onclick="showView('checker-view')" class="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
+                    3. Checkerboard
+                </button>
+
+                 <!-- Button 4: 9 Purple Dots Illusion -->
+                <button onclick="showView('dots-view')" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-lg font-bold rounded-xl shadow-lg transition duration-200 transform hover:scale-105">
+                    4. Disappearing Dots
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Color-Shifting Illusion View (Circles/Shifters) -->
+        <div id="color-illusion-view" class="hidden w-full h-full">
+            <div class="the-toy relative w-full h-full">
+                <!-- The JavaScript will inject elements here -->
+            </div>
+            <!-- The JavaScript requires this element for the control panel -->
+            <div class="controls"></div>
+            
+            <!-- Back button -->
+            <button onclick="showView('home-view')" class="absolute top-4 left-4 z-20 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-md transition">
+                ← Go Back
+            </button>
+        </div>
+
+        <!-- 3. POV Static Cube View (Canvas-based Cube) -->
+        <div id="cube-view" class="hidden w-full h-full flex items-center justify-center relative">
+             <canvas id="cube-canvas" class="clickable w-full h-full"></canvas>
+            
+            <!-- Back button -->
+            <button onclick="showView('home-view')" class="absolute top-4 left-4 z-20 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-md transition">
+                ← Go Back
+            </button>
+        </div>
+
+        <!-- 4. Checkerboard Illusion View (Canvas with Rects and Circle) -->
+        <div id="checker-view" class="hidden w-full h-full flex items-center justify-center relative">
+             <canvas id="checker-canvas" class="clickable w-full h-full"></canvas>
+            
+             <!-- Tweakpane controls for this illusion -->
+             <div class="controls absolute top-4 right-4 z-20" id="checker-controls"></div>
+            
+            <!-- Back button -->
+            <button onclick="showView('home-view')" class="absolute top-4 left-4 z-20 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-md transition">
+                ← Go Back
+            </button>
+        </div>
+
+        <!-- 5. 9 Purple Dots Illusion View (Static Dots) -->
+        <div id="dots-view" class="hidden w-full h-full flex items-center justify-center relative">
+            <canvas id="dots-canvas" class="clickable w-full h-full"></canvas>
+
+            <div class="absolute top-4 right-4 text-white text-right p-4 rounded-xl bg-black bg-opacity-30">
+                <p class="font-bold text-xl text-indigo-400 mb-2">9 Purple Dots Illusion</p>
+                <p class="text-sm">Stare at the center dot and watch the other dots disappear from your peripheral vision.</p>
+            </div>
+            
+            <!-- Back button -->
+            <button onclick="showView('home-view')" class="absolute top-4 left-4 z-20 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-md transition">
+                ← Go Back
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // --- Global Navigation and Initialization Flags ---
+        let colorIllusionInitialized = false;
+        let cubeIllusionInitialized = false;
+        let checkerIllusionInitialized = false;
+        let dotsIllusionInitialized = false;
+
+        /**
+         * Switches the active view and ensures the illusion is only initialized once.
+         * @param {string} viewId - The ID of the view to show.
+         */
+        function showView(viewId) {
+            // Hide all views first
+            document.getElementById('home-view').classList.add('hidden');
+            document.getElementById('color-illusion-view').classList.add('hidden');
+            document.getElementById('cube-view').classList.add('hidden');
+            document.getElementById('checker-view').classList.add('hidden');
+            document.getElementById('dots-view').classList.add('hidden');
+
+            // Show the requested view
+            document.getElementById(viewId).classList.remove('hidden');
+
+            if (viewId === 'color-illusion-view' && !colorIllusionInitialized) {
+                try {
+                    initializeColorIllusion();
+                    colorIllusionInitialized = true;
+                } catch (e) {
+                    console.error("Failed to initialize color illusion:", e);
+                }
+            }
+            
+            if (viewId === 'cube-view' && !cubeIllusionInitialized) {
+                try {
+                    // Set the canvas size correctly before initializing
+                    const cubeViewContainer = document.getElementById('cube-view');
+                    const canvas = document.getElementById('cube-canvas');
+                    canvas.width = cubeViewContainer.clientWidth;
+                    canvas.height = cubeViewContainer.clientHeight;
+                    
+                    initializeCubeIllusion();
+                    cubeIllusionInitialized = true;
+                } catch (e) {
+                    console.error("Failed to initialize cube illusion:", e);
+                }
+            }
+
+            if (viewId === 'checker-view' && !checkerIllusionInitialized) {
+                try {
+                    const checkerViewContainer = document.getElementById('checker-view');
+                    const canvas = document.getElementById('checker-canvas');
+                    canvas.width = checkerViewContainer.clientWidth;
+                    canvas.height = checkerViewContainer.clientHeight;
+                    
+                    initializeCheckerIllusion();
+                    checkerIllusionInitialized = true;
+                } catch (e) {
+                    console.error("Failed to initialize checker illusion:", e);
+                }
+            }
+
+            if (viewId === 'dots-view' && !dotsIllusionInitialized) {
+                try {
+                    const dotsViewContainer = document.getElementById('dots-view');
+                    const canvas = document.getElementById('dots-canvas');
+                    canvas.width = dotsViewContainer.clientWidth;
+                    canvas.height = dotsViewContainer.clientHeight;
+                    
+                    initializeDotsIllusion();
+                    dotsIllusionInitialized = true;
+                } catch (e) {
+                    console.error("Failed to initialize dots illusion:", e);
+                }
+            }
+        }
+        
+        // --- 1. 9 PURPLE DOTS ILLUSION LOGIC (Canvas-based) ---
+        function initializeDotsIllusion() {
+            const canvas = document.getElementById("dots-canvas");
+            const ctx = canvas.getContext("2d");
+            
+            // Colors matching the uploaded image's aesthetic
+            const DOT_COLOR = '#8A2BE2'; // BlueViolet (Bright Purple)
+            const BG_COLOR = '#6A5ACD';  // Slate Blue (Blue-Violet Background)
+            const GRID_SIZE = 3;         // 3x3 grid
+
+            // Function to draw the static illusion
+            function drawDots() {
+                // Set initial responsive size
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+
+                // 1. Draw Background
+                ctx.fillStyle = BG_COLOR;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 2. Calculate drawing parameters
+                const padding = Math.min(canvas.width, canvas.height) * 0.15; // 15% padding
+                const drawingAreaSize = Math.min(canvas.width, canvas.height) - 2 * padding;
+                const dotSpacing = drawingAreaSize / (GRID_SIZE - 1);
+                
+                // Determine a responsive radius (e.g., 1/3 of the spacing)
+                const dotRadius = dotSpacing / 3;
+
+                // Calculate the start position to center the grid
+                const startX = canvas.width / 2 - drawingAreaSize / 2;
+                const startY = canvas.height / 2 - drawingAreaSize / 2;
+
+                // 3. Draw the 9 dots
+                ctx.fillStyle = DOT_COLOR;
+                for (let row = 0; row < GRID_SIZE; row++) {
+                    for (let col = 0; col < GRID_SIZE; col++) {
+                        const centerX = startX + col * dotSpacing;
+                        const centerY = startY + row * dotSpacing;
+
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, dotRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Initial draw
+            drawDots();
+
+            // Handle window resizing
+            window.addEventListener('resize', () => {
+                // Only redraw if the current view is active
+                if (!document.getElementById('dots-view').classList.contains('hidden')) {
+                    drawDots();
+                }
+            });
+        }
+
+
+        // --- 2. POV STATIC CUBE ILLUSION LOGIC (Canvas-based) ---
+        
+        class CubeAnimation {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext("2d");
+                
+                this.squareSize = 5;
+                this.animating = true;
+                
+                this.canvas.width = this.canvas.parentElement.clientWidth;
+                this.canvas.height = this.canvas.parentElement.clientHeight;
+
+                this.cubeCenter = {
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2,
+                    vx: 2,
+                    vy: 2
+                };
+
+                this.cubeVertices = [
+                    { x: -1, y: -1, z: -1 }, { x: 1, y: -1, z: -1 }, { x: 1, y: 1, z: -1 }, { x: -1, y: 1, z: -1 }, 
+                    { x: -1, y: -1, z: 1 }, { x: 1, y: -1, z: 1 }, { x: 1, y: 1, z: 1 }, { x: -1, y: 1, z: 1 }
+                ];
+                
+                this.cubeEdges = [
+                    [0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], 
+                    [0, 4], [1, 5], [2, 6], [3, 7]
+                ];
+                
+                this.rotationAngle = 0.01;
+                
+                this.animate = this.animate.bind(this);
+                this.toggleAnimation = this.toggleAnimation.bind(this);
+                
+                this.canvas.addEventListener("click", this.toggleAnimation);
+                
+                this.drawRandomSquares();
+                this.animate();
+            }
+
+            drawRandomSquares() {
+                const numSquaresX = Math.ceil(this.canvas.width / this.squareSize);
+                const numSquaresY = Math.ceil(this.canvas.height / this.squareSize);
+                
+                for (let x = 0; x < numSquaresX; x++) {
+                    for (let y = 0; y < numSquaresY; y++) {
+                        this.ctx.fillStyle = Math.random() < 0.5 ? "black" : "white";
+                        this.ctx.fillRect(x * this.squareSize, y * this.squareSize, this.squareSize, this.squareSize);
+                    }
+                }
+            }
+
+            updateCubeCenter() {
+                this.cubeCenter.x += this.cubeCenter.vx;
+                this.cubeCenter.y += this.cubeCenter.vy;
+                
+                (this.cubeCenter.x <= 100 || this.cubeCenter.x >= this.canvas.width - 100) && (this.cubeCenter.vx *= -1);
+                (this.cubeCenter.y <= 100 || this.cubeCenter.y >= this.canvas.height - 100) && (this.cubeCenter.vy *= -1);
+            }
+
+            project(vertex) {
+                return { x: vertex.x, y: vertex.y };
+            }
+
+            rotateVertex(f, angleX, angleY) {
+                let c = f.x - this.cubeCenter.x;
+                let d = f.y - this.cubeCenter.y;
+                let g = f.z;
+                
+                let h = d * Math.cos(angleX) - g * Math.sin(angleX);
+                let e = d * Math.sin(angleX) + g * Math.cos(angleX);
+                
+                let i = c * Math.cos(angleY) + e * Math.sin(angleY);
+                e = e * Math.cos(angleY) - c * Math.sin(angleY);
+                c = i + this.cubeCenter.x;
+                d = h + this.cubeCenter.y;
+                
+                return { x: c, y: d, z: e };
+            }
+
+            drawCube() {
+                this.updateCubeCenter();
+                
+                const angleX = this.rotationAngle;
+                const angleY = this.rotationAngle * 1.5;
+                
+                const scaledVertices = this.cubeVertices.map(v => ({
+                    x: v.x * 100 + this.cubeCenter.x,
+                    y: v.y * 100 + this.cubeCenter.y,
+                    z: v.z * 100
+                }));
+                
+                const rotatedVertices = scaledVertices.map(v => this.rotateVertex(v, angleX, angleY));
+                
+                const projectedVertices = rotatedVertices.map(v => this.project(v));
+                
+                this.cubeEdges.forEach(edge => {
+                    const start = projectedVertices[edge[0]];
+                    const end = projectedVertices[edge[1]];
+                    this.drawLineAndInvertColors(start.x, start.y, end.x, end.y);
+                });
+            }
+
+            animate() {
+                if (!this.animating) return;
+                
+                this.drawCube();
+                this.rotationAngle += 0.01;
+                
+                requestAnimationFrame(this.animate);
+            }
+
+            drawLineAndInvertColors(x1, y1, x2, y2) {
+                const deltaX = x2 - x1;
+                const deltaY = y2 - y1;
+                
+                const steps = Math.max(Math.abs(deltaX), Math.abs(deltaY)) / this.squareSize;
+                
+                for (let i = 0; i <= steps; i++) {
+                    let currentX = x1 + deltaX * i / steps;
+                    let currentY = y1 + deltaY * i / steps;
+                    
+                    let pixelX = Math.floor(currentX / this.squareSize) * this.squareSize;
+                    let pixelY = Math.floor(currentY / this.squareSize) * this.squareSize;
+                    
+                    if (pixelX < 0 || pixelY < 0 || pixelX >= this.canvas.width || pixelY >= this.canvas.height) continue;
+
+                    let data = this.ctx.getImageData(pixelX, pixelY, 1, 1).data;
+                    
+                    const isBlack = data[0] === 0 && data[1] === 0 && data[2] === 0;
+                    this.ctx.fillStyle = isBlack ? "white" : "black";
+                    
+                    this.ctx.fillRect(pixelX, pixelY, this.squareSize, this.squareSize);
+                }
+            }
+
+            toggleAnimation() {
+                this.animating = !this.animating;
+                this.animating && this.animate();
+            }
+        }
+
+        function initializeCubeIllusion() {
+            const cubeAnimation = new CubeAnimation("cube-canvas");
+
+            window.addEventListener('resize', () => {
+                const cubeViewContainer = document.getElementById('cube-view');
+                if (!cubeViewContainer.classList.contains('hidden')) {
+                    cubeAnimation.canvas.width = cubeViewContainer.clientWidth;
+                    cubeAnimation.canvas.height = cubeViewContainer.clientHeight;
+                    cubeAnimation.drawRandomSquares();
+                }
+            });
+        }
+
+
+        // --- 3. COLOR SHIFTING ILLUSION LOGIC (DOM-based) ---
+
+        function initializeColorIllusion() {
+            var innerDiv, circleDiv, mainEl, topEl, bottomEl, arrowEl, theToy;
+            let shifters = [];
+            let rotation = 0, rotationSpeed = 1;
+            let repeater = 30, grayscale = false, backgroundColor = "rgb(130, 130, 130)";
+
+            function injectElements() {
+                const a = document.createElement("div");
+                a.className = "circle";
+                const b = document.createElement("div");
+                b.className = "inner";
+                const c = document.createElement("span");
+                c.className = "arrow", c.textContent = "⬇", b.appendChild(c),
+                
+                document.querySelector('#color-illusion-view .the-toy').appendChild(a),
+                document.querySelector('#color-illusion-view .the-toy').appendChild(b),
+                document.querySelector('#color-illusion-view .the-toy').style.position = "relative",
+                document.querySelector('#color-illusion-view .the-toy').style.backgroundColor = 'rgb(130, 130, 130)',
+                a.classList.add("shifter");
+            }
+            
+            // Clear existing elements before injection, if any (robustness)
+            const toyContainer = document.querySelector('#color-illusion-view .the-toy');
+            toyContainer.innerHTML = ''; 
+            injectElements();
+
+            innerDiv = document.querySelector(".inner"),
+            circleDiv = document.querySelector(".circle"),
+            mainEl = document.querySelector(".main"),
+            topEl = document.querySelector(".top"),
+            bottomEl = document.querySelector(".bottom"),
+            arrowEl = document.querySelector(".arrow"),
+            theToy = document.querySelector(".the-toy");
+
+            document.addEventListener("mousemove", function (b) {
+                if (document.getElementById('color-illusion-view').classList.contains('hidden')) return;
+                
+                var h = b.clientX, d = b.clientY, e, f, g, a;
+                const c = theToy.getBoundingClientRect();
+                e = c.left + theToy.clientWidth / 2, f = c.top + theToy.clientHeight / 2,
+                g = Math.atan2(d - f, h - e), a = g * (180 / Math.PI) - 90,
+                innerDiv.style.transform = "translate(-50%, -50%) rotate(" + a + "deg)",
+                circleDiv.style.transform = "translate(-50%, -50%) rotate(" + a + "deg)",
+                shifters.forEach(b => {
+                    b.el.style.transform = "translate(-50%, -50%) rotate(" + a + "deg)"
+                })
+            });
+
+            function createRandomElements(o) {
+                for (var j = document.querySelector(".the-toy"), l = document.querySelector('.the-toy').clientWidth, n = document.querySelector('.the-toy').clientHeight, r = l / 2, q = n / 2, m = 20, p = 70, h = 30, k = 0, a, c, f, b, g, d, i, e, s, t, u; k < o; k++) {
+                    a = document.createElement("div"), a.classList.add("shifter");
+                    let v = 20;
+                    const w = document.querySelector('.the-toy').clientWidth + 25, x = document.querySelector('.the-toy').clientHeight + 25;
+                    
+                    do {
+                        c = Math.random() * (w - b - h * 2) + h, f = Math.random() * (x - b - h * 2) + h, b = Math.random() * 20 + 15, d = !1;
+                        for (i = 0; i < j.children.length; i++)
+                            if (e = j.children[i], e !== a)
+                                if (s = parseInt(e.style.width, 10), g = Math.sqrt(Math.pow(c - e.offsetLeft, 2) + Math.pow(f - e.offsetTop, 2)), t = g - b / 2 - s / 2, t < m) {
+                                    d = !0;
+                                    break
+                                }
+                        if (g = Math.sqrt(Math.pow(c - r, 2) + Math.pow(f - q, 2)), u = g - b / 2 - p, u < m ? d = !0 : v--, v === 0) break
+                    } while (d)
+
+                    if (a.style.position = "absolute", a.style.left = Math.floor(c / l * 100) + "%", a.style.top = Math.floor(f / n * 100) + "%", a.style.width = b + "px", a.style.height = b + "px", !c || d) continue;
+                    
+                    j.appendChild(a), shifters.push({ el: a, offset: Math.random() })
+                }
+            }
+
+            createRandomElements(300);
+
+            function getColorValues(a) {
+                const b = .5, c = 255, d = Math.floor((Math.cos(Math.PI * 2 * (a + .25)) * .5 + b) * c), e = Math.floor((Math.cos(Math.PI * 2 * (a + .75)) * .5 + b) * c), f = Math.floor((Math.cos(Math.PI * 2 * a) * .5 + b) * c);
+                return { red: d, blue: e, green: f }
+            }
+
+            function loop() {
+                rotation += rotationSpeed;
+                const a = rotation % repeater / repeater;
+                let b = getColorValues(a + .75), c = getColorValues(a + .5), d = getColorValues(a + .25);
+                
+                circleDiv.style.backgroundColor = `rgb(${c.red}, ${c.green}, ${c.blue})`,
+                circleDiv.style.boxShadow = `inset 0px 1px 0px rgb(${b.red}, ${b.green}, ${b.blue}), inset 0px -1px 0px rgb(${d.red}, ${d.green}, ${d.blue})`,
+                arrowEl.style.color = `rgb(${c.red}, ${c.green}, ${c.blue})`,
+                arrowEl.style.textShadow = `0px 1px rgb(${b.red}, ${b.green}, ${b.blue}), 0px -1px rgb(${d.red}, ${d.green}, ${d.blue})`,
+                
+                shifters.forEach(b => {
+                    let c = getColorValues(a + .75 + b.offset), d = getColorValues(a + .5 + b.offset), e = getColorValues(a + .25 + b.offset);
+                    b.el.style.backgroundColor = `rgb(${d.red}, ${d.green}, ${d.blue})`,
+                    b.el.style.boxShadow = `inset 0px 1px 0px rgb(${c.red}, ${c.green}, ${c.blue}), inset 0px -1px 0px rgb(${e.red}, ${e.green}, ${e.blue})`
+                }),
+                
+                requestAnimationFrame(loop)
+            }
+            
+            loop();
+            
+            let controlParams = { 'Loop Speed': repeater, 'Gray Scale': grayscale, 'Background Color': backgroundColor };
+            const pane = new Tweakpane.Pane({ container: document.querySelector('#color-illusion-view .controls') }),
+            controls = pane.addFolder({ title: 'Customize', expanded: false });
+            
+            controls.addInput(controlParams, 'Loop Speed', { min: 5, max: 200, step: 1 }).on('change', a => { repeater = a.value }),
+            controls.addInput(controlParams, 'Gray Scale').on('change', a => {
+                grayscale = a.value;
+                grayscale ? document.querySelector('.the-toy').style.filter = "grayscale(100%)" : document.querySelector('.the-toy').style.filter = "grayscale(0%)"
+            }),
+            controls.addInput(controlParams, 'Background Color', { picker: 'inline', expanded: true }).on('change', a => {
+                backgroundColor = a.value, document.querySelector('.the-toy').style.backgroundColor = backgroundColor
+            });
+        }
+        
+        // --- 4. CHECKERBOARD ILLUSION LOGIC (Canvas-based) ---
+        function initializeCheckerIllusion() {
+            const canvas = document.getElementById("checker-canvas");
+            const ctx = canvas.getContext("2d");
+            
+            let lightColor = "#f1c40f", darkColor = "#2c3e50";
+            let bgRectWidth = 40, bgRectHeight = 15;
+
+            function draw() {
+                const rectHeight = bgRectHeight;
+                const rectWidth = bgRectWidth;
+                
+                const centralAreaSize = Math.min(canvas.width, canvas.height) * 0.6;
+                const centralAreaX = canvas.width / 2 - centralAreaSize / 2;
+                const centralAreaY = canvas.height / 2 - centralAreaSize / 2;
+                
+                const numRectsX = Math.ceil(centralAreaSize / rectHeight);
+                const numRectsY = Math.ceil(centralAreaSize / rectWidth);
+
+                // 1. Draw full background with a repeating pattern
+                
+                ctx.fillStyle = lightColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                for (let y = 0; y < canvas.height / bgRectHeight; y++) {
+                    for (let x = 0; x < canvas.width / bgRectWidth; x++) {
+                        const drawX = x * bgRectWidth;
+                        const drawY = y * bgRectHeight;
+                        const color = (y + x) % 2 === 0 ? lightColor : darkColor;
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(drawX, drawY, bgRectWidth, bgRectHeight);
+                    }
+                }
+
+                // 2. Draw the central circular/shaded area
+                ctx.save();
+                
+                ctx.beginPath();
+                ctx.arc(centralAreaX + centralAreaSize / 2, centralAreaY + centralAreaSize / 2, centralAreaSize / 2, 0, Math.PI * 2);
+                ctx.clip();
+                
+                ctx.fillStyle = darkColor;
+                ctx.fillRect(centralAreaX, centralAreaY, centralAreaSize, centralAreaSize);
+                
+                for (let y = 0; y < numRectsY; y++) {
+                    for (let x = 0; x < numRectsX; x++) {
+                        const rectX = centralAreaX + x * bgRectHeight;
+                        const rectY = centralAreaY + y * bgRectWidth;
+                        const color = (y + x) % 2 === 0 ? darkColor : lightColor;
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(rectX, rectY, bgRectHeight, bgRectWidth);
+                    }
+                }
+                
+                ctx.restore();
+            }
+
+            draw();
+            window.addEventListener('resize', () => {
+                if (!document.getElementById('checker-view').classList.contains('hidden')) {
+                    canvas.width = canvas.parentNode.clientWidth;
+                    canvas.height = canvas.parentNode.clientHeight;
+                    draw();
+                }
+            });
+
+            // Tweakpane Controls Setup - Reuse the original setup logic
+            let controlParams = {
+                'Rectangle Side A': bgRectWidth,
+                'Rectangle Side B': bgRectHeight,
+                'Color A': lightColor,
+                'Color B': darkColor
+            };
+            
+            const pane = new Tweakpane.Pane({ container: document.getElementById('checker-controls') });
+            const controls = pane.addFolder({ title: 'Customize Checkerboard', expanded: true });
+
+            controls.addInput(controlParams, 'Rectangle Side A', { min: 1, max: 200, step: 1 }).on('change', a => {
+                bgRectWidth = a.value;
+                draw();
+            });
+            controls.addInput(controlParams, 'Rectangle Side B', { min: 1, max: 200, step: 1 }).on('change', a => {
+                bgRectHeight = a.value;
+                draw();
+            });
+            controls.addInput(controlParams, 'Color A', { picker: 'inline', expanded: false }).on('change', a => {
+                lightColor = a.value;
+                draw();
+            });
+            controls.addInput(controlParams, 'Color B', { picker: 'inline', expanded: false }).on('change', a => {
+                darkColor = a.value;
+                draw();
+            });
+        }
+        
+        // Ensure the Home View is shown on load
+        window.onload = () => {
+            showView('home-view');
+        };
+    </script>
+</body>
+</html>
