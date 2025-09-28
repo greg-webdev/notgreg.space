@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>13 Button Menu</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for a modern look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light gray background */
+        }
+        /* Custom styles for the blue button color found in the images */
+        .btn-custom-blue {
+            background-color: #2a6f8b; /* A deep teal/blue */
+        }
+        .btn-custom-blue:hover {
+            background-color: #3b8aa6; /* Slightly lighter on hover */
+        }
+    </style>
+</head>
+<body class="h-full p-0">
+
+    <!-- 
+        Main Container - Now full width and top-aligned. 
+    -->
+    <div class="w-full bg-white shadow-md p-6">
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">
+            The 13 Features Menu
+        </h1>
+        
+        <!-- Button List Container - Constrained to a max width for desktop view -->
+        <div id="button-list" class="max-w-2xl mx-auto space-y-3">
+            <!--
+                The 13 button texts are collected from the two uploaded images and mapped to specific function names 
+                from the list you provided (e.g., 'webpctouch', 'game', 'chess', 'fpstest', etc.).
+            -->
+            
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                WebPc for TouchScreen
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                windows programs (no exe)
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                ANciEnt ChiNa CiViLliSAtIoN
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                Minecraft 1.0 release
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                links (4 features)
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                minecraft (2 features)
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                chess
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                "roblox"
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                FPS test
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                random software
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                nice slideshow
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                WebPc (General)
+            </button>
+            <button class="menu-btn w-full py-4 rounded-xl text-white font-semibold uppercase tracking-wide transition duration-150 btn-custom-blue" onclick="handleClick(this)">
+                WebPc (Desktop Version)
+            </button>
+            
+        </div>
+        
+        <!-- Feedback Message Box -->
+        <div id="feedback-box" class="mt-6 p-4 max-w-2xl mx-auto bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg text-sm text-center font-medium transition-all duration-300 opacity-0 h-0 overflow-hidden">
+            <!-- Message will be displayed here -->
+        </div>
+
+    </div>
+
+    <script>
+        // Base URL for redirection
+        const BASE_URL = "https://greg-webdev.github.io/";
+
+        // Map button text (keys) to the corresponding sitename (values)
+        // Note: I've used the function names from your image/request.
+        const featureMap = {
+            "WebPc for TouchScreen": "webpctouch", // Explicitly requested
+            "windows programs (no exe)": "downloads", // Best guess: downloads
+            "ANciEnt ChiNa CiViLliSAtIoN": "infos", // Best guess: infos
+            "Minecraft 1.0 release": "minecraft", 
+            "links (4 features)": "links",
+            "minecraft (2 features)": "minecraft",
+            "chess": "chess",
+            "\"roblox\"": "game", // Explicitly requested
+            "FPS test": "fpstest",
+            "random software": "software",
+            "nice slideshow": "haha", // Using an unused name from the list for a simple feature
+            "WebPc (General)": "webpc",
+            "WebPc (Desktop Version)": "webpc"
+        };
+        
+        /**
+         * Constructs the target URL and handles the click event.
+         * @param {HTMLButtonElement} button - The button element that was clicked.
+         */
+        function handleClick(button) {
+            const buttonText = button.textContent.trim();
+            const feedbackBox = document.getElementById('feedback-box');
+            
+            // Look up the sitename using the button's exact text
+            const sitename = featureMap[buttonText];
+
+            if (!sitename) {
+                feedbackBox.innerHTML = `Error: No destination defined for <strong class="font-extrabold">${buttonText}</strong>.`;
+                feedbackBox.classList.remove('bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
+                feedbackBox.classList.add('bg-red-100', 'border-red-300', 'text-red-800');
+            } else {
+                const url = BASE_URL + sitename;
+
+                // Set the message to show the intended URL (and open in a new tab for testing)
+                feedbackBox.innerHTML = `
+                    <span class="block mb-1">Attempting to open: <strong class="font-extrabold">${buttonText}</strong>.</span>
+                    <span class="block">Redirecting to: 
+                        <a href="${url}" target="_blank" class="text-blue-700 underline font-mono break-all hover:text-blue-500">${url}</a>
+                    </span>
+                `;
+                
+                // For a real hosted website, you would use:
+                // window.location.href = url;
+
+                // Reset to default yellow style
+                feedbackBox.classList.remove('bg-red-100', 'border-red-300', 'text-red-800');
+                feedbackBox.classList.add('bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
+            }
+
+
+            // Display the message box
+            feedbackBox.classList.remove('opacity-0', 'h-0', 'py-0', 'mt-0');
+            feedbackBox.classList.add('opacity-100', 'h-auto', 'py-4', 'mt-6');
+
+            // Hide the message after 5 seconds
+            setTimeout(() => {
+                feedbackBox.classList.remove('opacity-100', 'h-auto', 'py-4', 'mt-6');
+                feedbackBox.classList.add('opacity-0', 'h-0', 'py-0', 'mt-0');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
