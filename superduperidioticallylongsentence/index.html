@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nothing here YET</title>
+    <title>Greg's Projects</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -77,11 +77,6 @@
             
         </div>
         
-        <!-- Feedback Message Box -->
-        <div id="feedback-box" class="mt-6 p-4 max-w-2xl mx-auto bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg text-sm text-center font-medium transition-all duration-300 opacity-0 h-0 overflow-hidden">
-            <!-- Message will be displayed here -->
-        </div>
-
     </div>
 
     <script>
@@ -107,49 +102,26 @@
         };
         
         /**
-         * Constructs the target URL and handles the click event.
+         * Constructs the target URL and handles the click event, immediately redirecting.
          * @param {HTMLButtonElement} button - The button element that was clicked.
          */
         function handleClick(button) {
             const buttonText = button.textContent.trim();
-            const feedbackBox = document.getElementById('feedback-box');
             
             // Look up the sitename using the button's exact text
             const sitename = featureMap[buttonText];
 
             if (!sitename) {
-                feedbackBox.innerHTML = `Error: No destination defined for <strong class="font-extrabold">${buttonText}</strong>.`;
-                feedbackBox.classList.remove('bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
-                feedbackBox.classList.add('bg-red-100', 'border-red-300', 'text-red-800');
-            } else {
-                const url = BASE_URL + sitename;
-
-                // Set the message to show the intended URL (and open in a new tab for testing)
-                feedbackBox.innerHTML = `
-                    <span class="block mb-1">Attempting to open: <strong class="font-extrabold">${buttonText}</strong>.</span>
-                    <span class="block">Redirecting to: 
-                        <a href="${url}" target="_blank" class="text-blue-700 underline font-mono break-all hover:text-blue-500">${url}</a>
-                    </span>
-                `;
-                
-                // For a real hosted website, you would use:
-                // window.location.href = url;
-
-                // Reset to default yellow style
-                feedbackBox.classList.remove('bg-red-100', 'border-red-300', 'text-red-800');
-                feedbackBox.classList.add('bg-yellow-100', 'border-yellow-300', 'text-yellow-800');
+                // If a destination is not defined, log an error silently.
+                console.error(`Error: No destination defined for button: ${buttonText}`);
+                return; 
             }
+            
+            const url = BASE_URL + sitename;
 
-
-            // Display the message box
-            feedbackBox.classList.remove('opacity-0', 'h-0', 'py-0', 'mt-0');
-            feedbackBox.classList.add('opacity-100', 'h-auto', 'py-4', 'mt-6');
-
-            // Hide the message after 5 seconds
-            setTimeout(() => {
-                feedbackBox.classList.remove('opacity-100', 'h-auto', 'py-4', 'mt-6');
-                feedbackBox.classList.add('opacity-0', 'h-0', 'py-0', 'mt-0');
-            }, 5000);
+            // Instantly "teleport" the user to the calculated URL as requested.
+            // This will navigate the current window away from this page.
+            window.location.href = url;
         }
     </script>
 </body>
