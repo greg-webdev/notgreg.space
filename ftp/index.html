@@ -53,9 +53,9 @@
 
     <div id="app" class="w-full max-w-4xl space-y-8">
         <header class="text-center">
-            <h1 class="4xl font-extrabold text-primary-dark mb-2">Chunked File Transfer (Text Packages)</h1>
-            <p class="text-gray-600">The file is split into many **text packages (chunks)** and stored across multiple database documents.</p>
-            <p class="text-sm text-secondary font-semibold mt-1">⚠️ **ABSOLUTE LIMIT:** Using this database method for files over 10MB is extremely slow and costly. We recommend a **50 MB** maximum.</p>
+            <h1 class="4xl font-extrabold text-primary-dark mb-2">File Transfer</h1>
+            <p class="text-gray-600">use to send files!</p>
+            <p class="text-sm text-secondary font-semibold mt-1">⚠️500mb max filesize.</p>
         </header>
 
         <!-- Admin Indicator - Always hidden unless Admin Mode is active -->
@@ -149,7 +149,7 @@
         <div class="bg-card p-6 rounded-xl shadow-lg border border-gray-100 transition-all hover:shadow-xl">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
                 <svg class="w-6 h-6 mr-2 text-blue-info" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 12a9 9 0 110-18 9 9 0 010 18z"></path></svg>
-                3. Available Files (Real-Time)
+                Available Files (Right Now)
             </h2>
             <div id="fileList" class="space-y-3">
                 <p class="text-gray-500 text-sm italic">Initializing list...</p>
@@ -186,8 +186,8 @@
 
         // --- CONSTANTS ---
         const MAX_BASE64_CHUNK_SIZE = 700 * 1024; // 700 KB of Base64 string per document
-        const MAX_RAW_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-        const ADMIN_PASSWORD = "hiimgreg"; // Updated password
+        const MAX_RAW_FILE_SIZE = 500 * 1024 * 1024; // 50 MB
+        const ADMIN_PASSWORD = "NOTA"; // Updated password
         // Complete Firebase configuration provided by the user, used as the robust default/fallback.
         const DEFAULT_FIREBASE_CONFIG = {
             apiKey: "AIzaSyDhU4aFUSbdsEXlIVUiaSBxocHAFASU5Kk",
