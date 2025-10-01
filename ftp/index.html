@@ -53,9 +53,9 @@
 
     <div id="app" class="w-full max-w-4xl space-y-8">
         <header class="text-center">
-            <h1 class="4xl font-extrabold text-primary-dark mb-2">File Transfer</h1>
-            <p class="text-gray-600">The file is split into many chunks and stored across multiple database documents.</p>
-            <p class="text-sm text-secondary font-semibold mt-1">⚠️There is a 500 MB maximum.⚠️</p>
+            <h1 class="4xl font-extrabold text-primary-dark mb-2">Chunked File Transfer (Text Packages)</h1>
+            <p class="text-gray-600">The file is split into many **text packages (chunks)** and stored across multiple database documents.</p>
+            <p class="text-sm text-secondary font-semibold mt-1">⚠️ **ABSOLUTE LIMIT:** Using this database method for files over 10MB is extremely slow and costly. We recommend a **50 MB** maximum.</p>
         </header>
 
         <!-- Admin Indicator - Always hidden unless Admin Mode is active -->
@@ -177,7 +177,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // ADDED deleteDoc here to support deletion
+        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Set Firebase Logging for debugging
@@ -185,7 +186,7 @@
 
         // --- CONSTANTS ---
         const MAX_BASE64_CHUNK_SIZE = 700 * 1024; // 700 KB of Base64 string per document
-        const MAX_RAW_FILE_SIZE = 500 * 1024 * 1024; // 50 MB
+        const MAX_RAW_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
         const ADMIN_PASSWORD = "hiimgreg"; // Updated password
         // Complete Firebase configuration provided by the user, used as the robust default/fallback.
         const DEFAULT_FIREBASE_CONFIG = {
@@ -259,28 +260,28 @@
             const del = 0.4;
 
             const theDays = (options && options.theDays) || [
-                "SUN",
-                "MON",
-                "TUE",
-                "WED",
-                "THU",
-                "FRI",
-                "SAT",
+                " ",
+                " ",
+                " ",
+                " ",
+                " ",
+                " ",
+                " ",
             ];
 
             const theMonths = (options && options.theMonths) || [
-                "JAN",
-                "FEB",
-                "MAR",
-                "APR",
+                "JANUARY",
+                "FEBRUARY",
+                "MARCH",
+                "APRIL",
                 "MAY",
-                "JUN",
-                "JUL",
-                "AUG",
-                "SEP",
-                "OCT",
-                "NOV",
-                "DEC",
+                "JUNE",
+                "JULY",
+                "AUGUST",
+                "SEPTEMBER",
+                "OCTOBER",
+                "NOVEMBER",
+                "DECEMBER",
             ];
 
             let date = new Date();
@@ -361,18 +362,6 @@
                 }
             };
 
-            // NOTE: The following block of variable declarations was removed because it was a duplicate,
-            // causing the "Identifier 'dateInWords' has already been declared" error.
-
-            // Re-initialise or destroy the cursor when the prefers-reduced-motion setting changes
-            prefersReducedMotion.onchange = () => {
-                if (prefersReducedMotion.matches) {
-                    destroy();
-                } else {
-                    init();
-                }
-            };
-
             function init() {
                 // Don't show the cursor trail if the user has prefers-reduced-motion enabled
                 if (prefersReducedMotion.matches) {
@@ -415,7 +404,7 @@
                 }
 
                 // Date in Words
-                for (let i = 0; i < tmpd.length; i++) {
+                for (let i = 0; i < dateInWords.length; i++) {
                     tmpd[i] = {
                         color: dateColor,
                         value: dateInWords[i],
@@ -712,6 +701,9 @@
                 // 2. Hide password input after successful login
                 adminLoginContainer.style.display = 'none';
 
+                // Force a refresh of the file list to show the delete buttons
+                setupLiveFileListing();
+
             } else {
                 isAdminMode = false;
                 adminIndicator.classList.add('hidden');
@@ -721,6 +713,9 @@
                     cursorEffect.destroy();
                     cursorEffect = null;
                 }
+
+                // Force a refresh of the file list to hide the delete buttons
+                setupLiveFileListing();
             }
         }
 
@@ -799,6 +794,14 @@
                         </p>
                     </div>
                     <div class="flex items-center space-x-3 ml-4 flex-shrink-0">
+                        <!-- DELETE BUTTON (Admin Only) -->
+                        ${isAdminMode ? `
+                            <button class="text-red-500 hover:text-red-700 font-medium text-sm delete-file-btn focus:outline-none" 
+                                    data-code="${file.code}" 
+                                    data-name="${file.name}">
+                                Delete
+                            </button>
+                        ` : ''}
                         <!-- Use Code Button -->
                         <button class="text-blue-500 hover:text-blue-700 font-medium text-sm use-code-btn focus:outline-none">
                             Use Code
@@ -813,6 +816,19 @@
                     // Scroll to the download section
                     downloadButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
+
+                // Add delete button handler if it exists and isAdminMode is true
+                if (isAdminMode) {
+                    const deleteBtn = listItem.querySelector('.delete-file-btn');
+                    deleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent 'Use Code' logic from firing
+                        const codeToDelete = e.target.getAttribute('data-code');
+                        
+                        // Provide pre-deletion feedback and execute deletion (no banned confirm() dialog)
+                        setFeedback(downloadFeedback, `Admin: Deleting file "${file.name}" (Code: ${codeToDelete})...`, 'info');
+                        deleteFile(codeToDelete);
+                    });
+                }
 
                 fileList.appendChild(listItem);
             });
@@ -911,6 +927,45 @@
         }
 
 
+        // --- DELETE HANDLER (Chunked Firestore Bulk Delete) ---
+
+        /**
+         * Deletes a file and all its chunk documents from Firestore.
+         * Only works if isAdminMode is true.
+         * @param {string} code - The 6-digit file code.
+         */
+        async function deleteFile(code) {
+            if (!isAdminMode) {
+                setFeedback(downloadFeedback, 'Deletion failed: Admin mode required.', 'error');
+                return;
+            }
+
+            const fileDocRef = getFileDocRef(code);
+            const chunkCollectionRef = getChunkCollectionRef(code);
+
+            try {
+                // 1. Delete all chunks in the subcollection
+                const chunkSnapshot = await getDocs(query(chunkCollectionRef));
+                const deletePromises = [];
+                
+                chunkSnapshot.forEach((chunkDoc) => {
+                    deletePromises.push(deleteDoc(chunkDoc.ref));
+                });
+
+                // Wait for all chunk deletions to complete
+                await Promise.all(deletePromises);
+                
+                // 2. Delete the main metadata document
+                await deleteDoc(fileDocRef);
+
+                setFeedback(downloadFeedback, `File (Code: ${code}) and ${deletePromises.length} packages deleted completely.`, 'success');
+
+            } catch (error) {
+                console.error("Deletion failed for code", code, error);
+                setFeedback(downloadFeedback, `Deletion failed for code ${code}: ${error.message}`, 'error');
+            }
+        }
+        
         // --- UPLOAD HANDLER (File -> Base64 Text -> Chunked Firestore) ---
 
         uploadButton.addEventListener('click', async () => {
