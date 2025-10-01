@@ -45,7 +45,7 @@
 
     <div id="app" class="w-full max-w-4xl space-y-8">
         <header class="text-center">
-            <h1 class="text-4xl font-extrabold text-primary-dark mb-2">Chunked File Transfer (Text Packages)</h1>
+            <h1 class="4xl font-extrabold text-primary-dark mb-2">Chunked File Transfer (Text Packages)</h1>
             <p class="text-gray-600">The file is split into many **text packages (chunks)** and stored across multiple database documents.</p>
             <p class="text-sm text-secondary font-semibold mt-1">⚠️ **ABSOLUTE LIMIT:** We've pushed the theoretical limit to **~50 MB**, but **25 GB is impossible** using this database method (it would require thousands of slow, expensive writes).</p>
         </header>
@@ -156,11 +156,20 @@
         const MAX_BASE64_CHUNK_SIZE = 700 * 1024; // 700 KB of Base64 string per document
         // Max raw file size limit for this chunking method (Increased from 10MB to 50MB, but still strongly discouraged)
         const MAX_RAW_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+        
+        // Project ID provided by the user, used as a robust fallback.
+        const USER_PROVIDED_PROJECT_ID = "filetransfer6969696969";
 
         // --- GLOBAL VARIABLES (Provided by Canvas Environment) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-file-transfer-app';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // Parse config safely, ensuring it's an object even if the string is empty
+        let firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Use the explicit project ID if the environment configuration is missing it.
+        if (!firebaseConfig.projectId) {
+            firebaseConfig.projectId = USER_PROVIDED_PROJECT_ID;
+        }
 
         let db, auth;
         let userId = null;
@@ -253,6 +262,11 @@
         // --- FIREBASE INITIALIZATION ---
 
         try {
+            // CRITICAL CHECK: Ensure we have a projectId before attempting to initialize
+            if (!firebaseConfig || !firebaseConfig.projectId) {
+                 throw new Error("Missing required Firebase configuration (projectId).");
+            }
+            
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
@@ -261,12 +275,12 @@
                 if (user) {
                     userId = user.uid;
                     authStatus.textContent = `Authenticated as: ${userId}`;
-                    authStatus.classList.remove('text-gray-500');
+                    authStatus.classList.remove('text-gray-500', 'bg-red-50');
                     authStatus.classList.add('text-green-600', 'bg-green-50');
                 } else {
                     userId = null;
                     authStatus.textContent = "Authentication failed. App is unusable.";
-                    authStatus.classList.remove('text-gray-500');
+                    authStatus.classList.remove('text-gray-500', 'bg-green-50');
                     authStatus.classList.add('text-red-600', 'bg-red-50');
                 }
                 isAuthReady = true;
@@ -283,8 +297,14 @@
 
         } catch (error) {
             console.error("Firebase initialization failed:", error);
-            setFeedback(authStatus, `Error: Firebase initialization failed. Check console for details.`, 'error');
+            // Update authStatus to show the error
+            authStatus.textContent = `Error: Initialization failed. ${error.message}`;
+            authStatus.classList.remove('text-gray-500');
+            authStatus.classList.add('text-red-600', 'bg-red-50');
             isAuthReady = true;
+            // Disable buttons immediately since the DB is not available
+            uploadButton.disabled = true;
+            downloadButton.disabled = true;
         }
 
         /**
@@ -306,8 +326,8 @@
         // --- UPLOAD HANDLER (File -> Base64 Text -> Chunked Firestore) ---
 
         uploadButton.addEventListener('click', async () => {
-            if (!isAuthReady || !userId) {
-                setFeedback(uploadFeedback, 'Authentication not ready. Please wait.', 'info');
+            if (!isAuthReady || !userId || uploadButton.disabled) {
+                setFeedback(uploadFeedback, 'Application is not ready. Please check initialization status.', 'info');
                 return;
             }
 
@@ -443,8 +463,8 @@
         // --- DOWNLOAD HANDLER (Chunked Firestore -> Base64 Text -> File) ---
 
         downloadButton.addEventListener('click', async () => {
-            if (!isAuthReady || !userId) {
-                setFeedback(downloadFeedback, 'Authentication not ready. Please wait.', 'info');
+            if (!isAuthReady || !userId || downloadButton.disabled) {
+                setFeedback(downloadFeedback, 'Application is not ready. Please check initialization status.', 'info');
                 return;
             }
             
