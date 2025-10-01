@@ -129,7 +129,17 @@
                         Click to Save File
                     </a>
                 </div>
+            </div>
+        </div>
 
+        <!-- AVAILABLE FILES LIST -->
+        <div class="bg-card p-6 rounded-xl shadow-lg border border-gray-100 transition-all hover:shadow-xl">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-blue-info" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 12a9 9 0 110-18 9 9 0 010 18z"></path></svg>
+                3. Available Files (Real-Time)
+            </h2>
+            <div id="fileList" class="space-y-3">
+                <p class="text-gray-500 text-sm italic">Initializing list...</p>
             </div>
         </div>
         
@@ -144,8 +154,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // Added 'collection', 'query', 'getDocs', 'deleteDoc' for chunk handling
-        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // NOTE: Added 'onSnapshot' to the list of imports for real-time listing.
+        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Set Firebase Logging for debugging
@@ -202,6 +212,7 @@
         const downloadProgressContainer = document.getElementById('downloadProgressContainer');
         const downloadProgressBar = document.getElementById('downloadProgressBar');
         const downloadProgressCount = document.getElementById('downloadProgressCount');
+        const fileList = document.getElementById('fileList');
 
 
         // --- UTILITY FUNCTIONS ---
@@ -229,6 +240,17 @@
                     element.classList.add('bg-blue-100', 'text-blue-700');
                     break;
             }
+        }
+
+        /**
+         * Converts file size in bytes to a human-readable format.
+         */
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
         /**
@@ -288,6 +310,11 @@
                     authStatus.classList.add('text-red-600', 'bg-red-50');
                 }
                 isAuthReady = true;
+                
+                // Once authenticated state is known, set up the live listener
+                if (user) {
+                    setupLiveFileListing();
+                }
             });
 
             if (initialAuthToken) {
@@ -318,6 +345,14 @@
             const collectionPath = `/artifacts/${appId}/public/data/chunked_transfers`;
             return doc(db, collectionPath, code);
         }
+        
+        /**
+         * Returns the Firestore Collection Reference for all file transfers.
+         */
+        function getTransferCollectionRef() {
+            const collectionPath = `/artifacts/${appId}/public/data/chunked_transfers`;
+            return collection(db, collectionPath);
+        }
 
         /**
          * Returns the Firestore Collection Reference for file chunks (Subcollection).
@@ -326,6 +361,96 @@
             const docRef = getFileDocRef(code);
             return collection(db, docRef.path, 'chunks');
         }
+        
+        /**
+         * Displays the list of available files fetched from Firestore.
+         * @param {Array<Object>} files - Array of file objects with {code, name, size, uploadedAt}.
+         */
+        function displayAvailableFiles(files) {
+            if (files.length === 0) {
+                fileList.innerHTML = '<p class="text-gray-500 text-sm italic">No files have been uploaded yet.</p>';
+                return;
+            }
+
+            fileList.innerHTML = '';
+            
+            // Sort by uploaded date descending (newest first)
+            files.sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+            files.forEach(file => {
+                const listItem = document.createElement('div');
+                // Use a standard div and make it look like an interactive list item
+                listItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-green-50 transition duration-150 border border-gray-200';
+                listItem.setAttribute('data-code', file.code);
+
+                listItem.innerHTML = `
+                    <div class="truncate">
+                        <p class="font-semibold text-gray-800 truncate">${file.name}</p>
+                        <p class="text-xs text-gray-500">
+                            Code: <span class="font-mono text-primary-dark tracking-wider">${file.code}</span> 
+                            | Size: ${formatFileSize(file.size)}
+                        </p>
+                    </div>
+                    <button class="text-blue-500 hover:text-blue-700 font-medium text-sm ml-4 flex-shrink-0 focus:outline-none">
+                        Use Code
+                    </button>
+                `;
+                
+                // Click handler to populate the download input and scroll
+                listItem.addEventListener('click', () => {
+                    codeEnter.value = file.code;
+                    setFeedback(downloadFeedback, `Code ${file.code} ready for download. Click 'Retrieve & Reassemble'.`, 'info');
+                    // Scroll to the download section
+                    downloadButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+
+                fileList.appendChild(listItem);
+            });
+        }
+        
+        /**
+         * Sets up the real-time listener for the file transfer collection.
+         */
+        function setupLiveFileListing() {
+            if (!db || !isAuthReady || !userId) {
+                return;
+            }
+            
+            try {
+                const q = query(getTransferCollectionRef());
+                fileList.innerHTML = '<p class="text-gray-500 text-sm italic">Establishing real-time connection...</p>';
+
+                onSnapshot(q, (snapshot) => {
+                    const files = [];
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        // Only list documents that have the required file metadata fields
+                        if (data.name && data.size && data.totalChunks) {
+                            files.push({
+                                code: doc.id,
+                                name: data.name,
+                                size: data.size,
+                                type: data.type,
+                                totalChunks: data.totalChunks,
+                                uploadedAt: data.uploadedAt || 0 // Default to 0 if missing for sorting
+                            });
+                        }
+                    });
+                    
+                    displayAvailableFiles(files);
+                    console.log(`File list updated. Found ${files.length} files.`);
+
+                }, (error) => {
+                    console.error("Error setting up real-time listener:", error);
+                    fileList.innerHTML = `<p class="text-red-600 text-sm">Failed to load file list: ${error.message}</p>`;
+                });
+
+            } catch (error) {
+                console.error("Could not set up live listing:", error);
+                fileList.innerHTML = `<p class="text-red-600 text-sm">Error initializing list listener.</p>`;
+            }
+        }
+
 
         // --- UPLOAD HANDLER (File -> Base64 Text -> Chunked Firestore) ---
 
@@ -515,8 +640,10 @@
                 
                 // 3. Reassemble the Base64 string
                 const retrievedChunks = [];
-                chunkSnapshot.docs.forEach((doc, index) => {
-                    const data = doc.data();
+                // Sort the documents by their stored 'index' property just to be absolutely safe
+                const sortedDocs = chunkSnapshot.docs.map(doc => doc.data()).sort((a, b) => a.index - b.index);
+
+                sortedDocs.forEach((data, index) => {
                     retrievedChunks[data.index] = data.data; // Use the stored index to ensure correct order
                     
                     // Update progress bar
