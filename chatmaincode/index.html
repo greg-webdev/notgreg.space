@@ -3,527 +3,426 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Transfer App</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Cloud Storage File Transfer</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Configure custom colors and font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#4f46e5',
+                        'primary-dark': '#4338ca',
+                        'secondary': '#10b981', /* Using a green for file success */
+                        'background': '#f3f4f6',
+                        'card': '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        /* Custom styles for better aesthetics if needed, but Tailwind handles most */
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out;
+        ::-webkit-scrollbar-thumb {
+            background-color: #9ca3af;
+            border-radius: 4px;
         }
-        .message-box.show {
-            opacity: 1;
-        }
-        .message-box.success {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #34d399;
-        }
-        .message-box.error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
-        }
-        .message-box.info {
-            background-color: #e0f2fe;
-            color: #0c4a6e;
-            border: 1px solid #38bdf8;
+        /* Ensure responsive height for mobile viewports */
+        html, body {
+            min-height: 100vh;
         }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-800 p-4 sm:p-6 flex items-center justify-center">
+<body class="bg-background font-sans flex items-center justify-center p-4">
 
-    <div id="loading-screen" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
-        <div class="text-lg font-semibold text-gray-700">Loading Firebase...</div>
+    <div id="app" class="w-full max-w-4xl space-y-8">
+        <header class="text-center">
+            <h1 class="text-4xl font-extrabold text-primary-dark mb-2">Scalable Cloud File Transfer</h1>
+            <p class="text-gray-600">Transfer files of any size using Firebase Cloud Storage.</p>
+            <p class="text-sm text-secondary font-semibold mt-1">✨ Transfers use Firebase Storage (up to 5TB per file).</p>
+        </header>
+
+        <!-- Main Cards Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- UPLOAD SECTION -->
+            <div class="bg-card p-6 rounded-xl shadow-lg border border-gray-100 transition-all hover:shadow-xl">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    1. Upload File (Cloud Storage)
+                </h2>
+
+                <input type="file" id="fileInput" accept="*" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none p-3 mb-4">
+                
+                <button id="uploadButton" 
+                        class="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-dark transition duration-200 focus:outline-none focus:ring-4 focus:ring-primary-dark focus:ring-opacity-50 disabled:opacity-50">
+                    Upload to Cloud Storage
+                </button>
+
+                <!-- Progress Bar -->
+                <div id="progressBarContainer" class="mt-4 hidden">
+                    <div class="text-xs font-semibold text-gray-700 mb-1 flex justify-between">
+                        <span>Uploading...</span>
+                        <span id="uploadProgress">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="uploadFeedback" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+
+                <div id="shareCodeContainer" class="mt-4 p-4 border-2 border-dashed border-secondary rounded-lg bg-green-50 hidden">
+                    <p class="text-green-700 font-semibold mb-2">File Uploaded! Share this code:</p>
+                    <div class="flex items-center space-x-2">
+                        <span id="shareCodeDisplay" class="text-3xl font-mono tracking-widest text-green-800 bg-green-200 px-4 py-2 rounded-md flex-grow text-center select-all"></span>
+                        <button id="copyButton" class="p-2 rounded-md bg-secondary text-white hover:bg-green-600 transition duration-150" aria-label="Copy code to clipboard">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v2"></path></svg>
+                        </button>
+                    </div>
+                    <p class="text-xs text-green-600 mt-2">The code links to your file in the cloud.</p>
+                </div>
+            </div>
+
+            <!-- DOWNLOAD SECTION -->
+            <div class="bg-card p-6 rounded-xl shadow-lg border border-gray-100 transition-all hover:shadow-xl">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-primary-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    2. Download File
+                </h2>
+
+                <input type="text" id="codeEnter" placeholder="Enter 6-digit code..." maxlength="6"
+                       class="w-full border border-gray-300 p-3 rounded-lg focus:ring-primary-dark focus:border-primary-dark mb-4 placeholder-gray-400 text-lg tracking-wider font-mono uppercase">
+                
+                <button id="downloadButton" 
+                        class="w-full bg-primary-dark text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-200 focus:outline-none focus:ring-4 focus:ring-primary-dark focus:ring-opacity-50 disabled:opacity-50">
+                    Retrieve & Download
+                </button>
+
+                <div id="downloadFeedback" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+
+                <div id="downloadInfo" class="mt-4 p-4 border border-blue-400 rounded-lg bg-blue-50 hidden">
+                    <p class="text-blue-700 font-semibold mb-2">File Ready:</p>
+                    <p class="text-blue-600 text-sm"><span class="font-bold">Name:</span> <span id="downloadFileName"></span></p>
+                    <p class="text-blue-600 text-sm"><span class="font-bold">Size:</span> <span id="downloadFileSize"></span></p>
+                    <p class="text-blue-600 text-sm"><span class="font-bold">Type:</span> <span id="downloadFileType"></span></p>
+                    <a id="fileDownloadLink" href="#" target="_blank" class="mt-3 block text-center bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 font-medium" download>
+                        Click to Save File
+                    </a>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- Status Box -->
+        <div id="authStatus" class="text-center text-sm text-gray-500 mt-6 p-3 bg-card rounded-xl shadow-sm">
+            Initializing...
+        </div>
+
     </div>
-
-    <div id="app-container" class="w-full max-w-3xl mx-auto hidden">
-        <!-- Content will be rendered here by JavaScript -->
-    </div>
-
-    <!-- Message Box Element -->
-    <div id="message-box" class="message-box hidden"></div>
 
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // NEW: Import Storage SDK functions
         import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables for Firebase instances and user data
-        let app;
-        let db;
-        let auth;
-        let storage;
+        // Set Firebase Logging for debugging
+        setLogLevel('Debug');
+
+        // --- GLOBAL VARIABLES (Provided by Canvas Environment) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-file-transfer-app';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, storage; // Added storage instance
         let userId = null;
-        let currentRoomId = null;
-        let currentPage = 'home'; // 'home' or 'room'
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // Keep this for Canvas environment
+        let isAuthReady = false;
 
-        // Explicit Firebase Configuration for local VS Code execution
-        const firebaseConfig = {
-            apiKey: "AIzaSyDhU4aFUSbdsEXlIVUiaSBxocHAFASU5Kk",
-            authDomain: "filetransfer6969696969.firebaseapp.com",
-            projectId: "filetransfer6969696969",
-            storageBucket: "filetransfer6969696969.firebasestorage.app",
-            messagingSenderId: "958574372758",
-            appId: "1:958574372758:web:b93d83cd4171be56765fb7"
-        };
+        // DOM Elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const codeEnter = document.getElementById('codeEnter');
+        const downloadButton = document.getElementById('downloadButton');
+        const uploadFeedback = document.getElementById('uploadFeedback');
+        const downloadFeedback = document.getElementById('downloadFeedback');
+        const shareCodeContainer = document.getElementById('shareCodeContainer');
+        const shareCodeDisplay = document.getElementById('shareCodeDisplay');
+        const copyButton = document.getElementById('copyButton');
+        const downloadInfo = document.getElementById('downloadInfo');
+        const downloadFileName = document.getElementById('downloadFileName');
+        const downloadFileSize = document.getElementById('downloadFileSize');
+        const downloadFileType = document.getElementById('downloadFileType');
+        const fileDownloadLink = document.getElementById('fileDownloadLink');
+        const authStatus = document.getElementById('authStatus');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const uploadProgress = document.getElementById('uploadProgress');
 
-        // Function to show custom message box
-        function showMessage(msg, type = 'info') {
-            const msgBox = document.getElementById('message-box');
-            msgBox.textContent = msg;
-            msgBox.className = `message-box show ${type}`;
-            msgBox.style.display = 'block';
-            setTimeout(() => {
-                msgBox.classList.remove('show');
-                msgBox.style.display = 'none'; // Hide after transition
-            }, 3000); // Hide after 3 seconds
+
+        /**
+         * Clears all existing feedback messages and sets a new one.
+         * @param {HTMLElement} element - The feedback div element.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success', 'error', or 'info'.
+         */
+        function setFeedback(element, message, type) {
+            element.textContent = message;
+            element.className = 'mt-4 p-3 rounded-lg text-sm'; // Reset classes
+            element.classList.remove('hidden');
+            
+            switch (type) {
+                case 'success':
+                    element.classList.add('bg-green-100', 'text-green-700');
+                    break;
+                case 'error':
+                    element.classList.add('bg-red-100', 'text-red-700');
+                    break;
+                case 'info':
+                default:
+                    element.classList.add('bg-blue-100', 'text-blue-700');
+                    break;
+            }
         }
 
-        // Initialize Firebase
-        async function initializeFirebase() {
-            try {
-                // Use the hardcoded firebaseConfig for local development
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                storage = getStorage(app);
+        /**
+         * Generates a random 6-digit numeric code.
+         * @returns {string} - The 6-digit code.
+         */
+        function generateShareCode() {
+            return String(Math.floor(100000 + Math.random() * 900000));
+        }
 
-                // Initial auth token is only available in Canvas, so sign in anonymously for local
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== null) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+        // --- FIREBASE INITIALIZATION ---
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            storage = getStorage(app); // Initialize Storage
+
+            // Authentication setup
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    authStatus.textContent = `Authenticated as: ${userId}`;
+                    authStatus.classList.remove('text-gray-500');
+                    authStatus.classList.add('text-green-600', 'bg-green-50');
                 } else {
-                    await signInAnonymously(auth);
+                    userId = null;
+                    authStatus.textContent = "Authentication failed. App is unusable.";
+                    authStatus.classList.remove('text-gray-500');
+                    authStatus.classList.add('text-red-600', 'bg-red-50');
                 }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        document.getElementById('loading-screen').classList.add('hidden');
-                        document.getElementById('app-container').classList.remove('hidden');
-                        renderPage(); // Render the initial page after auth
-                    } else {
-                        userId = null;
-                        document.getElementById('loading-screen').classList.add('hidden');
-                        document.getElementById('app-container').classList.remove('hidden');
-                        document.getElementById('app-container').innerHTML = `
-                            <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200 text-center">
-                                <p class="text-lg font-semibold text-red-500">Failed to initialize Firebase or get user ID. Please try again.</p>
-                            </div>
-                        `;
-                    }
-                });
-            } catch (error) {
-                console.error("Error initializing Firebase:", error);
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('app-container').classList.remove('hidden');
-                document.getElementById('app-container').innerHTML = `
-                    <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200 text-center">
-                        <p class="text-lg font-semibold text-red-500">Error initializing Firebase: ${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        // --- Page Rendering Functions ---
-
-        function renderHomePage() {
-            const appContainer = document.getElementById('app-container');
-            appContainer.innerHTML = `
-                <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                    <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6">File Share</h1>
-                    <p class="text-center text-gray-600 mb-8">Share files seamlessly between two devices.</p>
-
-                    <div class="mb-6">
-                        <button id="create-room-btn"
-                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75"
-                        >
-                            Create New Room
-                        </button>
-                    </div>
-
-                    <div class="relative flex py-5 items-center">
-                        <div class="flex-grow border-t border-gray-300"></div>
-                        <span class="flex-shrink mx-4 text-gray-500">OR</span>
-                        <div class="flex-grow border-t border-gray-300"></div>
-                    </div>
-
-                    <div class="mb-6">
-                        <input type="text" id="room-id-input" placeholder="Enter Room ID"
-                            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                        />
-                        <button id="join-room-btn"
-                            class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75"
-                        >
-                            Join Room
-                        </button>
-                    </div>
-
-                    <p id="home-message" class="text-center text-red-500 mt-4 text-sm"></p>
-
-                    <p class="text-center text-sm text-gray-500 mt-8">
-                        Your User ID: <span class="font-mono text-indigo-600 break-all" id="user-id-display">${userId}</span>
-                    </p>
-                </div>
-            `;
-
-            document.getElementById('create-room-btn').onclick = createRoom;
-            document.getElementById('join-room-btn').onclick = joinRoom;
-        }
-
-        let unsubscribeRoom = null;
-        let unsubscribeFiles = null;
-
-        function renderRoomPage() {
-            const appContainer = document.getElementById('app-container');
-            appContainer.innerHTML = `
-                <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200">
-                    <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-3xl font-bold text-indigo-700">Room: <span class="font-mono" id="room-id-display">${currentRoomId}</span></h1>
-                        <button id="leave-room-btn"
-                            class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75"
-                        >
-                            Leave Room
-                        </button>
-                    </div>
-
-                    <p id="room-page-message" class="text-center text-gray-600 mb-6"></p>
-
-                    <div id="room-status-waiting" class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg mb-6 text-center hidden">
-                        <p>Waiting for another user to join this room...</p>
-                        <p class="text-sm mt-2">Share this Room ID with your friend: <span class="font-mono font-semibold">${currentRoomId}</span></p>
-                    </div>
-
-                    <div id="file-drop-area"
-                        class="border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 mb-8"
-                    >
-                        <div id="uploading-state" class="hidden">
-                            <p class="text-lg text-indigo-600 font-semibold">Uploading...</p>
-                            <div class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-                                <div id="upload-progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%;"></div>
-                            </div>
-                            <p id="upload-progress-text" class="text-sm text-gray-500 mt-2">0.0%</p>
-                        </div>
-                        <div id="idle-state">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <p class="mt-2 text-lg text-gray-600">Drag 'n' drop files here, or click to select</p>
-                            <p class="text-sm text-gray-500">Only one file at a time for simplicity (max 50MB)</p>
-                        </div>
-                    </div>
-
-                    <h2 class="text-2xl font-bold text-indigo-700 mb-4">Shared Files</h2>
-                    <ul id="files-list" class="space-y-4">
-                        <p class="text-gray-500 text-center py-4">No files shared yet in this room.</p>
-                    </ul>
-
-                    <p class="text-center text-sm text-gray-500 mt-8">
-                        Your User ID: <span class="font-mono text-indigo-600 break-all" id="user-id-display-room">${userId}</span>
-                    </p>
-                </div>
-            `;
-
-            document.getElementById('leave-room-btn').onclick = leaveRoom;
-
-            const fileDropArea = document.getElementById('file-drop-area');
-            fileDropArea.addEventListener('dragover', (e) => { e.preventDefault(); fileDropArea.classList.add('border-indigo-500', 'bg-indigo-50'); });
-            fileDropArea.addEventListener('dragleave', () => { fileDropArea.classList.remove('border-indigo-500', 'bg-indigo-50'); });
-            fileDropArea.addEventListener('drop', handleDrop);
-
-            // Start listeners for room status and files
-            listenToRoomStatus();
-            listenToFiles();
-        }
-
-        function renderPage() {
-            if (currentPage === 'home') {
-                renderHomePage();
-            } else if (currentPage === 'room') {
-                renderRoomPage();
-            }
-        }
-
-        // --- Firebase Logic Functions ---
-
-        async function createRoom() {
-            try {
-                const newRoomId = crypto.randomUUID().substring(0, 8); // Generate a short unique ID
-                const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, newRoomId);
-                await setDoc(roomRef, {
-                    users: [{ uid: userId, joinedAt: Date.now() }],
-                    createdAt: serverTimestamp(),
-                    status: 'waiting',
-                });
-                currentRoomId = newRoomId;
-                currentPage = 'room';
-                renderPage();
-            } catch (error) {
-                console.error("Error creating room:", error);
-                showMessage("Failed to create room. Please try again.", 'error');
-            }
-        }
-
-        async function joinRoom() {
-            const roomIdInput = document.getElementById('room-id-input').value;
-            if (!roomIdInput) {
-                showMessage("Please enter a Room ID.", 'error');
-                return;
-            }
-            try {
-                const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, roomIdInput);
-                const roomSnap = await getDoc(roomRef);
-
-                if (!roomSnap.exists()) {
-                    showMessage("Room does not exist.", 'error');
-                    return;
-                }
-
-                const roomData = roomSnap.data();
-                if (roomData.users && roomData.users.length >= 2) {
-                    showMessage("Room is full. Please try another room.", 'error');
-                    return;
-                }
-
-                const userInRoom = roomData.users.some(user => user.uid === userId);
-                if (userInRoom) {
-                    showMessage("You are already in this room.", 'info');
-                    currentRoomId = roomIdInput;
-                    currentPage = 'room';
-                    renderPage();
-                    return;
-                }
-
-                await updateDoc(roomRef, {
-                    users: arrayUnion({ uid: userId, joinedAt: Date.now() }),
-                    status: 'ready'
-                });
-
-                currentRoomId = roomIdInput;
-                currentPage = 'room';
-                renderPage();
-            } catch (error) {
-                console.error("Error joining room:", error);
-                showMessage("Failed to join room. Please try again.", 'error');
-            }
-        }
-
-        async function leaveRoom() {
-            try {
-                const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, currentRoomId);
-                await updateDoc(roomRef, {
-                    users: arrayRemove({ uid: userId })
-                });
-                // Unsubscribe from listeners when leaving the room
-                if (unsubscribeRoom) unsubscribeRoom();
-                if (unsubscribeFiles) unsubscribeFiles();
-                currentRoomId = null;
-                currentPage = 'home';
-                renderPage();
-            } catch (error) {
-                console.error("Error leaving room:", error);
-                showMessage("Failed to leave room.", 'error');
-            }
-        }
-
-        function listenToRoomStatus() {
-            const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, currentRoomId);
-            unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
-                const roomPageMessage = document.getElementById('room-page-message');
-                const roomStatusWaiting = document.getElementById('room-status-waiting');
-                const fileDropArea = document.getElementById('file-drop-area'); // Get reference
-
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.users && data.users.length === 2) {
-                        roomPageMessage.textContent = 'Another user has joined! You can now share files.';
-                        roomStatusWaiting.classList.add('hidden');
-                        // fileDropArea.classList.remove('hidden'); // Removed: fileDropArea is now always visible
-                        fileDropArea.classList.remove('opacity-70', 'cursor-not-allowed'); // Make it active
-                    } else {
-                        roomPageMessage.textContent = 'Waiting for another user to join this room...';
-                        roomStatusWaiting.classList.remove('hidden');
-                        // fileDropArea.classList.add('hidden'); // Removed: fileDropArea is now always visible
-                        fileDropArea.classList.add('opacity-70', 'cursor-not-allowed'); // Make it appear inactive
-                    }
-                } else {
-                    roomPageMessage.textContent = 'Room not found or deleted.';
-                    roomStatusWaiting.classList.add('hidden');
-                    fileDropArea.classList.add('opacity-70', 'cursor-not-allowed'); // Make it appear inactive
-                    showMessage('Room has been deleted or does not exist. Returning to home.', 'error');
-                    setTimeout(() => {
-                        currentPage = 'home';
-                        renderPage();
-                    }, 2000);
-                }
-            }, (error) => {
-                console.error("Error listening to room:", error);
-                showMessage('Error fetching room status.', 'error');
+                isAuthReady = true;
             });
-        }
 
-        function listenToFiles() {
-            const filesCollectionRef = collection(db, `artifacts/${appId}/public/data/rooms/${currentRoomId}/files`);
-            unsubscribeFiles = onSnapshot(filesCollectionRef, (snapshot) => {
-                const filesList = document.getElementById('files-list');
-                filesList.innerHTML = ''; // Clear existing list
-
-                if (snapshot.empty) {
-                    filesList.innerHTML = '<p class="text-gray-500 text-center py-4">No files shared yet in this room.</p>';
-                    return;
-                }
-
-                const fetchedFiles = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                // Sort files by timestamp descending
-                fetchedFiles.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
-
-                fetchedFiles.forEach(file => {
-                    const listItem = document.createElement('li');
-                    listItem.className = 'flex items-center justify-between bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-100';
-                    listItem.innerHTML = `
-                        <div class="flex flex-col">
-                            <span class="font-semibold text-gray-800 break-all">${file.name}</span>
-                            <span class="text-sm text-gray-500">${formatFileSize(file.size)}</span>
-                            <span class="text-xs text-gray-400">
-                                Uploaded by: ${file.uploaderId === userId ? 'You' : file.uploaderId.substring(0, 8) + '...'}
-                            </span>
-                        </div>
-                        <a href="${file.url}" target="_blank" rel="noopener noreferrer" download
-                            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
-                        >
-                            Download
-                        </a>
-                    `;
-                    filesList.appendChild(listItem);
+            // Sign in using custom token or anonymously
+            if (initialAuthToken) {
+                signInWithCustomToken(auth, initialAuthToken).catch(error => {
+                    console.error("Custom token sign-in failed, falling back to anonymous:", error);
+                    signInAnonymously(auth);
                 });
-            }, (error) => {
-                console.error("Error listening to files:", error);
-                showMessage('Error fetching files.', 'error');
-            });
+            } else {
+                signInAnonymously(auth);
+            }
+
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            setFeedback(authStatus, `Error: Firebase initialization failed. Check console for details.`, 'error');
+            isAuthReady = true;
         }
 
-        async function handleDrop(e) {
-            e.preventDefault();
-            const fileDropArea = document.getElementById('file-drop-area');
-            fileDropArea.classList.remove('border-indigo-500', 'bg-indigo-50');
+        /**
+         * Returns the Firestore Document Reference for a given code.
+         * We use Firestore to store metadata and the public URL.
+         * @param {string} code - The 6-digit sharing code.
+         * @returns {DocumentReference}
+         */
+        function getMetadataDocRef(code) {
+            const collectionPath = `/artifacts/${appId}/public/data/file_metadata`;
+            return doc(db, collectionPath, code);
+        }
 
-            const roomPageMessage = document.getElementById('room-page-message');
-            const uploadingState = document.getElementById('uploading-state');
-            const idleState = document.getElementById('idle-state');
-            const uploadProgressBar = document.getElementById('upload-progress-bar');
-            const uploadProgressText = document.getElementById('upload-progress-text');
+        // --- UPLOAD HANDLER (File -> Cloud Storage -> Firestore Metadata) ---
 
-            // --- Debugging: Log dataTransfer.files ---
-            console.log("e.dataTransfer.files:", e.dataTransfer.files);
-            // --- End Debugging ---
-
-            // Check if room is ready
-            const roomRef = doc(db, `artifacts/${appId}/public/data/rooms`, currentRoomId);
-            const roomSnap = await getDoc(roomRef);
-            if (!roomSnap.exists() || roomSnap.data().users.length < 2) {
-                showMessage('Please wait for another user to join before uploading files.', 'info');
-                // Keep the drop area visually inactive
-                fileDropArea.classList.add('opacity-70', 'cursor-not-allowed');
+        uploadButton.addEventListener('click', async () => {
+            if (!isAuthReady || !userId) {
+                setFeedback(uploadFeedback, 'Authentication not ready. Please wait.', 'info');
                 return;
             }
 
-            const droppedFiles = Array.from(e.dataTransfer.files);
-            if (droppedFiles.length === 0) {
-                showMessage('No files selected. Please ensure you are dragging a file.', 'info'); // More specific message
+            const file = fileInput.files[0];
+            if (!file) {
+                setFeedback(uploadFeedback, 'Please select a file first.', 'error');
                 return;
             }
 
-            const file = droppedFiles[0]; // Only handle one file at a time for simplicity
+            // Clear previous states
+            shareCodeContainer.classList.add('hidden');
+            downloadInfo.classList.add('hidden');
+            uploadFeedback.classList.add('hidden');
+            progressBarContainer.classList.remove('hidden');
+            uploadButton.disabled = true;
 
-            // Show uploading state
-            idleState.classList.add('hidden');
-            uploadingState.classList.remove('hidden');
-            fileDropArea.classList.add('cursor-not-allowed', 'opacity-70'); // Indicate not clickable
-            roomPageMessage.textContent = `Uploading ${file.name}...`;
-            uploadProgressBar.style.width = '0%';
-            uploadProgressText.textContent = '0.0%';
+            const code = generateShareCode();
+            const storagePath = `files/${code}/${file.name}`; // Storage path
+            const storageRef = ref(storage, storagePath);
+            const metadataDocRef = getMetadataDocRef(code);
 
             try {
-                const storageRef = ref(storage, `artifacts/${appId}/public/data/uploads/${currentRoomId}/${file.name}`);
+                setFeedback(uploadFeedback, `Starting upload of "${file.name}"...`, 'info');
+                
+                // Use resumable upload for better handling of large files (like 50GB!)
                 const uploadTask = uploadBytesResumable(storageRef, file);
 
-                uploadTask.on('state_changed',
+                // Listen for state changes, including progress of the upload.
+                uploadTask.on('state_changed', 
                     (snapshot) => {
                         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        uploadProgressBar.style.width = `${progress}%`;
-                        uploadProgressText.textContent = `${progress.toFixed(1)}%`;
-                    },
+                        progressBar.style.width = progress + '%';
+                        uploadProgress.textContent = `${progress.toFixed(0)}%`;
+                        
+                        // Update feedback during transfer
+                        if (snapshot.state === 'running') {
+                            setFeedback(uploadFeedback, `Uploading: ${progress.toFixed(0)}% complete...`, 'info');
+                        }
+                    }, 
                     (error) => {
-                        console.error("Upload failed:", error);
-                        showMessage(`Upload of ${file.name} failed: ${error.message}`, 'error');
-                        // Reset UI
-                        uploadingState.classList.add('hidden');
-                        idleState.classList.remove('hidden');
-                        fileDropArea.classList.remove('cursor-not-allowed', 'opacity-70');
-                        roomPageMessage.textContent = 'Upload failed.';
-                    },
+                        // Handle unsuccessful uploads
+                        console.error("Storage upload error:", error);
+                        setFeedback(uploadFeedback, `Upload failed: ${error.message}. See console.`, 'error');
+                        progressBarContainer.classList.add('hidden');
+                        uploadButton.disabled = false;
+                    }, 
                     async () => {
-                        // Upload complete, get download URL and save to Firestore
+                        // Handle successful uploads on complete
+                        progressBarContainer.classList.add('hidden');
+                        
+                        // 1. Get the public download URL
                         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        const filesCollectionRef = collection(db, `artifacts/${appId}/public/data/rooms/${currentRoomId}/files`);
-                        await addDoc(filesCollectionRef, {
+
+                        // 2. Save metadata (including the URL) to Firestore
+                        const fileMetadata = {
                             name: file.name,
+                            type: file.type || 'application/octet-stream',
                             size: file.size,
-                            url: downloadURL,
-                            uploaderId: userId,
-                            timestamp: serverTimestamp()
-                        });
-                        showMessage(`File "${file.name}" uploaded successfully!`, 'success');
-                        // Reset UI
-                        uploadingState.classList.add('hidden');
-                        idleState.classList.remove('hidden');
-                        fileDropArea.classList.remove('cursor-not-allowed', 'opacity-70');
-                        roomPageMessage.textContent = 'File uploaded successfully!';
+                            storagePath: storagePath,
+                            downloadURL: downloadURL,
+                            uploadedAt: Date.now()
+                        };
+
+                        await setDoc(metadataDocRef, fileMetadata);
+
+                        setFeedback(uploadFeedback, 'File uploaded and share code generated!', 'success');
+                        shareCodeDisplay.textContent = code;
+                        shareCodeContainer.classList.remove('hidden');
+                        uploadButton.disabled = false;
                     }
                 );
+
             } catch (error) {
-                console.error("Error during file upload:", error);
-                showMessage(`Error uploading file: ${error.message}`, 'error');
-                // Reset UI
-                uploadingState.classList.add('hidden');
-                idleState.classList.remove('hidden');
-                fileDropArea.classList.remove('cursor-not-allowed', 'opacity-70');
-                roomPageMessage.textContent = 'Error during file upload.';
+                console.error("Fatal upload error:", error);
+                setFeedback(uploadFeedback, 'An unexpected error occurred during upload. See console.', 'error');
+                uploadButton.disabled = false;
+                progressBarContainer.classList.add('hidden');
             }
-        }
+        });
 
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
+        // Copy button handler (remains the same)
+        copyButton.addEventListener('click', () => {
+            const code = shareCodeDisplay.textContent;
+            try {
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
 
-        // Initialize Firebase on window load
-        window.onload = initializeFirebase;
+                setFeedback(uploadFeedback, 'Code copied to clipboard!', 'success');
+                copyButton.classList.remove('bg-secondary', 'hover:bg-green-600');
+                copyButton.classList.add('bg-gray-400');
+                setTimeout(() => {
+                    copyButton.classList.remove('bg-gray-400');
+                    copyButton.classList.add('bg-secondary', 'hover:bg-green-600');
+                    uploadFeedback.classList.add('hidden');
+                }, 1500);
+
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+                setFeedback(uploadFeedback, 'Failed to copy code (manual copy required).', 'error');
+            }
+        });
+
+        // --- DOWNLOAD HANDLER (Firestore Metadata -> Download URL) ---
+
+        downloadButton.addEventListener('click', async () => {
+            if (!isAuthReady || !userId) {
+                setFeedback(downloadFeedback, 'Authentication not ready. Please wait.', 'info');
+                return;
+            }
+            
+            const code = codeEnter.value.trim().toUpperCase();
+            if (code.length !== 6 || !/^\d+$/.test(code)) {
+                setFeedback(downloadFeedback, 'Please enter a valid 6-digit code.', 'error');
+                return;
+            }
+
+            // Clear previous states
+            downloadInfo.classList.add('hidden');
+            setFeedback(downloadFeedback, 'Retrieving file metadata...', 'info');
+            downloadButton.disabled = true;
+
+            const metadataDocRef = getMetadataDocRef(code);
+
+            try {
+                const docSnap = await getDoc(metadataDocRef);
+
+                if (!docSnap.exists()) {
+                    setFeedback(downloadFeedback, `Error: No file found for code "${code}".`, 'error');
+                    return;
+                }
+
+                const data = docSnap.data();
+
+                if (!data.downloadURL) {
+                    setFeedback(downloadFeedback, 'Error: File link is missing or corrupt.', 'error');
+                    return;
+                }
+
+                setFeedback(downloadFeedback, `File "${data.name}" found. Ready to download.`, 'success');
+                
+                // Update UI with file details
+                downloadFileName.textContent = data.name;
+                // Convert bytes to MB or GB for display
+                const sizeKB = data.size / 1024;
+                downloadFileSize.textContent = sizeKB > 1024 ? (sizeKB / 1024).toFixed(2) + ' MB' : sizeKB.toFixed(2) + ' KB';
+                downloadFileType.textContent = data.type;
+                fileDownloadLink.href = data.downloadURL; // Set the direct download URL from Storage
+                fileDownloadLink.download = data.name; // Ensure the correct filename is used
+
+                downloadInfo.classList.remove('hidden');
+                downloadFeedback.classList.add('hidden'); // Hide info message now that download link is visible
+
+            } catch (error) {
+                console.error("Firebase retrieval error:", error);
+                setFeedback(downloadFeedback, 'An error occurred during retrieval. See console.', 'error');
+            } finally {
+                downloadButton.disabled = false;
+            }
+        });
+
     </script>
 </body>
 </html>
