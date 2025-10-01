@@ -157,19 +157,23 @@
         // Max raw file size limit for this chunking method (Increased from 10MB to 50MB, but still strongly discouraged)
         const MAX_RAW_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
         
-        // Project ID provided by the user, used as a robust fallback.
-        const USER_PROVIDED_PROJECT_ID = "filetransfer6969696969";
+        // Complete Firebase configuration provided by the user, used as the robust default/fallback.
+        const DEFAULT_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDhU4aFUSbdsEXlIVUiaSBxocHAFASU5Kk",
+            authDomain: "filetransfer6969696969.firebaseapp.com",
+            projectId: "filetransfer6969696969",
+            storageBucket: "filetransfer6969696969.firebasestorage.app",
+            messagingSenderId: "958574372758",
+            appId: "1:958574372758:web:b93d83cd4171be56765fb7"
+        };
+
 
         // --- GLOBAL VARIABLES (Provided by Canvas Environment) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-file-transfer-app';
-        // Parse config safely, ensuring it's an object even if the string is empty
-        let firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        // Parse config safely. If __firebase_config is not defined or empty, use the full DEFAULT_FIREBASE_CONFIG.
+        let firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' && __firebase_config.trim() !== '' ? __firebase_config : JSON.stringify(DEFAULT_FIREBASE_CONFIG));
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Use the explicit project ID if the environment configuration is missing it.
-        if (!firebaseConfig.projectId) {
-            firebaseConfig.projectId = USER_PROVIDED_PROJECT_ID;
-        }
 
         let db, auth;
         let userId = null;
