@@ -18,7 +18,6 @@
                         'background': '#f3f4f6',
                         'card': '#ffffff',
                         'blue-info': '#3b82f6',
-                        'admin-red': '#ef4444',
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -38,28 +37,15 @@
         }
         /* Ensure responsive height for mobile viewports */
         html, body {
-            min-height: 100vh;
+            min-height: 10vh;
         }
-        /* Styles for the modal overlays */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+        /* Ensure the clock cursor canvas is always on top */
+        canvas {
+            z-index: 9999999999;
         }
-        .modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
-            max-width: 90%;
-            width: 400px;
+        /* Make the status box look clickable */
+        #authStatus {
+            cursor: pointer;
         }
     </style>
 </head>
@@ -67,11 +53,16 @@
 
     <div id="app" class="w-full max-w-4xl space-y-8">
         <header class="text-center">
-            <h1 class="4xl font-extrabold text-primary-dark mb-2">Chunked File Transfer (Text Packages)</h1>
-            <p class="text-gray-600">The file is split into many **text packages (chunks)** and stored across multiple database documents.</p>
-            <p class="text-sm text-secondary font-semibold mt-1">⚠️ **ABSOLUTE LIMIT:** We've pushed the theoretical limit to **~50 MB**, but **25 GB is impossible** using this database method (it would require thousands of slow, expensive writes).</p>
+            <h1 class="4xl font-extrabold text-primary-dark mb-2">File Transfer</h1>
+            <p class="text-gray-600">The file is split into many chunks and stored across multiple database documents.</p>
+            <p class="text-sm text-secondary font-semibold mt-1">⚠️There is a 500 MB maximum.⚠️</p>
         </header>
 
+        <!-- Admin Indicator - Always hidden unless Admin Mode is active -->
+        <div id="adminIndicator" class="hidden text-center p-3 rounded-xl font-bold transition">
+            ADMIN MODE ACTIVE
+        </div>
+        
         <!-- Main Cards Container -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -117,7 +108,7 @@
             <!-- DOWNLOAD SECTION -->
             <div class="bg-card p-6 rounded-xl shadow-lg border border-gray-100 transition-all hover:shadow-xl">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                    <svg class="w-6 h-6 mr-2 text-primary-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <svg class="w-6 h-6 mr-2 text-primary-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     2. Reassemble Packages into File
                 </h2>
 
@@ -165,47 +156,28 @@
             </div>
         </div>
         
-        <!-- Status Box -->
-        <!-- Added cursor-pointer to trigger the password modal -->
-        <div id="authStatus" class="text-center text-sm text-gray-500 mt-6 p-3 bg-card rounded-xl shadow-sm cursor-pointer hover:bg-gray-100 transition">
+        <!-- Status Box (Clickable) -->
+        <div id="authStatus" class="text-center text-sm text-gray-500 mt-6 p-3 bg-card rounded-xl shadow-sm transition">
             Initializing...
         </div>
 
-    </div>
+        <!-- Admin Login / Input Area (Initially Hidden) -->
+        <div id="adminLoginContainer" class="text-center p-3 rounded-xl shadow-lg border border-red-300 bg-red-50 mt-4" style="display: none;">
+            <label for="adminPasswordInput" class="text-red-700 text-sm block mb-2 font-bold">
+                SECRET: Enter Admin Password (Press Enter)
+            </label>
+            <input type="password" id="adminPasswordInput" placeholder="Password: hiimgreg" 
+                   class="w-full max-w-xs border border-red-500 p-2 rounded-lg text-center font-mono focus:ring-red-500 focus:border-red-500">
+            <div id="adminLoginFeedback" class="mt-2 p-2 rounded-lg text-xs hidden"></div>
+        </div>
 
-    <!-- Password Modal for Admin Access -->
-    <div id="passwordModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Enter Admin Password</h3>
-            <p class="text-sm text-gray-600 mb-4">You need the correct password to unlock file deletion capabilities.</p>
-            <input type="password" id="passwordInput" placeholder="Password..." 
-                   class="w-full border border-gray-300 p-3 rounded-lg focus:ring-admin-red focus:border-admin-red mb-4">
-            <div class="flex justify-end space-x-3">
-                <button id="cancelPassword" class="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">Cancel</button>
-                <button id="submitPassword" class="px-4 py-2 rounded-lg bg-admin-red text-white font-semibold hover:bg-red-600 transition">Unlock</button>
-            </div>
-            <p id="passwordFeedback" class="text-sm text-red-500 mt-3 hidden"></p>
-        </div>
-    </div>
-    
-    <!-- Delete Confirmation Modal -->
-    <div id="confirmModal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Confirm Deletion</h3>
-            <p id="confirmMessage" class="text-sm text-gray-600 mb-6">Are you sure you want to delete this file? This action is permanent and cannot be undone.</p>
-            <div class="flex justify-end space-x-3">
-                <button id="cancelDelete" class="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">Cancel</button>
-                <button id="confirmDelete" class="px-4 py-2 rounded-lg bg-admin-red text-white font-semibold hover:bg-red-600 transition">DELETE PERMANENTLY</button>
-            </div>
-        </div>
     </div>
 
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // NOTE: Added 'writeBatch' to the list of imports for bulk deletion of chunks.
-        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Set Firebase Logging for debugging
@@ -214,8 +186,7 @@
         // --- CONSTANTS ---
         const MAX_BASE64_CHUNK_SIZE = 700 * 1024; // 700 KB of Base64 string per document
         const MAX_RAW_FILE_SIZE = 500 * 1024 * 1024; // 50 MB
-        const ADMIN_PASSWORD = "hiimgreg"; // The secret password for admin mode
-        
+        const ADMIN_PASSWORD = "hiimgreg"; // Updated password
         // Complete Firebase configuration provided by the user, used as the robust default/fallback.
         const DEFAULT_FIREBASE_CONFIG = {
             apiKey: "AIzaSyDhU4aFUSbdsEXlIVUiaSBxocHAFASU5Kk",
@@ -235,7 +206,8 @@
         let db, auth;
         let userId = null;
         let isAuthReady = false;
-        let isAdmin = false; // NEW: Admin status flag
+        let isAdminMode = false;
+        let cursorEffect = null; // Holds the instance of the clock cursor
 
         // DOM Elements
         const fileInput = document.getElementById('fileInput');
@@ -260,19 +232,387 @@
         const downloadProgressBar = document.getElementById('downloadProgressBar');
         const downloadProgressCount = document.getElementById('downloadProgressCount');
         const fileList = document.getElementById('fileList');
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+        const adminLoginFeedback = document.getElementById('adminLoginFeedback');
+        const adminLoginContainer = document.getElementById('adminLoginContainer');
+        const adminIndicator = document.getElementById('adminIndicator');
+
+
+        // --- CLOCK CURSOR EFFECT IMPLEMENTATION ---
         
-        // Modal Elements
-        const passwordModal = document.getElementById('passwordModal');
-        const passwordInput = document.getElementById('passwordInput');
-        const submitPassword = document.getElementById('submitPassword');
-        const cancelPassword = document.getElementById('cancelPassword');
-        const passwordFeedback = document.getElementById('passwordFeedback');
-        const confirmModal = document.getElementById('confirmModal');
-        const confirmMessage = document.getElementById('confirmMessage');
-        const confirmDelete = document.getElementById('confirmDelete');
-        const cancelDelete = document.getElementById('cancelDelete');
+        // This is the clockCursor function based on the user's provided code.
+        function clockCursor(options) {
+            let hasWrapperEl = options && options.element;
+            let element = hasWrapperEl || document.body;
 
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            let cursor = { x: width / 2, y: width / 2 };
+            let canvas, context, animationFrame;
 
+            const dateColor = (options && options.dateColor) || "#8b5cf6"; // Purple
+            const faceColor = (options && options.faceColor) || "black";
+            const secondsColor = (options && options.secondsColor) || "#ef4444"; // Red
+            const minutesColor = (options && options.minutesColor) || "black";
+            const hoursColor = (options && options.hoursColor) || "black";
+
+            const del = 0.4;
+
+            const theDays = (options && options.theDays) || [
+                "SUN",
+                "MON",
+                "TUE",
+                "WED",
+                "THU",
+                "FRI",
+                "SAT",
+            ];
+
+            const theMonths = (options && options.theMonths) || [
+                "JAN",
+                "FEB",
+                "MAR",
+                "APR",
+                "MAY",
+                "JUN",
+                "JUL",
+                "AUG",
+                "SEP",
+                "OCT",
+                "NOV",
+                "DEC",
+            ];
+
+            let date = new Date();
+            let day = date.getDate();
+            let year = date.getYear() + 1900; // Year
+
+            // Prepare particle arrays
+            const dateInWords = (
+                " " +
+                theDays[date.getDay()] +
+                " " +
+                day +
+                " " +
+                theMonths[date.getMonth()] +
+                " " +
+                year
+            ).split("");
+
+            const clockNumbers = [
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "1",
+                "2",
+            ];
+
+            const F = clockNumbers.length; // todo: why (It's used as the length of the clock face numbers array)
+
+            const hourHand = ["•", "•", "•"];
+            const minuteHand = ["•", "•", "•", "•"];
+            const secondHand = ["•", "•", "•", "•", "•"];
+
+            const siz = 45;
+            const eqf = 360 / F;
+            const eqd = 360 / dateInWords.length;
+            const han = siz / 6.5;
+            const ofy = 0;
+            const ofx = 0;
+            const ofst = 0; // Unused in provided logic
+
+            const dy = [];
+            const dx = [];
+            const zy = [];
+            const zx = [];
+
+            const tmps = [];
+            const tmpm = [];
+            const tmph = [];
+            const tmpf = [];
+            const tmpd = [];
+
+            var sum =
+                parseInt(
+                    dateInWords.length +
+                    F +
+                    hourHand.length +
+                    minuteHand.length +
+                    secondHand.length
+                ) + 1;
+
+            const prefersReducedMotion = window.matchMedia(
+                "(prefers-reduced-motion: reduce)"
+            );
+
+            // Re-initialise or destroy the cursor when the prefers-reduced-motion setting changes
+            prefersReducedMotion.onchange = () => {
+                if (prefersReducedMotion.matches) {
+                    destroy();
+                } else {
+                    init();
+                }
+            };
+
+            // NOTE: The following block of variable declarations was removed because it was a duplicate,
+            // causing the "Identifier 'dateInWords' has already been declared" error.
+
+            // Re-initialise or destroy the cursor when the prefers-reduced-motion setting changes
+            prefersReducedMotion.onchange = () => {
+                if (prefersReducedMotion.matches) {
+                    destroy();
+                } else {
+                    init();
+                }
+            };
+
+            function init() {
+                // Don't show the cursor trail if the user has prefers-reduced-motion enabled
+                if (prefersReducedMotion.matches) {
+                    console.log(
+                        "This browser has prefers reduced motion turned on, so the cursor did not init"
+                    );
+                    return false;
+                }
+
+                canvas = document.createElement("canvas");
+                context = canvas.getContext("2d");
+
+                canvas.style.top = "0px";
+                canvas.style.left = "0px";
+                canvas.style.pointerEvents = "none";
+                canvas.style.zIndex = options.zIndex || "9999999999";
+
+                if (hasWrapperEl) {
+                    canvas.style.position = "absolute";
+                    element.appendChild(canvas);
+                    canvas.width = element.clientWidth;
+                    canvas.height = element.clientHeight;
+                } else {
+                    canvas.style.position = "fixed";
+                    document.body.appendChild(canvas);
+                    canvas.width = width;
+                    canvas.height = height;
+                }
+
+                context.font = "10px sans-serif";
+                context.textAlign = "center";
+                context.textBaseline = "middle";
+
+                // indivdual positions of the movement and movement deltas
+                for (let i = 0; i < sum; i++) {
+                    dy[i] = 0;
+                    dx[i] = 0;
+                    zy[i] = 0;
+                    zx[i] = 0;
+                }
+
+                // Date in Words
+                for (let i = 0; i < tmpd.length; i++) {
+                    tmpd[i] = {
+                        color: dateColor,
+                        value: dateInWords[i],
+                    };
+                }
+
+                // Face!
+                for (let i = 0; i < clockNumbers.length; i++) {
+                    tmpf[i] = {
+                        color: faceColor,
+                        value: clockNumbers[i],
+                    };
+                }
+
+                // Hour
+                for (let i = 0; i < hourHand.length; i++) {
+                    tmph[i] = {
+                        color: hoursColor,
+                        value: hourHand[i],
+                    };
+                }
+
+                // Minutes
+                for (let i = 0; i < minuteHand.length; i++) {
+                    tmpm[i] = {
+                        color: minutesColor,
+                        value: minuteHand[i],
+                    };
+                }
+
+                // Seconds
+                for (let i = 0; i < secondHand.length; i++) {
+                    tmps[i] = {
+                        color: secondsColor,
+                        value: secondHand[i],
+                    };
+                }
+
+                bindEvents();
+                loop();
+            }
+
+            // Bind events that are needed
+            function bindEvents() {
+                element.addEventListener("mousemove", onMouseMove);
+                element.addEventListener("touchmove", onTouchMove, { passive: true });
+                element.addEventListener("touchstart", onTouchMove, { passive: true });
+                window.addEventListener("resize", onWindowResize);
+            }
+
+            function onWindowResize(e) {
+                width = window.innerWidth;
+                height = window.innerHeight;
+
+                if (hasWrapperEl) {
+                    canvas.width = element.clientWidth;
+                    canvas.height = element.clientHeight;
+                } else {
+                    canvas.width = width;
+                    canvas.height = height;
+                }
+            }
+
+            function onTouchMove(e) {
+                if (e.touches.length > 0) {
+                    if (hasWrapperEl) {
+                        const boundingRect = element.getBoundingClientRect();
+                        cursor.x = e.touches[0].clientX - boundingRect.left;
+                        cursor.y = e.touches[0].clientY - boundingRect.top;
+                    } else {
+                        cursor.x = e.touches[0].clientX;
+                        cursor.y = e.touches[0].clientY;
+                    }
+                }
+            }
+
+            function onMouseMove(e) {
+                if (hasWrapperEl) {
+                    const boundingRect = element.getBoundingClientRect();
+                    cursor.x = e.clientX - boundingRect.left;
+                    cursor.y = e.clientY - boundingRect.top;
+                } else {
+                    cursor.x = e.clientX;
+                    cursor.y = e.clientY;
+                }
+            }
+
+            function updatePositions() {
+                let widthBuffer = 80;
+
+                zy[0] = Math.round((dy[0] += (cursor.y - dy[0]) * del));
+                zx[0] = Math.round((dx[0] += (cursor.x - dx[0]) * del));
+                for (let i = 1; i < sum; i++) {
+                    zy[i] = Math.round((dy[i] += (zy[i - 1] - dy[i]) * del));
+                    zx[i] = Math.round((dx[i] += (zx[i - 1] - dx[i]) * del));
+                    if (dy[i - 1] >= height - 80) dy[i - 1] = height - 80;
+                    if (dx[i - 1] >= width - widthBuffer) dx[i - 1] = width - widthBuffer;
+                }
+            }
+
+            function updateParticles() {
+                context.clearRect(0, 0, width, height);
+
+                const time = new Date();
+                const secs = time.getSeconds();
+                const sec = (Math.PI * (secs - 15)) / 30;
+                const mins = time.getMinutes();
+                const min = (Math.PI * (mins - 15)) / 30;
+                const hrs = time.getHours();
+                const hr =
+                    (Math.PI * (hrs - 3)) / 6 + (Math.PI * parseInt(time.getMinutes())) / 360;
+
+                // Date
+                for (let i = 0; i < tmpd.length; i++) {
+                    tmpd[i].y =
+                        dy[i] + siz * 1.5 * Math.sin(-sec + (i * eqd * Math.PI) / 180);
+                    tmpd[i].x =
+                        dx[i] + siz * 1.5 * Math.cos(-sec + (i * eqd * Math.PI) / 180);
+
+                    context.fillStyle = tmpd[i].color;
+                    context.fillText(tmpd[i].value, tmpd[i].x, tmpd[i].y);
+                }
+
+                // Face
+                for (let i = 0; i < tmpf.length; i++) {
+                    tmpf[i].y =
+                        dy[tmpd.length + i] + siz * Math.sin((i * eqf * Math.PI) / 180);
+                    tmpf[i].x =
+                        dx[tmpd.length + i] + siz * Math.cos((i * eqf * Math.PI) / 180);
+
+                    context.fillStyle = tmpf[i].color;
+                    context.fillText(tmpf[i].value, tmpf[i].x, tmpf[i].y);
+                }
+
+                // Hours
+                for (let i = 0; i < tmph.length; i++) {
+                    tmph[i].y = dy[tmpd.length + F + i] + ofy + i * han * Math.sin(hr);
+                    tmph[i].x = dx[tmpd.length + F + i] + ofx + i * han * Math.cos(hr);
+
+                    context.fillStyle = tmph[i].color;
+                    context.fillText(tmph[i].value, tmph[i].x, tmph[i].y);
+                }
+
+                // Minutes
+                for (let i = 0; i < tmpm.length; i++) {
+                    tmpm[i].y =
+                        dy[tmpd.length + F + tmph.length + i] + ofy + i * han * Math.sin(min);
+
+                    tmpm[i].x =
+                        dx[tmpd.length + F + tmph.length + i] + ofx + i * han * Math.cos(min);
+
+                    context.fillStyle = tmpm[i].color;
+                    context.fillText(tmpm[i].value, tmpm[i].x, tmpm[i].y);
+                }
+
+                // Seconds
+                for (let i = 0; i < tmps.length; i++) {
+                    tmps[i].y =
+                        dy[tmpd.length + F + tmph.length + tmpm.length + i] +
+                        ofy +
+                        i * han * Math.sin(sec);
+
+                    tmps[i].x =
+                        dx[tmpd.length + F + tmph.length + tmpm.length + i] +
+                        ofx +
+                        i * han * Math.cos(sec);
+
+                    context.fillStyle = tmps[i].color;
+                    context.fillText(tmps[i].value, tmps[i].x, tmps[i].y);
+                }
+            }
+
+            function loop() {
+                updatePositions();
+                updateParticles();
+
+                animationFrame = requestAnimationFrame(loop);
+            }
+
+            function destroy() {
+                if (canvas && canvas.parentNode) {
+                    canvas.remove();
+                }
+                cancelAnimationFrame(animationFrame);
+                element.removeEventListener("mousemove", onMouseMove);
+                element.removeEventListener("touchmove", onTouchMove);
+                element.removeEventListener("touchstart", onTouchMove);
+                window.removeEventListener("resize", onWindowResize); // Use removeEventListener
+            }
+
+            init();
+
+            return {
+                destroy: destroy,
+            };
+        }
+        
         // --- UTILITY FUNCTIONS ---
 
         /**
@@ -355,126 +695,73 @@
             return collection(db, docRef.path, 'chunks');
         }
         
-        // --- DELETION LOGIC (ADMIN ONLY) ---
+        // --- ADMIN MODE LOGIC ---
 
-        /**
-         * Utility to show a confirmation modal before a destructive action.
-         * @param {string} message - The confirmation message to display.
-         * @param {function} callback - The function to execute if confirmed.
-         */
-        function showConfirmModal(message, callback) {
-            confirmMessage.textContent = message;
-            confirmModal.classList.remove('hidden');
-            
-            const handleConfirm = () => {
-                callback();
-                confirmModal.classList.add('hidden');
-                confirmDelete.removeEventListener('click', handleConfirm);
-            };
-            
-            const handleCancel = () => {
-                confirmModal.classList.add('hidden');
-                confirmDelete.removeEventListener('click', handleConfirm);
-            };
-
-            confirmDelete.addEventListener('click', handleConfirm);
-            cancelDelete.addEventListener('click', handleCancel);
-        }
-        
-        /**
-         * Deletes a file and all its chunks from Firestore.
-         */
-        async function deleteFile(code, fileName) {
-            if (!isAdmin) {
-                setFeedback(fileList, 'You must be in Admin Mode to delete files.', 'error');
-                return;
-            }
-
-            const fileDocRef = getFileDocRef(code);
-            const chunkCollectionRef = getChunkCollectionRef(code);
-
-            try {
-                // 1. Delete all chunks (subcollection documents) using a batch write for efficiency
-                setFeedback(fileList, `Retrieving packages for deletion: "${fileName}" (${code})...`, 'info');
-                const snapshot = await getDocs(query(chunkCollectionRef));
-                const batch = writeBatch(db); 
-                const totalChunks = snapshot.size;
-
-                if (totalChunks === 0) {
-                    console.warn(`No chunks found for code ${code}. Deleting master document.`);
-                } else {
-                    setFeedback(fileList, `Deleting ${totalChunks} packages for file ${fileName}...`, 'info');
-                    
-                    // Loop through all chunk documents and add delete operations to the batch
-                    snapshot.docs.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
-                    await batch.commit();
-                    console.log(`Successfully deleted ${totalChunks} chunks for file ${code}.`);
-                }
+        function toggleAdminMode(success) {
+            if (success) {
+                isAdminMode = true;
+                adminIndicator.classList.remove('hidden');
+                adminIndicator.textContent = 'ADMIN MODE ACTIVE (Clock Cursor Engaged)';
+                adminIndicator.classList.remove('bg-red-100', 'text-red-700');
+                adminIndicator.classList.add('bg-purple-100', 'text-purple-700');
                 
-                // 2. Delete Master Document
-                await deleteDoc(fileDocRef);
-                setFeedback(fileList, `File "${fileName}" and all packages deleted successfully.`, 'success');
+                // 1. Activate the clock cursor effect
+                if (cursorEffect) cursorEffect.destroy();
+                cursorEffect = clockCursor({});
+                
+                // 2. Hide password input after successful login
+                adminLoginContainer.style.display = 'none';
 
-            } catch (error) {
-                console.error("Error deleting file:", error);
-                setFeedback(fileList, `Failed to delete file ${fileName} (${code}). Check console for details.`, 'error');
-            }
-        }
-
-        // --- AUTHENTICATION & ADMIN MODE ---
-
-        function setAdminStatus(active) {
-            isAdmin = active;
-            // Re-render the file list to show/hide delete buttons
-            setupLiveFileListing(); 
-            
-            if (active) {
-                authStatus.textContent = `Authenticated as: ${userId} (ADMIN MODE ACTIVE)`;
-                authStatus.classList.add('text-admin-red', 'bg-red-100');
-                authStatus.classList.remove('text-green-600', 'bg-green-50', 'hover:bg-gray-100');
-            } else if (userId) {
-                 authStatus.textContent = `Authenticated as: ${userId}`;
-                 authStatus.classList.add('text-green-600', 'bg-green-50', 'hover:bg-gray-100');
-                 authStatus.classList.remove('text-admin-red', 'bg-red-100');
-            }
-        }
-        
-        // Click handler for Auth Status Bar to show password modal
-        authStatus.addEventListener('click', () => {
-            if (isAdmin) {
-                setFeedback(authStatus, 'Admin mode is already active. Click again to deactivate.', 'info');
-                setAdminStatus(false);
-                return;
-            }
-            passwordModal.classList.remove('hidden');
-            passwordInput.value = '';
-            passwordFeedback.classList.add('hidden');
-            passwordInput.focus();
-        });
-
-        // Password Modal Handlers
-        submitPassword.addEventListener('click', () => {
-            const password = passwordInput.value.trim();
-            if (password === ADMIN_PASSWORD) {
-                passwordModal.classList.add('hidden');
-                setAdminStatus(true);
-                setFeedback(authStatus, 'Admin mode unlocked successfully!', 'success');
             } else {
-                passwordFeedback.textContent = 'Incorrect password. Try again.';
-                passwordFeedback.classList.remove('hidden');
+                isAdminMode = false;
+                adminIndicator.classList.add('hidden');
+                
+                // Destroy the clock cursor effect
+                if (cursorEffect) {
+                    cursorEffect.destroy();
+                    cursorEffect = null;
+                }
+            }
+        }
+
+        // Event Listener for the password check (on Enter key)
+        adminPasswordInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
+                if (input === ADMIN_PASSWORD) {
+                    toggleAdminMode(true);
+                    setFeedback(adminLoginFeedback, 'Admin access granted! Enjoy the cursor.', 'success');
+                    // Hide feedback after a short delay
+                    setTimeout(() => adminLoginFeedback.classList.add('hidden'), 2000);
+                } else {
+                    e.target.value = ''; // Clear input
+                    setFeedback(adminLoginFeedback, 'Incorrect password. Try "hiimgreg".', 'error');
+                    // Hide feedback after a short delay
+                    setTimeout(() => adminLoginFeedback.classList.add('hidden'), 2000);
+                }
             }
         });
 
-        cancelPassword.addEventListener('click', () => {
-            passwordModal.classList.add('hidden');
-        });
-
-        // Allow 'Enter' key to submit password
-        passwordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                submitPassword.click();
+        // Event Listener for clicking the Auth Status box
+        authStatus.addEventListener('click', () => {
+            if (isAdminMode) {
+                // Already active, give feedback in the status box itself
+                const originalText = authStatus.textContent;
+                authStatus.textContent = "Admin Mode is already active!";
+                setTimeout(() => {
+                    authStatus.textContent = originalText;
+                }, 1500);
+            } else {
+                // Not active, show the password container
+                if (adminLoginContainer.style.display === 'none' || adminLoginContainer.style.display === '') {
+                    adminLoginContainer.style.display = 'block';
+                    adminPasswordInput.focus();
+                } else {
+                    // Hide it if already showing
+                    adminLoginContainer.style.display = 'none';
+                    adminLoginFeedback.classList.add('hidden');
+                    adminPasswordInput.value = '';
+                }
             }
         });
 
@@ -485,6 +772,8 @@
          * Displays the list of available files fetched from Firestore.
          */
         function displayAvailableFiles(files) {
+            if (!isAuthReady) return; // Wait for auth to be ready
+            
             if (files.length === 0) {
                 fileList.innerHTML = '<p class="text-gray-500 text-sm italic">No files have been uploaded yet.</p>';
                 return;
@@ -514,11 +803,6 @@
                         <button class="text-blue-500 hover:text-blue-700 font-medium text-sm use-code-btn focus:outline-none">
                             Use Code
                         </button>
-                        
-                        <!-- Delete Button (Only visible if Admin) -->
-                        ${isAdmin ? `<button class="text-admin-red hover:text-red-700 font-medium text-sm delete-btn focus:outline-none" data-code="${file.code}">
-                            Delete
-                        </button>` : ''}
                     </div>
                 `;
                 
@@ -529,20 +813,6 @@
                     // Scroll to the download section
                     downloadButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
-
-                // Click handler for 'Delete' button
-                if (isAdmin) {
-                    const deleteButton = listItem.querySelector('.delete-btn');
-                    deleteButton.addEventListener('click', (event) => {
-                        event.stopPropagation(); // Prevent the parent 'use code' click
-                        
-                        showConfirmModal(
-                            `Are you absolutely sure you want to delete "${file.name}" (${file.code})? This will permanently remove ${formatFileSize(file.size)} of data packages.`,
-                            () => deleteFile(file.code, file.name)
-                        );
-                    });
-                }
-
 
                 fileList.appendChild(listItem);
             });
@@ -578,7 +848,7 @@
                     });
                     
                     displayAvailableFiles(files);
-                    console.log(`File list updated. Found ${files.length} files. Admin: ${isAdmin}`);
+                    console.log(`File list updated. Found ${files.length} files.`);
 
                 }, (error) => {
                     console.error("Error setting up real-time listener:", error);
@@ -605,7 +875,9 @@
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     userId = user.uid;
-                    setAdminStatus(false); // Reset admin status on auth change
+                    authStatus.textContent = `Authenticated as: ${userId}`;
+                    authStatus.classList.add('text-green-600', 'bg-green-50');
+                    authStatus.classList.remove('text-gray-500');
                 } else {
                     userId = null;
                     authStatus.textContent = "Authentication failed. App is unusable.";
@@ -708,13 +980,13 @@
                     
                     setFeedback(uploadFeedback, `Master document stored. Now uploading ${totalChunks} packages...`, 'info');
 
-                    // 3. Store each chunk in the subcollection using a batch write
-                    const batch = writeBatch(db); 
+                    // 3. Store each chunk in the subcollection
                     for (let i = 0; i < totalChunks; i++) {
+                        // Use setDoc for reliable, specific document creation by index
                         const chunkId = String(i).padStart(4, '0'); // Use padded index as Doc ID for ordering
                         const chunkDocRef = doc(chunkCollectionRef, chunkId);
                         
-                        batch.set(chunkDocRef, {
+                        await setDoc(chunkDocRef, {
                             index: i,
                             data: chunks[i],
                             timestamp: Date.now()
@@ -725,8 +997,6 @@
                         progressBar.style.width = progress + '%';
                         chunkProgress.textContent = `${i + 1}/${totalChunks}`;
                     }
-                    
-                    await batch.commit();
 
                     setFeedback(uploadFeedback, `All ${totalChunks} packages successfully stored!`, 'success');
                     shareCodeDisplay.textContent = code;
