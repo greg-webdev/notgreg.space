@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Drawing Studio - 16:9 (Fixed Width)</title>
-    <!-- Load Quicksand font for UI and Canvas -->
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;700&display=swap" rel="stylesheet">
+    <title>Plotter Drawing Studio - Full Vector Font</title>
+    <!-- Load Quicksand font (Regular 400 and Bold 700) for UI and Canvas -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for the drawing area */
@@ -68,15 +68,19 @@
                 </button>
             </div>
             
-            <p class="text-xs font-semibold text-gray-700 mb-2">Fixed pen width of 8px.</p>
+            <p class="text-xs font-semibold text-gray-700 mb-2">Fixed pen width of 8px for drawing tools.</p>
 
-            <label for="strokeColor" class="block text-xs font-medium text-gray-700">Stroke Color</label>
+            <label for="strokeColor" class="block text-xs font-medium text-gray-700">Color</label>
             <input type="color" id="strokeColor" value="#1f2937" class="w-full h-10 p-1 border border-gray-300 rounded-lg cursor-pointer shadow-sm mb-3">
             
             <!-- Text Input Group (Shown when Text tool is active) -->
-            <div id="textInputGroup" class="mb-3 hidden">
-                <label for="textToPlace" class="block text-xs font-medium text-gray-700">Text Content (Quicksand Light 24px)</label>
-                <input type="text" id="textToPlace" value="PLOTTER TEXT" placeholder="Enter text here..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
+            <div id="textInputGroup" class="mb-3 hidden bg-indigo-100 p-3 rounded-lg">
+                <p class="text-xs font-bold text-gray-700 mb-2">G-Code supports A-Z, 0-9, and common symbols/punctuation.</p>
+                <label for="textToPlace" class="block text-xs font-medium text-gray-700">Text Content (All Caps Recommended)</label>
+                <input type="text" id="textToPlace" value="PLOTT3R D!A&R-Z" placeholder="Enter text here..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm mb-2">
+                
+                <label for="fontSizePx" class="block text-xs font-medium text-gray-700">Font Size (px)</label>
+                <input type="number" id="fontSizePx" value="30" min="10" max="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
             </div>
 
             <button id="toolEraser" class="w-full px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300 mb-3">
@@ -127,12 +131,12 @@
         <div id="step3Section" class="step-section bg-yellow-50 rounded-lg hidden">
             <h3 class="font-semibold text-yellow-700 mb-2">3. Export Actions</h3>
             <p class="text-xs text-gray-600 mb-3">The canvas is set to a **16:9** ratio. For plotting, we will use a paper size of **160mm x 90mm**.</p>
-            <p class="text-xs text-red-600 mb-3 font-bold">⚠️ Note: Text elements are ignored by the G-Code export.</p>
+            <p class="text-xs text-red-600 mb-3 font-bold">⚠️ Note: Only the vectorized paths (Pen, Hollow, Text) are included in the G-Code. </p>
 
 
             <button id="savePngBtn" class="w-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-150 mb-3">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Save as PNG Image
+                Save as PNG Image (Includes all visual text)
             </button>
 
             <button id="generateNcBtn" class="w-full flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-150">
@@ -178,8 +182,7 @@
         const PLOTTER_HEIGHT_MM = 90; 
         
         const FIXED_STROKE_WIDTH = 8; 
-        const TEXT_FONT = "300 24px 'Quicksand'"; // 300 is the weight for "Light"
-
+        
         let CANVAS_WIDTH_PX = 0; 
         let CANVAS_HEIGHT_PX = 0; 
         
@@ -187,9 +190,7 @@
         const ctx = canvas.getContext('2d');
         const canvasContainerDiv = document.querySelector('.canvas-container');
 
-        // Each element is: 
-        // { tool: 'pen'|'hollow'|'eraser', path: [{x,y}, ...], color, width: 8 }
-        // { tool: 'text', x, y, text, color }
+        // Array to store all paths/elements drawn
         let paths = []; 
         let currentPath = null; 
 
@@ -201,11 +202,12 @@
         // UI element references
         const strokeColorInput = document.getElementById('strokeColor');
         const textToPlaceInput = document.getElementById('textToPlace');
+        const fontSizePxInput = document.getElementById('fontSizePx');
         const toolPenBtn = document.getElementById('toolPen');
         const toolHollowBtn = document.getElementById('toolHollow');
-        const toolTextBtn = document.getElementById('toolText'); // New
+        const toolTextBtn = document.getElementById('toolText');
         const toolEraserBtn = document.getElementById('toolEraser');
-        const textInputGroup = document.getElementById('textInputGroup'); // New
+        const textInputGroup = document.getElementById('textInputGroup');
         
         const savePngBtn = document.getElementById('savePngBtn');
         const generateNcBtn = document.getElementById('generateNcBtn');
@@ -225,13 +227,236 @@
             width: FIXED_STROKE_WIDTH,
             tool: 'pen', 
             text: textToPlaceInput.value,
+            fontSizePx: parseInt(fontSizePxInput.value),
             plottingSpeed: 1500,
             travelSpeed: 3000,
             penDown: 'M3 S800', 
             penUp: 'M5 S0',
         };
-
         let currentStep = 1;
+
+
+        // --- FULL VECTOR FONT MAP FOR G-CODE (0-1 unit block) ---
+        // Coordinates are normalized between 0 and 1. (0,0) is bottom-left of the unit block, (1,1) is top-right.
+        // NOTE: The drawing function uses standard canvas coords (0,0 is top-left), but this internal map uses mathematical coordinates (0,0 is bottom-left) for easier definition. The inversion is handled in getVectorPathsForText.
+        const VECTOR_FONT_MAP = {
+            'A': [ 
+                [[0.0, 0.0], [0.5, 1.0], [1.0, 0.0]], // A
+                [[0.25, 0.4], [0.75, 0.4]]
+            ],
+            'B': [
+                [[0.0, 0.0], [0.0, 1.0], [0.7, 1.0], [1.0, 0.75], [0.8, 0.5], [0.0, 0.5]], // B
+                [[0.8, 0.5], [1.0, 0.25], [0.7, 0.0], [0.0, 0.0]]
+            ],
+            'C': [
+                [[1.0, 0.0], [0.2, 0.0], [0.0, 0.5], [0.2, 1.0], [1.0, 1.0]] // C
+            ],
+            'D': [
+                [[0.0, 0.0], [0.0, 1.0], [0.7, 1.0], [1.0, 0.5], [0.7, 0.0], [0.0, 0.0]] // D
+            ],
+            'E': [
+                [[0.0, 0.0], [1.0, 0.0]], 
+                [[0.0, 0.5], [0.75, 0.5]],
+                [[0.0, 1.0], [1.0, 1.0]], 
+                [[0.0, 0.0], [0.0, 1.0]] // E
+            ],
+            'F': [
+                [[0.0, 0.0], [1.0, 0.0]], 
+                [[0.0, 0.5], [0.75, 0.5]],
+                [[0.0, 0.0], [0.0, 1.0]] // F
+            ],
+            'G': [
+                [[1.0, 0.0], [0.2, 0.0], [0.0, 0.5], [0.2, 1.0], [1.0, 1.0], [1.0, 0.35], [0.5, 0.35]] // G
+            ],
+            'H': [
+                [[0.0, 0.0], [0.0, 1.0]], 
+                [[1.0, 0.0], [1.0, 1.0]], 
+                [[0.0, 0.5], [1.0, 0.5]] // H
+            ],
+            'I': [
+                [[0.5, 0.0], [0.5, 1.0]], // I
+                [[0.0, 0.0], [1.0, 0.0]],
+                [[0.0, 1.0], [1.0, 1.0]]
+            ],
+            'J': [
+                [[1.0, 0.0], [1.0, 1.0], [0.2, 1.0], [0.0, 0.7]] // J
+            ],
+            'K': [
+                [[0.0, 0.0], [0.0, 1.0]], 
+                [[1.0, 1.0], [0.0, 0.5], [1.0, 0.0]] // K
+            ],
+            'L': [
+                [[0.0, 0.0], [0.0, 1.0]], 
+                [[0.0, 0.0], [1.0, 0.0]] // L
+            ],
+            'M': [
+                [[0.0, 0.0], [0.0, 1.0], [0.5, 0.5], [1.0, 1.0], [1.0, 0.0]] // M
+            ],
+            'N': [
+                [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]] // N
+            ],
+            'O': [
+                [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]] // O
+            ],
+            'P': [
+                [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.5], [0.0, 0.5]] // P
+            ],
+            'Q': [
+                [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]], // Q
+                [[0.75, 0.25], [1.25, -0.25]] 
+            ],
+            'R': [
+                [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.5], [0.0, 0.5]], // R
+                [[0.5, 0.5], [1.0, 0.0]]
+            ],
+            'S': [
+                [[1.0, 1.0], [0.0, 1.0], [0.0, 0.5], [1.0, 0.5], [1.0, 0.0], [0.0, 0.0]] // S
+            ],
+            'T': [
+                [[0.0, 1.0], [1.0, 1.0]], 
+                [[0.5, 1.0], [0.5, 0.0]] // T
+            ],
+            'U': [
+                [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]] // U
+            ],
+            'V': [
+                [[0.0, 1.0], [0.5, 0.0], [1.0, 1.0]] // V
+            ],
+            'W': [
+                [[0.0, 1.0], [0.25, 0.0], [0.5, 0.5], [0.75, 0.0], [1.0, 1.0]] // W
+            ],
+            'X': [
+                [[0.0, 0.0], [1.0, 1.0]],
+                [[1.0, 0.0], [0.0, 1.0]] // X
+            ],
+            'Y': [
+                [[0.0, 1.0], [0.5, 0.5], [1.0, 1.0]],
+                [[0.5, 0.5], [0.5, 0.0]] // Y
+            ],
+            'Z': [
+                [[0.0, 1.0], [1.0, 1.0], [0.0, 0.0], [1.0, 0.0]] // Z
+            ],
+            
+            // --- NUMBERS (0-9) ---
+            '0': [
+                [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]] 
+            ],
+            '1': [
+                [[0.2, 0.8], [0.5, 1.0], [0.5, 0.0]],
+                [[0.2, 0.0], [0.8, 0.0]]
+            ],
+            '2': [
+                [[0.0, 1.0], [1.0, 1.0], [1.0, 0.5], [0.0, 0.5], [0.0, 0.0], [1.0, 0.0]]
+            ],
+            '3': [
+                [[0.0, 1.0], [1.0, 1.0], [1.0, 0.5], [0.0, 0.5]],
+                [[1.0, 0.5], [1.0, 0.0], [0.0, 0.0]]
+            ],
+            '4': [
+                [[0.7, 1.0], [0.7, 0.0]],
+                [[0.0, 0.6], [1.0, 0.6]],
+                [[0.0, 1.0], [0.0, 0.6]]
+            ],
+            '5': [
+                [[1.0, 1.0], [0.0, 1.0], [0.0, 0.5], [1.0, 0.5], [1.0, 0.0], [0.0, 0.0]]
+            ],
+            '6': [
+                [[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 0.5], [0.0, 0.5]]
+            ],
+            '7': [
+                [[0.0, 1.0], [1.0, 1.0], [0.2, 0.0]]
+            ],
+            '8': [
+                [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]],
+                [[0.0, 0.5], [1.0, 0.5]]
+            ],
+            '9': [
+                [[1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.5], [1.0, 0.5]]
+            ],
+
+            // --- SYMBOLS ---
+            ' ': [], // Space character has no segments
+            '.': [[[0.5, 0.1], [0.5, 0.1]]], // Simple dot
+            ',': [[[0.5, 0.1], [0.5, 0.15], [0.4, 0.05]]],
+            ':': [ // Colon (upper half of character space)
+                [[0.5, 0.65], [0.5, 0.65]], 
+                [[0.5, 0.35], [0.5, 0.35]]
+            ],
+            ';': [ // Semicolon
+                [[0.5, 0.65], [0.5, 0.65]], 
+                [[0.5, 0.35], [0.5, 0.4], [0.4, 0.25]]
+            ],
+            "'": [[[0.5, 1.0], [0.5, 0.8]]], // Apostrophe
+            '"': [ // Quotation mark
+                [[0.4, 1.0], [0.4, 0.8]], 
+                [[0.6, 1.0], [0.6, 0.8]]
+            ],
+            '!': [ // Exclamation mark
+                [[0.5, 1.0], [0.5, 0.2]], 
+                [[0.5, 0.0], [0.5, 0.0]]
+            ],
+            '?': [ // Question mark
+                [[0.2, 1.0], [0.8, 1.0], [0.8, 0.6], [0.5, 0.4], [0.5, 0.3]], 
+                [[0.5, 0.0], [0.5, 0.0]]
+            ],
+            '/': [[[0.0, 0.0], [1.0, 1.0]]], // Forward Slash
+            '\\': [[[0.0, 1.0], [1.0, 0.0]]], // Backslash
+            '|': [[[0.5, 0.0], [0.5, 1.0]]], // Pipe
+            '-': [[[0.2, 0.5], [0.8, 0.5]]], // Hyphen/Minus
+            '_': [[[0.0, 0.0], [1.0, 0.0]]], // Underscore
+            '+': [ // Plus
+                [[0.2, 0.5], [0.8, 0.5]], 
+                [[0.5, 0.2], [0.5, 0.8]]
+            ],
+            '=': [ // Equals
+                [[0.2, 0.65], [0.8, 0.65]], 
+                [[0.2, 0.35], [0.8, 0.35]]
+            ],
+            '(': [[[0.8, 1.0], [0.2, 0.5], [0.8, 0.0]]], // Open Parenthesis
+            ')': [[[0.2, 1.0], [0.8, 0.5], [0.2, 0.0]]], // Close Parenthesis
+            '[': [[[0.8, 1.0], [0.2, 1.0], [0.2, 0.0], [0.8, 0.0]]], // Open Bracket
+            ']': [[[0.2, 1.0], [0.8, 1.0], [0.8, 0.0], [0.2, 0.0]]], // Close Bracket
+            '{': [[[0.8, 1.0], [0.5, 0.8], [0.5, 0.6], [0.3, 0.5], [0.5, 0.4], [0.5, 0.2], [0.8, 0.0]]], // Open Brace (Complex)
+            '}': [[[0.2, 1.0], [0.5, 0.8], [0.5, 0.6], [0.7, 0.5], [0.5, 0.4], [0.5, 0.2], [0.2, 0.0]]], // Close Brace (Complex)
+            '<': [[[0.8, 0.75], [0.2, 0.5], [0.8, 0.25]]], // Less Than
+            '>': [[[0.2, 0.75], [0.8, 0.5], [0.2, 0.25]]], // Greater Than
+            '&': [ // Ampersand (Complex)
+                [[0.7, 1.0], [0.3, 0.8], [0.3, 0.6], [0.7, 0.4], [0.3, 0.2], [0.7, 0.0]]
+            ], 
+            '%': [ // Percent
+                [[0.0, 0.0], [1.0, 1.0]], 
+                [[0.2, 0.8], [0.2, 0.8]], 
+                [[0.8, 0.2], [0.8, 0.2]]
+            ], 
+            '*': [ // Asterisk
+                [[0.5, 0.2], [0.5, 0.8]], 
+                [[0.2, 0.3], [0.8, 0.7]], 
+                [[0.2, 0.7], [0.8, 0.3]]
+            ], 
+            '@': [ // At symbol (Approximation)
+                [[0.7, 0.3], [0.3, 0.3], [0.3, 0.7], [0.7, 0.7], [0.7, 0.3]], 
+                [[0.7, 0.5], [0.9, 0.5]]
+            ], 
+            '#': [ // Hash
+                [[0.2, 0.0], [0.2, 1.0]], 
+                [[0.7, 0.0], [0.7, 1.0]], 
+                [[0.0, 0.7], [1.0, 0.7]],
+                [[0.0, 0.3], [1.0, 0.3]]
+            ], 
+            '$': [ // Dollar Sign
+                [[1.0, 1.0], [0.0, 1.0], [0.0, 0.5], [1.0, 0.5], [1.0, 0.0], [0.0, 0.0]], 
+                [[0.5, 0.0], [0.5, 1.0]]
+            ], 
+            // Fallback for all other characters (Simple 'X')
+            'DEFAULT': [
+                [[0.0, 0.0], [1.0, 1.0]],
+                [[1.0, 0.0], [0.0, 1.0]]
+            ]
+        };
+        
+        const CHAR_WIDTH_UNITS = 1.0;
+        const CHAR_HEIGHT_UNITS = 1.0;
+        const CHAR_SPACING_FACTOR = 1.2; // Space between characters based on width
 
 
         // --- CANVAS RESIZING (16:9 Constraint) ---
@@ -320,8 +545,7 @@
         }
 
         function draw(e) {
-            if (!isDrawing) return;
-            if (settings.tool === 'text') return; // Text tool doesn't draw on move
+            if (!isDrawing || settings.tool === 'text') return; 
 
             const { x, y } = getCanvasPoint(e);
 
@@ -361,16 +585,17 @@
                         tool: 'text',
                         x: x,
                         y: y,
-                        text: settings.text.trim(),
-                        color: settings.color
+                        text: settings.text.trim().toUpperCase(), // Enforce CAPS for G-Code support
+                        color: settings.color,
+                        fontSizePx: settings.fontSizePx
                     };
                     paths.push(textItem);
                     redrawCanvas();
-                    showMessage(`Text placed: "${settings.text.trim()}"`, 'info');
+                    showMessage(`Text placed: "${textItem.text}" at ${textItem.fontSizePx}px.`, 'info');
                 } else {
                     showMessage('Please enter text to place.', 'error');
                 }
-                return; // Text tool is click-only, not drag
+                return; // Text tool is click-only
             }
 
             isDrawing = true;
@@ -399,25 +624,27 @@
         function redrawCanvas() {
             ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
             
+            // Draw canvas border
             ctx.strokeStyle = '#ccc';
             ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
 
             for (const p of paths) {
                 if (p.tool === 'text') {
-                    // Draw Text elements
+                    // Draw Text elements (Quicksand font regular weight for visual export)
                     ctx.fillStyle = p.color;
-                    ctx.font = TEXT_FONT;
+                    const font = `400 ${p.fontSizePx}px 'Quicksand'`; // Explicitly set to 400 (regular)
+                    ctx.font = font;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText(p.text, p.x, p.y);
                     
-                    // Add a temporary box/marker for clarity
-                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    // Draw a semi-transparent box for placement clarity on the canvas
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
                     ctx.lineWidth = 1;
                     const metrics = ctx.measureText(p.text);
                     const width = metrics.width;
-                    const height = 24; // Approximation based on font size
+                    const height = p.fontSizePx * 1.2; // Approximation
                     ctx.strokeRect(p.x - width / 2, p.y - height / 2, width, height);
 
                 } else if (p.path && p.path.length >= 2) {
@@ -466,6 +693,7 @@
         function updateSettings() {
             settings.color = strokeColorInput.value;
             settings.text = textToPlaceInput.value;
+            settings.fontSizePx = parseInt(fontSizePxInput.value) || 30; // Capture dynamic size
             
             settings.plottingSpeed = parseInt(document.getElementById('plottingSpeed').value) || 1500;
             settings.travelSpeed = parseInt(document.getElementById('travelSpeed').value) || 3000;
@@ -476,9 +704,9 @@
         function setTool(tool) {
             settings.tool = tool;
             [toolPenBtn, toolHollowBtn, toolTextBtn, toolEraserBtn].forEach(btn => {
-                btn.classList.replace('bg-indigo-600', 'bg-gray-200');
-                btn.classList.replace('text-white', 'text-gray-700');
-                btn.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-300');
+                // Reset appearance
+                btn.classList.remove('bg-indigo-600', 'text-white', 'hover:bg-indigo-700');
+                btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
             });
 
             let activeBtn = null;
@@ -487,13 +715,15 @@
             if (tool === 'text') activeBtn = toolTextBtn;
             if (tool === 'eraser') activeBtn = toolEraserBtn;
 
-            if (activeBtn) {
-                activeBtn.classList.replace('bg-gray-200', 'bg-indigo-600');
-                activeBtn.classList.replace('text-gray-700', 'text-white');
-                activeBtn.classList.replace('hover:bg-gray-300', 'hover:bg-indigo-700');
+            if (activeBtn && tool !== 'eraser') {
+                // Set active drawing tools to indigo
+                activeBtn.classList.add('bg-indigo-600', 'text-white', 'hover:bg-indigo-700');
+                activeBtn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            } else if (tool === 'eraser') {
+                 // Eraser can stay gray
             }
-            
-            // Show/Hide text input group
+
+            // Show/Hide text input group and set cursor
             if (tool === 'text') {
                 textInputGroup.classList.remove('hidden');
                 canvas.style.cursor = 'text';
@@ -509,6 +739,7 @@
         toolEraserBtn.addEventListener('click', () => setTool('eraser'));
         strokeColorInput.addEventListener('input', updateSettings);
         textToPlaceInput.addEventListener('input', updateSettings);
+        fontSizePxInput.addEventListener('input', updateSettings);
         document.getElementById('plottingSpeed').addEventListener('input', updateSettings);
         document.getElementById('travelSpeed').addEventListener('input', updateSettings);
         document.getElementById('penDownCommand').addEventListener('input', updateSettings);
@@ -562,20 +793,75 @@
             }
             return new Blob([u8arr], {type:mime});
         }
+        
+        // --- VECTORIZATION HELPERS ---
+
+        // Generates the sequence of points (in canvas coordinates) for a string of text.
+        function getVectorPathsForText(text, startX, startY, size) {
+            const charHeight = size;
+            const charWidth = size * (CHAR_WIDTH_UNITS / CHAR_HEIGHT_UNITS); // Maintain aspect ratio
+            const paths = []; // Array of polylines (paths)
+
+            // Calculate starting X for center alignment
+            const totalTextWidth = text.length * charWidth * CHAR_SPACING_FACTOR - charWidth * (CHAR_SPACING_FACTOR - 1);
+            let currentX = startX - totalTextWidth / 2;
+            const baseY = startY + charHeight / 2; 
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                // Use a generic character if the specific one is not in the map
+                const charMap = VECTOR_FONT_MAP[char] || VECTOR_FONT_MAP['DEFAULT'];
+                
+                // Process each polyline within the character
+                for (const polyline of charMap) {
+                    const segment = [];
+                    for (const [unitX, unitY] of polyline) {
+                        // Scale and translate normalized coordinates to canvas coordinates
+                        const pointX = currentX + unitX * charWidth;
+                        // Invert Y axis: Y=0 is the top of the character block, Y=1 is the bottom (mathematical Y=0 is at the bottom of the block)
+                        const pointY = baseY - unitY * charHeight; 
+                        segment.push({ x: pointX, y: pointY });
+                    }
+                    if (segment.length > 0) {
+                        paths.push(segment);
+                    }
+                }
+
+                currentX += charWidth * CHAR_SPACING_FACTOR;
+            }
+            return paths;
+        }
 
 
         // --- EXPORT FUNCTIONS ---
 
         savePngBtn.addEventListener('click', () => {
+            // Temporarily hide the red placement boxes for clean PNG export
+            const originalStrokeStyle = ctx.strokeStyle;
+            const originalLineWidth = ctx.lineWidth;
+            
+            ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+            ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX); // Redraw border
+            
+            paths.filter(p => p.tool === 'text').forEach(p => {
+                ctx.strokeStyle = 'transparent'; // Hide the red box
+            });
+            redrawCanvas(); // Draw everything back without the red box outlines
+
             const dataURL = canvas.toDataURL('image/png');
             const dateStr = new Date().toISOString().slice(0, 10);
             downloadFile(dataURLtoBlob(dataURL), `drawing-${dateStr}.png`, 'image/png');
             showMessage('Drawing successfully saved as PNG!', 'success');
+            
+            // Restore state
+            ctx.strokeStyle = originalStrokeStyle;
+            ctx.lineWidth = originalLineWidth;
+            redrawCanvas(); // Redraw with boxes for continued editing
         });
 
         generateNcBtn.addEventListener('click', () => {
-            if (paths.filter(p => p.tool === 'pen' || p.tool === 'hollow').length === 0) {
-                showMessage('No drawable paths found. Please draw something with the Pen or Hollow tool!', 'error');
+            if (paths.filter(p => p.tool !== 'eraser').length === 0) {
+                showMessage('The canvas is empty. Please draw or add text first!', 'error');
                 return;
             }
 
@@ -587,10 +873,10 @@
 
         function generateNCFileContent() {
             const G = [];
-            G.push('; Plotter G-Code generated by Plotter Drawing Studio');
+            G.push('; Plotter G-Code generated by Plotter Drawing Studio (Full Vector Font)');
             G.push(`; Paper Size: 16:9 Ratio (${PLOTTER_WIDTH_MM}mm x ${PLOTTER_HEIGHT_MM}mm)`);
             G.push(`; Fixed Pen Width used for hollow calculation: ${FIXED_STROKE_WIDTH}px`);
-            G.push(`; Text elements were ignored in G-Code generation.`);
+            G.push(`; NOTE ON TEXT: Full support for A-Z, 0-9, and common symbols/punctuation.`);
             G.push(`; Pen Down Command: ${settings.penDown}`);
             G.push(`; Generated: ${new Date().toISOString()}`);
             G.push('');
@@ -607,20 +893,17 @@
             // 2. Path Processing
             const x_scale = PLOTTER_WIDTH_MM / CANVAS_WIDTH_PX;
             const y_scale = PLOTTER_HEIGHT_MM / CANVAS_HEIGHT_PX;
-            // Only process pen and hollow tools
-            const drawablePaths = paths.filter(p => p.tool === 'pen' || p.tool === 'hollow');
+            const drawableElements = paths.filter(p => p.tool !== 'eraser');
 
-            for (const p of drawablePaths) {
-                if (p.path.length < 2) continue;
-
+            for (const p of drawableElements) {
                 if (p.tool === 'pen') {
                     G.push(`; Drawing single outline path.`);
                     drawPath(G, p.path, x_scale, y_scale, settings);
                 } else if (p.tool === 'hollow') {
                     G.push(`; Drawing hollow path. Calculating outline based on ${p.width}px stroke.`);
 
+                    // --- Hollow calculation logic remains the same (approximating vector path for outline) ---
                     const offset = p.width / 2;
-
                     const outerPath = [];
                     const innerPath = [];
 
@@ -636,27 +919,25 @@
                         if (length > 0) {
                             tanX /= length;
                             tanY /= length;
-                        } else { 
-                            tanX = 0; tanY = 1;
-                        }
+                        } else { tanX = 0; tanY = 1; }
 
                         const normalX = -tanY;
                         const normalY = tanX;
 
-                        outerPath.push({
-                            x: current.x + normalX * offset,
-                            y: current.y + normalY * offset
-                        });
-                        innerPath.push({
-                            x: current.x - normalX * offset,
-                            y: current.y - normalY * offset
-                        });
+                        outerPath.push({ x: current.x + normalX * offset, y: current.y + normalY * offset });
+                        innerPath.push({ x: current.x - normalX * offset, y: current.y - normalY * offset });
                     }
 
-                    // Draw outer path
                     drawPath(G, outerPath, x_scale, y_scale, settings);
-                    // Draw inner path (reversed for efficiency)
                     drawPath(G, innerPath.reverse(), x_scale, y_scale, settings);
+                } else if (p.tool === 'text') {
+                    G.push(`; Vectorizing Text: "${p.text}". Size: ${p.fontSizePx}px`);
+                    // Use the newly enhanced vectorization function
+                    const vectorPaths = getVectorPathsForText(p.text, p.x, p.y, p.fontSizePx);
+                    
+                    for (const vectorPath of vectorPaths) {
+                        drawPath(G, vectorPath, x_scale, y_scale, settings);
+                    }
                 }
             }
 
@@ -669,18 +950,25 @@
 
         // Generic function to draw a series of points
         function drawPath(G, pathPoints, x_scale, y_scale, settings) {
+            // Check if there are any points to draw
+            if (pathPoints.length === 0) return;
+
+            // Move to the start of the path (Pen Up/Travel speed)
             let start_x_mm = (pathPoints[0].x * x_scale).toFixed(2);
             let start_y_mm = (pathPoints[0].y * y_scale).toFixed(2);
             G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
 
+            // Pen Down (Plotting speed implied by G1)
             G.push(settings.penDown);
 
+            // Draw the path (G1 moves)
             for (let i = 1; i < pathPoints.length; i++) {
                 let next_x_mm = (pathPoints[i].x * x_scale).toFixed(2);
                 let next_y_mm = (pathPoints[i].y * y_scale).toFixed(2);
                 G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
             }
 
+            // Pen Up
             G.push(settings.penUp);
             G.push('');
         }
