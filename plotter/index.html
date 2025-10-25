@@ -4,12 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plotter Drawing Studio - 16:9 (Fixed Width)</title>
+    <!-- Load Quicksand font for UI and Canvas -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for the drawing area */
         html, body {
             height: 100%;
             margin: 0;
+        }
+
+        .font-sans {
+            font-family: 'Quicksand', sans-serif; /* Use Quicksand as the primary UI font */
         }
 
         .canvas-container {
@@ -50,22 +56,33 @@
         <div id="step1Section" class="step-section bg-indigo-50 rounded-lg p-3 mb-6">
             <h3 class="font-semibold text-indigo-700 mb-2">1. Drawing Tool</h3>
 
-            <div class="flex space-x-2 mb-3">
-                <button id="toolPen" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-indigo-600 text-white hover:bg-indigo-700">
-                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen (Outline)
+            <div class="grid grid-cols-3 gap-2 mb-3">
+                <button id="toolPen" class="px-2 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-indigo-600 text-white hover:bg-indigo-700">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen
                 </button>
-                <button id="toolHollow" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
-                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> Hollow (Thick Line)
+                <button id="toolHollow" class="px-2 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> Hollow
                 </button>
-                <button id="toolEraser" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
-                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Eraser
+                 <button id="toolText" class="px-2 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.263M21 8l-7.89 5.263M12 18V6"></path></svg> Text
                 </button>
             </div>
             
-            <p class="text-xs font-semibold text-gray-700 mb-2">Pen Width is Fixed at 8px.</p>
+            <p class="text-xs font-semibold text-gray-700 mb-2">Fixed pen width of 8px.</p>
 
             <label for="strokeColor" class="block text-xs font-medium text-gray-700">Stroke Color</label>
             <input type="color" id="strokeColor" value="#1f2937" class="w-full h-10 p-1 border border-gray-300 rounded-lg cursor-pointer shadow-sm mb-3">
+            
+            <!-- Text Input Group (Shown when Text tool is active) -->
+            <div id="textInputGroup" class="mb-3 hidden">
+                <label for="textToPlace" class="block text-xs font-medium text-gray-700">Text Content (Quicksand Light 24px)</label>
+                <input type="text" id="textToPlace" value="PLOTTER TEXT" placeholder="Enter text here..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
+            </div>
+
+            <button id="toolEraser" class="w-full px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300 mb-3">
+                <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Eraser
+            </button>
+
 
             <div id="step1Nav" class="mt-4 pt-4 border-t border-indigo-200">
                 <button id="nextToStep2" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg shadow transition duration-150">
@@ -110,6 +127,8 @@
         <div id="step3Section" class="step-section bg-yellow-50 rounded-lg hidden">
             <h3 class="font-semibold text-yellow-700 mb-2">3. Export Actions</h3>
             <p class="text-xs text-gray-600 mb-3">The canvas is set to a **16:9** ratio. For plotting, we will use a paper size of **160mm x 90mm**.</p>
+            <p class="text-xs text-red-600 mb-3 font-bold">⚠️ Note: Text elements are ignored by the G-Code export.</p>
+
 
             <button id="savePngBtn" class="w-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-150 mb-3">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -154,13 +173,13 @@
 
     <script>
         // --- CONSTANTS AND INITIALIZATION ---
-        const TARGET_RATIO = 16 / 9; // Enforce the requested 16:9 aspect ratio
+        const TARGET_RATIO = 16 / 9; 
         const PLOTTER_WIDTH_MM = 160; 
         const PLOTTER_HEIGHT_MM = 90; 
         
-        // Fixed pen width in pixels
         const FIXED_STROKE_WIDTH = 8; 
-        
+        const TEXT_FONT = "300 24px 'Quicksand'"; // 300 is the weight for "Light"
+
         let CANVAS_WIDTH_PX = 0; 
         let CANVAS_HEIGHT_PX = 0; 
         
@@ -168,8 +187,9 @@
         const ctx = canvas.getContext('2d');
         const canvasContainerDiv = document.querySelector('.canvas-container');
 
-        // Array to store all paths drawn
-        // Each element is: { tool: 'pen'|'hollow'|'eraser', path: [{x,y}, ...], color, width }
+        // Each element is: 
+        // { tool: 'pen'|'hollow'|'eraser', path: [{x,y}, ...], color, width: 8 }
+        // { tool: 'text', x, y, text, color }
         let paths = []; 
         let currentPath = null; 
 
@@ -180,9 +200,12 @@
 
         // UI element references
         const strokeColorInput = document.getElementById('strokeColor');
+        const textToPlaceInput = document.getElementById('textToPlace');
         const toolPenBtn = document.getElementById('toolPen');
         const toolHollowBtn = document.getElementById('toolHollow');
+        const toolTextBtn = document.getElementById('toolText'); // New
         const toolEraserBtn = document.getElementById('toolEraser');
+        const textInputGroup = document.getElementById('textInputGroup'); // New
         
         const savePngBtn = document.getElementById('savePngBtn');
         const generateNcBtn = document.getElementById('generateNcBtn');
@@ -199,8 +222,9 @@
         
         let settings = {
             color: strokeColorInput.value,
-            width: FIXED_STROKE_WIDTH, // Now a fixed value
+            width: FIXED_STROKE_WIDTH,
             tool: 'pen', 
+            text: textToPlaceInput.value,
             plottingSpeed: 1500,
             travelSpeed: 3000,
             penDown: 'M3 S800', 
@@ -297,6 +321,7 @@
 
         function draw(e) {
             if (!isDrawing) return;
+            if (settings.tool === 'text') return; // Text tool doesn't draw on move
 
             const { x, y } = getCanvasPoint(e);
 
@@ -308,7 +333,6 @@
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
 
-            // Use the fixed width for visual rendering
             if (settings.tool === 'pen' || settings.tool === 'hollow') {
                 ctx.strokeStyle = settings.color;
                 ctx.lineWidth = settings.width;
@@ -329,16 +353,34 @@
         }
 
         function startDrawing(e) {
-            isDrawing = true;
-
             const { x, y } = getCanvasPoint(e);
+
+            if (settings.tool === 'text') {
+                if (settings.text.trim().length > 0) {
+                     const textItem = {
+                        tool: 'text',
+                        x: x,
+                        y: y,
+                        text: settings.text.trim(),
+                        color: settings.color
+                    };
+                    paths.push(textItem);
+                    redrawCanvas();
+                    showMessage(`Text placed: "${settings.text.trim()}"`, 'info');
+                } else {
+                    showMessage('Please enter text to place.', 'error');
+                }
+                return; // Text tool is click-only, not drag
+            }
+
+            isDrawing = true;
 
             if (settings.tool !== 'eraser') {
                 currentPath = {
-                    tool: settings.tool, // 'pen' or 'hollow'
+                    tool: settings.tool, 
                     path: [{ x: x, y: y }],
                     color: settings.color,
-                    width: settings.width // Storing the fixed width
+                    width: settings.width
                 };
                 paths.push(currentPath);
             }
@@ -362,27 +404,44 @@
             ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
 
             for (const p of paths) {
-                if (p.path.length < 2) continue;
+                if (p.tool === 'text') {
+                    // Draw Text elements
+                    ctx.fillStyle = p.color;
+                    ctx.font = TEXT_FONT;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(p.text, p.x, p.y);
+                    
+                    // Add a temporary box/marker for clarity
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.lineWidth = 1;
+                    const metrics = ctx.measureText(p.text);
+                    const width = metrics.width;
+                    const height = 24; // Approximation based on font size
+                    ctx.strokeRect(p.x - width / 2, p.y - height / 2, width, height);
 
-                ctx.beginPath();
-                ctx.moveTo(p.path[0].x, p.path[0].y);
-                for (let i = 1; i < p.path.length; i++) {
-                    ctx.lineTo(p.path[i].x, p.path[i].y);
+                } else if (p.path && p.path.length >= 2) {
+                    // Draw Pen/Hollow/Eraser paths
+                    ctx.beginPath();
+                    ctx.moveTo(p.path[0].x, p.path[0].y);
+                    for (let i = 1; i < p.path.length; i++) {
+                        ctx.lineTo(p.path[i].x, p.path[i].y);
+                    }
+                    ctx.lineJoin = 'round';
+                    ctx.lineCap = 'round';
+                    
+                    if (p.tool === 'pen' || p.tool === 'hollow') { 
+                        ctx.strokeStyle = p.color;
+                        ctx.lineWidth = p.width;
+                        ctx.globalCompositeOperation = 'source-over';
+                    } else { // Eraser
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                        ctx.lineWidth = p.width + 10;
+                        ctx.globalCompositeOperation = 'destination-out';
+                    }
+                    
+                    ctx.stroke();
                 }
-                ctx.lineJoin = 'round';
-                ctx.lineCap = 'round';
-                
-                if (p.tool === 'pen' || p.tool === 'hollow') { 
-                    ctx.strokeStyle = p.color;
-                    ctx.lineWidth = p.width; // Use the stored width (which is the fixed 8px)
-                    ctx.globalCompositeOperation = 'source-over';
-                } else { // Eraser
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-                    ctx.lineWidth = p.width + 10;
-                    ctx.globalCompositeOperation = 'destination-out';
-                }
-                
-                ctx.stroke();
             }
         }
 
@@ -406,8 +465,8 @@
 
         function updateSettings() {
             settings.color = strokeColorInput.value;
-            // settings.width is fixed
-
+            settings.text = textToPlaceInput.value;
+            
             settings.plottingSpeed = parseInt(document.getElementById('plottingSpeed').value) || 1500;
             settings.travelSpeed = parseInt(document.getElementById('travelSpeed').value) || 3000;
             settings.penDown = document.getElementById('penDownCommand').value.trim() || 'M3 S800'; 
@@ -416,25 +475,40 @@
 
         function setTool(tool) {
             settings.tool = tool;
-            [toolPenBtn, toolHollowBtn, toolEraserBtn].forEach(btn => {
+            [toolPenBtn, toolHollowBtn, toolTextBtn, toolEraserBtn].forEach(btn => {
                 btn.classList.replace('bg-indigo-600', 'bg-gray-200');
                 btn.classList.replace('text-white', 'text-gray-700');
                 btn.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-300');
             });
 
-            const activeBtn = document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`);
+            let activeBtn = null;
+            if (tool === 'pen') activeBtn = toolPenBtn;
+            if (tool === 'hollow') activeBtn = toolHollowBtn;
+            if (tool === 'text') activeBtn = toolTextBtn;
+            if (tool === 'eraser') activeBtn = toolEraserBtn;
+
             if (activeBtn) {
                 activeBtn.classList.replace('bg-gray-200', 'bg-indigo-600');
                 activeBtn.classList.replace('text-gray-700', 'text-white');
                 activeBtn.classList.replace('hover:bg-gray-300', 'hover:bg-indigo-700');
             }
+            
+            // Show/Hide text input group
+            if (tool === 'text') {
+                textInputGroup.classList.remove('hidden');
+                canvas.style.cursor = 'text';
+            } else {
+                textInputGroup.classList.add('hidden');
+                canvas.style.cursor = 'crosshair';
+            }
         }
 
         toolPenBtn.addEventListener('click', () => setTool('pen'));
         toolHollowBtn.addEventListener('click', () => setTool('hollow')); 
+        toolTextBtn.addEventListener('click', () => setTool('text'));
         toolEraserBtn.addEventListener('click', () => setTool('eraser'));
         strokeColorInput.addEventListener('input', updateSettings);
-        // Removed strokeWidthInput listener
+        textToPlaceInput.addEventListener('input', updateSettings);
         document.getElementById('plottingSpeed').addEventListener('input', updateSettings);
         document.getElementById('travelSpeed').addEventListener('input', updateSettings);
         document.getElementById('penDownCommand').addEventListener('input', updateSettings);
@@ -501,7 +575,7 @@
 
         generateNcBtn.addEventListener('click', () => {
             if (paths.filter(p => p.tool === 'pen' || p.tool === 'hollow').length === 0) {
-                showMessage('The canvas is empty. Please draw something with the pen or hollow tool first!', 'error');
+                showMessage('No drawable paths found. Please draw something with the Pen or Hollow tool!', 'error');
                 return;
             }
 
@@ -516,6 +590,7 @@
             G.push('; Plotter G-Code generated by Plotter Drawing Studio');
             G.push(`; Paper Size: 16:9 Ratio (${PLOTTER_WIDTH_MM}mm x ${PLOTTER_HEIGHT_MM}mm)`);
             G.push(`; Fixed Pen Width used for hollow calculation: ${FIXED_STROKE_WIDTH}px`);
+            G.push(`; Text elements were ignored in G-Code generation.`);
             G.push(`; Pen Down Command: ${settings.penDown}`);
             G.push(`; Generated: ${new Date().toISOString()}`);
             G.push('');
@@ -532,6 +607,7 @@
             // 2. Path Processing
             const x_scale = PLOTTER_WIDTH_MM / CANVAS_WIDTH_PX;
             const y_scale = PLOTTER_HEIGHT_MM / CANVAS_HEIGHT_PX;
+            // Only process pen and hollow tools
             const drawablePaths = paths.filter(p => p.tool === 'pen' || p.tool === 'hollow');
 
             for (const p of drawablePaths) {
@@ -543,10 +619,8 @@
                 } else if (p.tool === 'hollow') {
                     G.push(`; Drawing hollow path. Calculating outline based on ${p.width}px stroke.`);
 
-                    // Calculate offset paths for hollow effect
-                    const offset = p.width / 2; // Half the stroke width for each side
+                    const offset = p.width / 2;
 
-                    // Create two offset paths
                     const outerPath = [];
                     const innerPath = [];
 
@@ -555,11 +629,9 @@
                         const prev = p.path[i - 1] || current;
                         const next = p.path[i + 1] || current;
 
-                        // Calculate tangent vector
                         let tanX = next.x - prev.x;
                         let tanY = next.y - prev.y;
 
-                        // Normalize tangent
                         const length = Math.sqrt(tanX * tanX + tanY * tanY);
                         if (length > 0) {
                             tanX /= length;
@@ -568,11 +640,9 @@
                             tanX = 0; tanY = 1;
                         }
 
-                        // Calculate normal vector (perpendicular to tangent)
                         const normalX = -tanY;
                         const normalY = tanX;
 
-                        // Offset points
                         outerPath.push({
                             x: current.x + normalX * offset,
                             y: current.y + normalY * offset
@@ -585,7 +655,7 @@
 
                     // Draw outer path
                     drawPath(G, outerPath, x_scale, y_scale, settings);
-                    // Draw inner path (reversed for potentially better plotter movement)
+                    // Draw inner path (reversed for efficiency)
                     drawPath(G, innerPath.reverse(), x_scale, y_scale, settings);
                 }
             }
@@ -599,22 +669,18 @@
 
         // Generic function to draw a series of points
         function drawPath(G, pathPoints, x_scale, y_scale, settings) {
-             // Move to the start of the path (Pen Up/Travel speed)
             let start_x_mm = (pathPoints[0].x * x_scale).toFixed(2);
             let start_y_mm = (pathPoints[0].y * y_scale).toFixed(2);
             G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
 
-            // Pen Down (Plotting speed implied by G1)
             G.push(settings.penDown);
 
-            // Draw the path (G1 moves)
             for (let i = 1; i < pathPoints.length; i++) {
                 let next_x_mm = (pathPoints[i].x * x_scale).toFixed(2);
                 let next_y_mm = (pathPoints[i].y * y_scale).toFixed(2);
                 G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
             }
 
-            // Pen Up
             G.push(settings.penUp);
             G.push('');
         }
