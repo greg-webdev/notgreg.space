@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plotter Drawing Studio - 16:9</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the drawing area */
+        /* Flexbox handles sizing, but we need the container to force 100% height for the flex-1 main area */
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        .canvas-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f0f0;
+            overflow: hidden;
+            flex-grow: 1; /* Allows it to take up available vertical space */
+        }
+
+        #drawingCanvas {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            cursor: crosshair;
+            background-color: white; /* Actual paper color */
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Hide number input spinners */
+        input[type='number']::-webkit-inner-spin-button,
+        input[type='number']::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type='number'] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col lg:flex-row font-sans">
+
+    <!-- Settings Panel (Aside) - Fixed width, scrollable on large screens -->
+    <aside id="settingsPanel" class="w-full lg:w-80 bg-white p-4 shadow-xl flex-shrink-0 order-2 lg:order-1 lg:h-screen lg:overflow-y-auto">
+        <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Drawing & Plotter Settings</h2>
+
+        <div id="step1Section" class="step-section bg-indigo-50 rounded-lg p-3 mb-6">
+            <h3 class="font-semibold text-indigo-700 mb-2">1. Drawing Tool</h3>
+
+            <div class="flex space-x-2 mb-3">
+                <button id="toolPen" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-indigo-600 text-white hover:bg-indigo-700">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen
+                </button>
+                <button id="toolFill" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> Fill
+                </button>
+                <button id="toolEraser" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Eraser
+                </button>
+            </div>
+
+            <label for="strokeColor" class="block text-xs font-medium text-gray-700">Stroke Color</label>
+            <input type="color" id="strokeColor" value="#1f2937" class="w-full h-10 p-1 border border-gray-300 rounded-lg cursor-pointer shadow-sm mb-3">
+
+            <label for="strokeWidth" class="block text-xs font-medium text-gray-700">Stroke Width (<span id="widthValue">8</span> px)</label>
+            <input type="range" id="strokeWidth" min="1" max="50" value="8" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            
+            <div id="infillSettings" class="mt-4 pt-4 border-t border-indigo-200" style="display: none;">
+                <h4 class="font-medium text-indigo-600 mb-2">Infill Settings</h4>
+                <label for="infillDensity" class="block text-xs font-medium text-gray-700">Infill Density (<span id="infillDensityValue">50</span> %)</label>
+                <input type="range" id="infillDensity" min="10" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mb-3">
+                
+                <label for="infillAngle" class="block text-xs font-medium text-gray-700">Infill Angle (<span id="infillAngleValue">0</span> &deg;)</label>
+                <input type="range" id="infillAngle" min="0" max="180" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div id="step1Nav" class="mt-4 pt-4 border-t border-indigo-200">
+                <button id="nextToStep2" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg shadow transition duration-150">
+                    Continue to Plotter Settings
+                    <svg class="w-4 h-4 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="step2Section" class="step-section bg-green-50 rounded-lg hidden">
+            <h3 class="font-semibold text-green-700 mb-2">2. Plotter (G-Code) Parameters</h3>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label for="plottingSpeed" class="block text-xs font-medium text-gray-700">Plotting Speed (G1 F)</label>
+                    <input type="number" id="plottingSpeed" value="1500" min="100" max="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
+                </div>
+                <div>
+                    <label for="travelSpeed" class="block text-xs font-medium text-gray-700">Travel Speed (G0 F)</label>
+                    <input type="number" id="travelSpeed" value="3000" min="100" max="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
+                </div>
+            </div>
+
+            <label for="penDownCommand" class="block text-xs font-medium text-gray-700">Pen Down Command (M3)</label>
+            <input type="text" id="penDownCommand" value="M3 S50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm mb-3">
+
+            <label for="penUpCommand" class="block text-xs font-medium text-gray-700">Pen Up Command (M5)</label>
+            <input type="text" id="penUpCommand" value="M5 S0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
+
+            <div id="step2Nav" class="mt-4 pt-4 border-t border-green-200 flex space-x-2 hidden">
+                <button id="prevToStep1" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition duration-150">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back
+                </button>
+                <button id="nextToStep3" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg shadow transition duration-150">
+                    Continue to Export Actions
+                    <svg class="w-4 h-4 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+        </div>
+        
+        <div id="step3Section" class="step-section bg-yellow-50 rounded-lg hidden">
+            <h3 class="font-semibold text-yellow-700 mb-2">3. Export Actions</h3>
+            <p class="text-xs text-gray-600 mb-3">The canvas is set to a **16:9** ratio. For plotting, we will use a paper size of **160mm x 90mm**.</p>
+
+            <button id="savePngBtn" class="w-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-150 mb-3">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Save as PNG Image
+            </button>
+
+            <button id="generateNcBtn" class="w-full flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-150">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
+                Generate .nc (G-Code)
+            </button>
+
+            <div id="step3Nav" class="mt-4 pt-4 border-t border-yellow-200">
+                <button id="prevToStep2" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition duration-150">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Plotter Settings
+                </button>
+            </div>
+        </div>
+        
+        <div id="messageBox" class="mt-4 p-3 text-sm rounded-lg transition-all duration-300 opacity-0 hidden" role="alert"></div>
+
+    </aside>
+
+    <!-- Main Content (Canvas Area) - Takes up the rest of the space -->
+    <main class="flex-1 p-4 flex flex-col items-center order-1 lg:order-2 lg:h-screen overflow-hidden">
+        
+        <!-- Header -->
+        <div class="text-center mb-2 flex-shrink-0">
+            <h1 class="text-3xl font-extrabold text-gray-900">Drawing Canvas (16:9)</h1>
+            <p class="text-sm text-gray-500">Draw paths below. Thicker lines (>= <span id="infillThresholdDisplay">3</span>px) will be filled.</p>
+        </div>
+
+        <!-- Canvas Container - Flex-1 makes it grow to fill available vertical space -->
+        <div class="canvas-container flex-1 w-full max-w-full rounded-xl flex items-center justify-center overflow-auto">
+            <!-- Removed fixed width/height attributes to allow JavaScript control -->
+            <canvas id="drawingCanvas" class="rounded-lg shadow-2xl"></canvas>
+        </div>
+
+        <!-- Footer/Action Button -->
+        <div class="mt-4 flex-shrink-0">
+             <button id="clearCanvasBtn" class="px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-red-100 text-red-700 hover:bg-red-200">
+                Clear Canvas
+            </button>
+        </div>
+
+    </main>
+
+    <script>
+        // --- CONSTANTS AND INITIALIZATION ---
+        const TARGET_RATIO = 16 / 9; // Enforce the requested 16:9 aspect ratio
+        const PLOTTER_WIDTH_MM = 160; // Corresponding physical size for G-Code (160:90 = 16:9)
+        const PLOTTER_HEIGHT_MM = 90; 
+        
+        let CANVAS_WIDTH_PX = 0; // Dynamic size
+        let CANVAS_HEIGHT_PX = 0; // Dynamic size
+        
+        const INFILL_THRESHOLD_PX = 3; // Lines thicker than this will be infilled
+
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainerDiv = document.querySelector('.canvas-container');
+
+        // Array to store all paths drawn (used for NC generation)
+        let paths = []; // Each element is { type: 'pen'|'fill', path: [{x,y}, ...], color, width }
+        let currentPath = null; // Stores current path being drawn
+
+        // Drawing state
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // UI element references
+        const strokeColorInput = document.getElementById('strokeColor');
+        const strokeWidthInput = document.getElementById('strokeWidth');
+        const widthValueSpan = document.getElementById('widthValue');
+        const toolPenBtn = document.getElementById('toolPen');
+        const toolFillBtn = document.getElementById('toolFill');
+        const toolEraserBtn = document.getElementById('toolEraser');
+        const infillSettingsDiv = document.getElementById('infillSettings');
+        const infillDensityInput = document.getElementById('infillDensity');
+        const infillDensityValueSpan = document.getElementById('infillDensityValue');
+        const infillAngleInput = document.getElementById('infillAngle');
+        const infillAngleValueSpan = document.getElementById('infillAngleValue');
+        const infillThresholdDisplay = document.getElementById('infillThresholdDisplay');
+        
+        const savePngBtn = document.getElementById('savePngBtn');
+        const generateNcBtn = document.getElementById('generateNcBtn');
+        const messageBox = document.getElementById('messageBox');
+        const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+
+        // Step Navigation references
+        const step1Section = document.getElementById('step1Section');
+        const step2Section = document.getElementById('step2Section');
+        const step3Section = document.getElementById('step3Section');
+        const step1Nav = document.getElementById('step1Nav');
+        const step2Nav = document.getElementById('step2Nav');
+        const step3Nav = document.getElementById('step3Nav');
+        
+        let settings = {
+            color: strokeColorInput.value,
+            width: parseInt(strokeWidthInput.value),
+            tool: 'pen', // 'pen', 'fill', or 'eraser'
+            plottingSpeed: 1500,
+            travelSpeed: 3000,
+            penDown: 'M3 S50',
+            penUp: 'M5 S0',
+            infillDensity: parseInt(infillDensityInput.value), // 10-100%
+            infillAngle: parseInt(infillAngleInput.value) // 0-180 degrees
+        };
+
+        let currentStep = 1;
+
+
+        // --- CANVAS RESIZING (16:9 Constraint) ---
+
+        function resizeCanvasAndRedraw() {
+            if (!canvasContainerDiv) return;
+
+            // Get the current available space for the canvas container
+            const containerRect = canvasContainerDiv.getBoundingClientRect();
+            const availableW = containerRect.width;
+            const availableH = containerRect.height;
+            
+            const containerRatio = availableW / availableH;
+
+            let newW, newH;
+            
+            // Check if the container space is wider or narrower than the target ratio (16:9)
+            if (containerRatio > TARGET_RATIO) {
+                // Constrain by Height
+                newH = availableH;
+                newW = newH * TARGET_RATIO;
+            } else {
+                // Constrain by Width
+                newW = availableW;
+                newH = newW / TARGET_RATIO;
+            }
+
+            // Apply calculated dimensions to the canvas element
+            canvas.width = newW;
+            canvas.height = newH;
+            
+            CANVAS_WIDTH_PX = newW;
+            CANVAS_HEIGHT_PX = newH;
+            
+            // Redraw existing content after resize
+            redrawCanvas();
+        }
+
+        // --- STEP NAVIGATION LOGIC ---
+
+        function showStep(step) {
+            // Hide all step content sections
+            [step1Section, step2Section, step3Section].forEach(section => {
+                section.classList.add('hidden');
+                section.classList.remove('p-3', 'mb-6');
+            });
+
+            // Hide all navigation blocks
+            [step1Nav, step2Nav, step3Nav].forEach(nav => {
+                nav.classList.add('hidden');
+            });
+
+            // Show the relevant section and its navigation block
+            if (step === 1) {
+                step1Section.classList.remove('hidden');
+                step1Nav.classList.remove('hidden');
+            } else if (step === 2) {
+                step2Section.classList.remove('hidden');
+                step2Nav.classList.remove('hidden');
+            } else if (step === 3) {
+                step3Section.classList.remove('hidden');
+                step3Nav.classList.remove('hidden');
+            }
+
+            // Re-add padding/margins to the active section for aesthetics
+            document.getElementById(`step${step}Section`).classList.add('p-3', 'mb-6');
+            
+            currentStep = step;
+        }
+
+        // Add listeners for navigation buttons
+        document.getElementById('nextToStep2').addEventListener('click', () => showStep(2));
+        document.getElementById('prevToStep1').addEventListener('click', () => showStep(1));
+        document.getElementById('nextToStep3').addEventListener('click', () => showStep(3));
+        document.getElementById('prevToStep2').addEventListener('click', () => showStep(2));
+        
+
+        // --- CANVAS DRAWING LOGIC ---
+
+        function getCanvasPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
+
+            if (e.touches && e.touches.length > 0) {
+                x = e.touches[0].clientX - rect.left;
+                y = e.touches[0].clientY - rect.top;
+            } else {
+                x = e.offsetX;
+                y = e.offsetY;
+            }
+            return { x, y };
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+
+            const { x, y } = getCanvasPoint(e);
+
+            // Redraw everything to simulate continuous drawing without clearing
+            redrawCanvas();
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            if (settings.tool === 'pen' || settings.tool === 'fill') {
+                ctx.strokeStyle = settings.color;
+                ctx.lineWidth = settings.width;
+                ctx.globalCompositeOperation = 'source-over';
+            } else { // Eraser mode
+                ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                ctx.lineWidth = settings.width + 10;
+                ctx.globalCompositeOperation = 'destination-out';
+            }
+
+            ctx.stroke();
+
+            // Store path data
+            if (settings.tool !== 'eraser' && currentPath) {
+                currentPath.path.push({ x: x, y: y });
+            }
+
+            [lastX, lastY] = [x, y];
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+
+            const { x, y } = getCanvasPoint(e);
+
+            // Start a new path
+            if (settings.tool !== 'eraser') {
+                currentPath = {
+                    type: settings.tool,
+                    path: [{ x: x, y: y }],
+                    color: settings.color,
+                    width: settings.width
+                };
+                paths.push(currentPath);
+            }
+
+            [lastX, lastY] = [x, y];
+        }
+
+        function stopDrawing() {
+            if (isDrawing) {
+                isDrawing = false;
+                ctx.globalCompositeOperation = 'source-over'; // Reset to default
+                currentPath = null; // Clear current path for next stroke
+            }
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+            // Redraw all stored paths
+            for (const p of paths) {
+                if (p.path.length < 2) continue;
+
+                ctx.beginPath();
+                ctx.moveTo(p.path[0].x, p.path[0].y);
+                for (let i = 1; i < p.path.length; i++) {
+                    ctx.lineTo(p.path[i].x, p.path[i].y);
+                }
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = p.width;
+                ctx.globalCompositeOperation = 'source-over'; // Always draw stored paths
+                ctx.stroke();
+            }
+        }
+
+        // Event Listeners for drawing
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        // Touch event listeners
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            startDrawing(e);
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            draw(e);
+        });
+        canvas.addEventListener('touchend', stopDrawing);
+
+
+        // --- SETTINGS AND UI HANDLERS ---
+
+        function updateSettings() {
+            settings.color = strokeColorInput.value;
+            settings.width = parseInt(strokeWidthInput.value);
+            widthValueSpan.textContent = settings.width;
+            
+            settings.infillDensity = parseInt(infillDensityInput.value);
+            infillDensityValueSpan.textContent = settings.infillDensity;
+            
+            settings.infillAngle = parseInt(infillAngleInput.value);
+            infillAngleValueSpan.textContent = settings.infillAngle;
+
+            // Update G-code settings
+            settings.plottingSpeed = parseInt(document.getElementById('plottingSpeed').value) || 1500;
+            settings.travelSpeed = parseInt(document.getElementById('travelSpeed').value) || 3000;
+            settings.penDown = document.getElementById('penDownCommand').value.trim() || 'M3 S50';
+            settings.penUp = document.getElementById('penUpCommand').value.trim() || 'M5 S0';
+        }
+
+        function setTool(tool) {
+            settings.tool = tool;
+            [toolPenBtn, toolFillBtn, toolEraserBtn].forEach(btn => {
+                btn.classList.replace('bg-indigo-600', 'bg-gray-200');
+                btn.classList.replace('text-white', 'text-gray-700');
+                btn.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-300');
+            });
+
+            const activeBtn = document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`);
+            if (activeBtn) {
+                activeBtn.classList.replace('bg-gray-200', 'bg-indigo-600');
+                activeBtn.classList.replace('text-gray-700', 'text-white');
+                activeBtn.classList.replace('hover:bg-gray-300', 'hover:bg-indigo-700');
+            }
+
+            if (tool === 'fill') {
+                infillSettingsDiv.style.display = 'block';
+            } else {
+                infillSettingsDiv.style.display = 'none';
+            }
+        }
+
+        toolPenBtn.addEventListener('click', () => setTool('pen'));
+        toolFillBtn.addEventListener('click', () => setTool('fill'));
+        toolEraserBtn.addEventListener('click', () => setTool('eraser'));
+        strokeColorInput.addEventListener('input', updateSettings);
+        strokeWidthInput.addEventListener('input', updateSettings);
+        infillDensityInput.addEventListener('input', updateSettings);
+        infillAngleInput.addEventListener('input', updateSettings);
+        document.getElementById('plottingSpeed').addEventListener('input', updateSettings);
+        document.getElementById('travelSpeed').addEventListener('input', updateSettings);
+        document.getElementById('penDownCommand').addEventListener('input', updateSettings);
+        document.getElementById('penUpCommand').addEventListener('input', updateSettings);
+
+
+        // --- UTILITY FUNCTIONS ---
+
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'opacity-0');
+            messageBox.classList.add('opacity-100');
+
+            messageBox.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
+
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                messageBox.classList.add('bg-blue-100', 'text-blue-800');
+            }
+
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                messageBox.classList.add('opacity-0');
+                setTimeout(() => messageBox.classList.add('hidden'), 300);
+            }, 5000);
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- EXPORT FUNCTIONS ---
+
+        savePngBtn.addEventListener('click', () => {
+            const dataURL = canvas.toDataURL('image/png');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            downloadFile(dataURLtoBlob(dataURL), `drawing-${dateStr}.png`, 'image/png');
+            showMessage('Drawing successfully saved as PNG!', 'success');
+        });
+
+        function dataURLtoBlob(dataurl) {
+            const arr = dataurl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
+
+        // G-Code Generation Function (The core logic)
+        generateNcBtn.addEventListener('click', () => {
+            if (paths.length === 0) {
+                showMessage('The canvas is empty. Please draw something first!', 'error');
+                return;
+            }
+
+            const gcode = generateNCFileContent();
+            const dateStr = new Date().toISOString().slice(0, 10);
+            downloadFile(gcode, `plot_drawing-${dateStr}.nc`, 'application/x-ncdrill');
+            showMessage('G-Code successfully generated and saved as .nc file!', 'success');
+        });
+
+        function generateNCFileContent() {
+            const G = [];
+            G.push('; Plotter G-Code generated by Plotter Drawing Studio');
+            G.push(`; Paper Size: 16:9 Ratio (${PLOTTER_WIDTH_MM}mm x ${PLOTTER_HEIGHT_MM}mm)`);
+            G.push(`; Infill Threshold: ${INFILL_THRESHOLD_PX}px`);
+            G.push(`; Infill Density: ${settings.infillDensity}%`);
+            G.push(`; Infill Angle: ${settings.infillAngle}°`);
+            G.push(`; Generated: ${new Date().toISOString()}`);
+            G.push('');
+
+            // 1. Initialization
+            G.push('G90 ; Set to Absolute Positioning');
+            G.push('G21 ; Set units to millimeters (mm)');
+            G.push(`G0 F${settings.travelSpeed} ; Set default travel speed`);
+            G.push(`G1 F${settings.plottingSpeed} ; Set default plotting speed`);
+            G.push(settings.penUp); // Initial Pen Up
+            G.push('G0 X0 Y0 ; Move to origin');
+            G.push('');
+
+            // 2. Path Processing
+            const x_scale = PLOTTER_WIDTH_MM / CANVAS_WIDTH_PX;
+            const y_scale = PLOTTER_HEIGHT_MM / CANVAS_HEIGHT_PX;
+
+            for (const p of paths) {
+                if (p.path.length < 2) continue; // Skip single-point paths
+                if (p.type === 'eraser') continue; // Skip erased paths
+
+                // Check for infill condition
+                const needsInfill = (p.type === 'fill' || p.width >= INFILL_THRESHOLD_PX);
+
+                if (needsInfill) {
+                    // Calculate bounding box for infill
+                    let minX = CANVAS_WIDTH_PX, minY = CANVAS_HEIGHT_PX, maxX = 0, maxY = 0;
+                    for (const point of p.path) {
+                        minX = Math.min(minX, point.x);
+                        minY = Math.min(minY, point.y);
+                        maxX = Math.max(maxX, point.x);
+                        maxY = Math.max(maxY, point.y);
+                    }
+
+                    // Add a small buffer for the stroke width itself
+                    const buffer = p.width / 2;
+                    minX = Math.max(0, minX - buffer);
+                    minY = Math.max(0, minY - buffer);
+                    maxX = Math.min(CANVAS_WIDTH_PX, maxX + buffer);
+                    maxY = Math.min(CANVAS_HEIGHT_PX, maxY + buffer);
+
+                    const widthPx = maxX - minX;
+                    const heightPx = maxY - minY;
+
+                    if (widthPx <= 0 || heightPx <= 0) { // Safety check for very thin or invalid bounds
+                        // Fallback to simple line drawing if bounds are too small for infill logic
+                        G.push(`; Skipping infill for a path with invalid bounds, drawing outline.`);
+                        drawOutline(G, p.path, x_scale, y_scale, settings);
+                        continue;
+                    }
+
+                    G.push(`; Starting infill for path (type: ${p.type}, width: ${p.width}px)`);
+
+                    // 1. Draw Outline first
+                    drawOutline(G, p.path, x_scale, y_scale, settings);
+
+                    // 2. Generate and draw Infill lines
+                    const infillStepPx = (p.width * (100 - settings.infillDensity) / 100) + 1; // 1px minimum spacing
+
+                    // Transform for rotation
+                    const angleRad = settings.infillAngle * Math.PI / 180;
+
+                    // A simplified approach for generating infill within the bounding box
+                    
+                    let y_start = minY;
+                    let direction = 1; // 1 for left-to-right, -1 for right-to-left
+
+                    while (y_start < maxY) {
+                        let currentLine = [];
+                        let p1 = {x: minX, y: y_start};
+                        let p2 = {x: maxX, y: y_start};
+                        
+                        // Rotate points around the center of the bounding box
+                        const centerX = (minX + maxX) / 2;
+                        const centerY = (minY + maxY) / 2;
+
+                        p1 = rotatePoint(p1, centerX, centerY, angleRad);
+                        p2 = rotatePoint(p2, centerX, centerY, angleRad);
+
+                        // Simple horizontal lines in rotated space (or just horizontal if angle is 0)
+                        if (direction === 1) { // Left to right
+                            currentLine.push(p1, p2);
+                        } else { // Right to left
+                            currentLine.push(p2, p1);
+                        }
+
+                        // Convert and add to G-code
+                        if (currentLine.length === 2) {
+                            const start_x_mm = (currentLine[0].x * x_scale).toFixed(2);
+                            const start_y_mm = (currentLine[0].y * y_scale).toFixed(2);
+                            G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
+                            G.push(settings.penDown);
+                            const end_x_mm = (currentLine[1].x * x_scale).toFixed(2);
+                            const end_y_mm = (currentLine[1].y * y_scale).toFixed(2);
+                            G.push(`G1 X${end_x_mm} Y${end_y_mm}`);
+                            G.push(settings.penUp);
+                        }
+
+                        y_start += infillStepPx;
+                        direction *= -1; // Alternate direction
+                    }
+                    G.push(`; End infill for path`);
+                } else {
+                    // Simple line drawing (for 'pen' type with thin strokes)
+                    drawOutline(G, p.path, x_scale, y_scale, settings);
+                }
+            }
+
+            // 3. Finalization
+            G.push('G0 X0 Y0 ; Return to origin');
+            G.push('M2 ; Program End');
+
+            return G.join('\n');
+        }
+
+        function drawOutline(G, path, x_scale, y_scale, settings) {
+             // Move to the start of the path (Pen Up)
+            let start_x_mm = (path[0].x * x_scale).toFixed(2);
+            let start_y_mm = (path[0].y * y_scale).toFixed(2);
+            G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
+
+            // Pen Down
+            G.push(settings.penDown);
+
+            // Draw the path (G1 moves)
+            for (let i = 1; i < path.length; i++) {
+                let next_x_mm = (path[i].x * x_scale).toFixed(2);
+                let next_y_mm = (path[i].y * y_scale).toFixed(2);
+                G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
+            }
+
+            // Pen Up
+            G.push(settings.penUp);
+            G.push('');
+        }
+        
+        // Function to rotate a point around a center
+        function rotatePoint(point, centerX, centerY, angleRad) {
+            const dx = point.x - centerX;
+            const dy = point.y - centerY;
+            const cosA = Math.cos(angleRad);
+            const sinA = Math.sin(angleRad);
+            const rotatedX = dx * cosA - dy * sinA + centerX;
+            const rotatedY = dx * sinA + dy * cosA + centerY;
+            return { x: rotatedX, y: rotatedY };
+        }
+
+
+        // --- CLEAR CANVAS ---
+        clearCanvasBtn.addEventListener('click', () => {
+            ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+            paths = []; // Clear the path data as well
+            showMessage('Canvas cleared!', 'info');
+        });
+
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            // Set initial drawing context
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 1. Initial size calculation and canvas dimension setup
+            resizeCanvasAndRedraw(); 
+
+            // 2. Attach the resize listener
+            window.addEventListener('resize', resizeCanvasAndRedraw);
+
+            // Initial setting update
+            updateSettings();
+            setTool(settings.tool); // Initialize tool button state
+
+            // Set up initial view for stepped settings
+            showStep(1);
+
+            // Update infill threshold display
+            infillThresholdDisplay.textContent = INFILL_THRESHOLD_PX;
+
+            // Optional: Draw a subtle border on the canvas for visual paper size
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+            paths = []; // Ensure paths is empty after drawing border
+        };
+
+        // Initialize settings panel inputs on load
+        document.querySelectorAll('input, select').forEach(input => {
+            input.dispatchEvent(new Event('input'));
+        });
+
+    </script>
+</body>
+</html>
