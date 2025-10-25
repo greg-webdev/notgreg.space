@@ -57,9 +57,7 @@
                 <button id="toolPen" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-indigo-600 text-white hover:bg-indigo-700">
                     <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen
                 </button>
-                <button id="toolFill" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
-                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> Fill
-                </button>
+                <!-- Removed Fill Tool Button -->
                 <button id="toolEraser" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
                     <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Eraser
                 </button>
@@ -71,14 +69,7 @@
             <label for="strokeWidth" class="block text-xs font-medium text-gray-700">Stroke Width (<span id="widthValue">8</span> px)</label>
             <input type="range" id="strokeWidth" min="1" max="50" value="8" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
             
-            <div id="infillSettings" class="mt-4 pt-4 border-t border-indigo-200" style="display: none;">
-                <h4 class="font-medium text-indigo-600 mb-2">Infill Settings</h4>
-                <label for="infillDensity" class="block text-xs font-medium text-gray-700">Infill Density (<span id="infillDensityValue">50</span> %)</label>
-                <input type="range" id="infillDensity" min="10" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mb-3">
-                
-                <label for="infillAngle" class="block text-xs font-medium text-gray-700">Infill Angle (<span id="infillAngleValue">0</span> &deg;)</label>
-                <input type="range" id="infillAngle" min="0" max="180" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-            </div>
+            <!-- Removed Infill Settings Div -->
 
             <div id="step1Nav" class="mt-4 pt-4 border-t border-indigo-200">
                 <button id="nextToStep2" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg shadow transition duration-150">
@@ -103,7 +94,7 @@
             </div>
 
             <label for="penDownCommand" class="block text-xs font-medium text-gray-700">Pen Down Command (M3)</label>
-            <input type="text" id="penDownCommand" value="M3 S50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm mb-3">
+            <input type="text" id="penDownCommand" value="M3 S800" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm mb-3">
 
             <label for="penUpCommand" class="block text-xs font-medium text-gray-700">Pen Up Command (M5)</label>
             <input type="text" id="penUpCommand" value="M5 S0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 text-sm">
@@ -152,7 +143,7 @@
         <!-- Header -->
         <div class="text-center mb-2 flex-shrink-0">
             <h1 class="text-3xl font-extrabold text-gray-900">Drawing Canvas (16:9)</h1>
-            <p class="text-sm text-gray-500">Draw paths below. Thicker lines (>= <span id="infillThresholdDisplay">3</span>px) will be filled.</p>
+            <p class="text-sm text-gray-500">Draw paths below. Only outlines will be exported to G-Code.</p>
         </div>
 
         <!-- Canvas Container - Flex-1 makes it grow to fill available vertical space -->
@@ -179,14 +170,13 @@
         let CANVAS_WIDTH_PX = 0; // Dynamic size
         let CANVAS_HEIGHT_PX = 0; // Dynamic size
         
-        const INFILL_THRESHOLD_PX = 3; // Lines thicker than this will be infilled
-
         const canvas = document.getElementById('drawingCanvas');
         const ctx = canvas.getContext('2d');
         const canvasContainerDiv = document.querySelector('.canvas-container');
 
         // Array to store all paths drawn (used for NC generation)
-        let paths = []; // Each element is { type: 'pen'|'fill', path: [{x,y}, ...], color, width }
+        // Each element is: { tool: 'pen'|'eraser', path: [{x,y}, ...], color, width }
+        let paths = []; 
         let currentPath = null; // Stores current path being drawn
 
         // Drawing state
@@ -199,14 +189,7 @@
         const strokeWidthInput = document.getElementById('strokeWidth');
         const widthValueSpan = document.getElementById('widthValue');
         const toolPenBtn = document.getElementById('toolPen');
-        const toolFillBtn = document.getElementById('toolFill');
         const toolEraserBtn = document.getElementById('toolEraser');
-        const infillSettingsDiv = document.getElementById('infillSettings');
-        const infillDensityInput = document.getElementById('infillDensity');
-        const infillDensityValueSpan = document.getElementById('infillDensityValue');
-        const infillAngleInput = document.getElementById('infillAngle');
-        const infillAngleValueSpan = document.getElementById('infillAngleValue');
-        const infillThresholdDisplay = document.getElementById('infillThresholdDisplay');
         
         const savePngBtn = document.getElementById('savePngBtn');
         const generateNcBtn = document.getElementById('generateNcBtn');
@@ -224,13 +207,11 @@
         let settings = {
             color: strokeColorInput.value,
             width: parseInt(strokeWidthInput.value),
-            tool: 'pen', // 'pen', 'fill', or 'eraser'
+            tool: 'pen', // 'pen' or 'eraser'
             plottingSpeed: 1500,
             travelSpeed: 3000,
-            penDown: 'M3 S50',
+            penDown: 'M3 S800', 
             penUp: 'M5 S0',
-            infillDensity: parseInt(infillDensityInput.value), // 10-100%
-            infillAngle: parseInt(infillAngleInput.value) // 0-180 degrees
         };
 
         let currentStep = 1;
@@ -305,9 +286,15 @@
         }
 
         // Add listeners for navigation buttons
-        document.getElementById('nextToStep2').addEventListener('click', () => showStep(2));
+        document.getElementById('nextToStep2').addEventListener('click', () => {
+            updateSettings(); // Ensure settings are up-to-date before moving
+            showStep(2);
+        });
         document.getElementById('prevToStep1').addEventListener('click', () => showStep(1));
-        document.getElementById('nextToStep3').addEventListener('click', () => showStep(3));
+        document.getElementById('nextToStep3').addEventListener('click', () => {
+             updateSettings(); // Ensure settings are up-to-date before moving
+             showStep(3);
+        });
         document.getElementById('prevToStep2').addEventListener('click', () => showStep(2));
         
 
@@ -341,7 +328,7 @@
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
 
-            if (settings.tool === 'pen' || settings.tool === 'fill') {
+            if (settings.tool === 'pen') {
                 ctx.strokeStyle = settings.color;
                 ctx.lineWidth = settings.width;
                 ctx.globalCompositeOperation = 'source-over';
@@ -369,7 +356,7 @@
             // Start a new path
             if (settings.tool !== 'eraser') {
                 currentPath = {
-                    type: settings.tool,
+                    tool: settings.tool, // Should always be 'pen' now
                     path: [{ x: x, y: y }],
                     color: settings.color,
                     width: settings.width
@@ -390,6 +377,12 @@
 
         function redrawCanvas() {
             ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+            
+            // Draw a subtle border on the canvas for visual paper size
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+
             // Redraw all stored paths
             for (const p of paths) {
                 if (p.path.length < 2) continue;
@@ -401,9 +394,18 @@
                 }
                 ctx.lineJoin = 'round';
                 ctx.lineCap = 'round';
-                ctx.strokeStyle = p.color;
-                ctx.lineWidth = p.width;
-                ctx.globalCompositeOperation = 'source-over'; // Always draw stored paths
+                
+                // Use stored path properties
+                if (p.tool === 'pen') {
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = p.width;
+                    ctx.globalCompositeOperation = 'source-over';
+                } else { // Eraser
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                    ctx.lineWidth = p.width + 10;
+                    ctx.globalCompositeOperation = 'destination-out';
+                }
+                
                 ctx.stroke();
             }
         }
@@ -433,22 +435,16 @@
             settings.width = parseInt(strokeWidthInput.value);
             widthValueSpan.textContent = settings.width;
             
-            settings.infillDensity = parseInt(infillDensityInput.value);
-            infillDensityValueSpan.textContent = settings.infillDensity;
-            
-            settings.infillAngle = parseInt(infillAngleInput.value);
-            infillAngleValueSpan.textContent = settings.infillAngle;
-
             // Update G-code settings
             settings.plottingSpeed = parseInt(document.getElementById('plottingSpeed').value) || 1500;
             settings.travelSpeed = parseInt(document.getElementById('travelSpeed').value) || 3000;
-            settings.penDown = document.getElementById('penDownCommand').value.trim() || 'M3 S50';
+            settings.penDown = document.getElementById('penDownCommand').value.trim() || 'M3 S800'; 
             settings.penUp = document.getElementById('penUpCommand').value.trim() || 'M5 S0';
         }
 
         function setTool(tool) {
             settings.tool = tool;
-            [toolPenBtn, toolFillBtn, toolEraserBtn].forEach(btn => {
+            [toolPenBtn, toolEraserBtn].forEach(btn => {
                 btn.classList.replace('bg-indigo-600', 'bg-gray-200');
                 btn.classList.replace('text-white', 'text-gray-700');
                 btn.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-300');
@@ -460,21 +456,13 @@
                 activeBtn.classList.replace('text-gray-700', 'text-white');
                 activeBtn.classList.replace('hover:bg-gray-300', 'hover:bg-indigo-700');
             }
-
-            if (tool === 'fill') {
-                infillSettingsDiv.style.display = 'block';
-            } else {
-                infillSettingsDiv.style.display = 'none';
-            }
         }
 
         toolPenBtn.addEventListener('click', () => setTool('pen'));
-        toolFillBtn.addEventListener('click', () => setTool('fill'));
+        // toolFillBtn.addEventListener('click', () => setTool('fill')); // Removed
         toolEraserBtn.addEventListener('click', () => setTool('eraser'));
         strokeColorInput.addEventListener('input', updateSettings);
         strokeWidthInput.addEventListener('input', updateSettings);
-        infillDensityInput.addEventListener('input', updateSettings);
-        infillAngleInput.addEventListener('input', updateSettings);
         document.getElementById('plottingSpeed').addEventListener('input', updateSettings);
         document.getElementById('travelSpeed').addEventListener('input', updateSettings);
         document.getElementById('penDownCommand').addEventListener('input', updateSettings);
@@ -540,8 +528,8 @@
 
         // G-Code Generation Function (The core logic)
         generateNcBtn.addEventListener('click', () => {
-            if (paths.length === 0) {
-                showMessage('The canvas is empty. Please draw something first!', 'error');
+            if (paths.filter(p => p.tool === 'pen').length === 0) {
+                showMessage('The canvas is empty. Please draw something with the pen tool first!', 'error');
                 return;
             }
 
@@ -555,9 +543,7 @@
             const G = [];
             G.push('; Plotter G-Code generated by Plotter Drawing Studio');
             G.push(`; Paper Size: 16:9 Ratio (${PLOTTER_WIDTH_MM}mm x ${PLOTTER_HEIGHT_MM}mm)`);
-            G.push(`; Infill Threshold: ${INFILL_THRESHOLD_PX}px`);
-            G.push(`; Infill Density: ${settings.infillDensity}%`);
-            G.push(`; Infill Angle: ${settings.infillAngle}°`);
+            G.push(`; Pen Down Command: ${settings.penDown}`);
             G.push(`; Generated: ${new Date().toISOString()}`);
             G.push('');
 
@@ -570,99 +556,34 @@
             G.push('G0 X0 Y0 ; Move to origin');
             G.push('');
 
-            // 2. Path Processing
+            // 2. Path Processing (only for 'pen' paths)
             const x_scale = PLOTTER_WIDTH_MM / CANVAS_WIDTH_PX;
             const y_scale = PLOTTER_HEIGHT_MM / CANVAS_HEIGHT_PX;
+            const penPaths = paths.filter(p => p.tool === 'pen');
 
-            for (const p of paths) {
+            for (const p of penPaths) {
                 if (p.path.length < 2) continue; // Skip single-point paths
-                if (p.type === 'eraser') continue; // Skip erased paths
 
-                // Check for infill condition
-                const needsInfill = (p.type === 'fill' || p.width >= INFILL_THRESHOLD_PX);
+                G.push(`; Starting path segment. Stroke Width: ${p.width}px`);
 
-                if (needsInfill) {
-                    // Calculate bounding box for infill
-                    let minX = CANVAS_WIDTH_PX, minY = CANVAS_HEIGHT_PX, maxX = 0, maxY = 0;
-                    for (const point of p.path) {
-                        minX = Math.min(minX, point.x);
-                        minY = Math.min(minY, point.y);
-                        maxX = Math.max(maxX, point.x);
-                        maxY = Math.max(maxY, point.y);
-                    }
+                // Move to the start of the path (Pen Up/Travel speed)
+                let start_x_mm = (p.path[0].x * x_scale).toFixed(2);
+                let start_y_mm = (p.path[0].y * y_scale).toFixed(2);
+                G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
 
-                    // Add a small buffer for the stroke width itself
-                    const buffer = p.width / 2;
-                    minX = Math.max(0, minX - buffer);
-                    minY = Math.max(0, minY - buffer);
-                    maxX = Math.min(CANVAS_WIDTH_PX, maxX + buffer);
-                    maxY = Math.min(CANVAS_HEIGHT_PX, maxY + buffer);
+                // Pen Down (Plotting speed implied by G1)
+                G.push(settings.penDown);
 
-                    const widthPx = maxX - minX;
-                    const heightPx = maxY - minY;
-
-                    if (widthPx <= 0 || heightPx <= 0) { // Safety check for very thin or invalid bounds
-                        // Fallback to simple line drawing if bounds are too small for infill logic
-                        G.push(`; Skipping infill for a path with invalid bounds, drawing outline.`);
-                        drawOutline(G, p.path, x_scale, y_scale, settings);
-                        continue;
-                    }
-
-                    G.push(`; Starting infill for path (type: ${p.type}, width: ${p.width}px)`);
-
-                    // 1. Draw Outline first
-                    drawOutline(G, p.path, x_scale, y_scale, settings);
-
-                    // 2. Generate and draw Infill lines
-                    const infillStepPx = (p.width * (100 - settings.infillDensity) / 100) + 1; // 1px minimum spacing
-
-                    // Transform for rotation
-                    const angleRad = settings.infillAngle * Math.PI / 180;
-
-                    // A simplified approach for generating infill within the bounding box
-                    
-                    let y_start = minY;
-                    let direction = 1; // 1 for left-to-right, -1 for right-to-left
-
-                    while (y_start < maxY) {
-                        let currentLine = [];
-                        let p1 = {x: minX, y: y_start};
-                        let p2 = {x: maxX, y: y_start};
-                        
-                        // Rotate points around the center of the bounding box
-                        const centerX = (minX + maxX) / 2;
-                        const centerY = (minY + maxY) / 2;
-
-                        p1 = rotatePoint(p1, centerX, centerY, angleRad);
-                        p2 = rotatePoint(p2, centerX, centerY, angleRad);
-
-                        // Simple horizontal lines in rotated space (or just horizontal if angle is 0)
-                        if (direction === 1) { // Left to right
-                            currentLine.push(p1, p2);
-                        } else { // Right to left
-                            currentLine.push(p2, p1);
-                        }
-
-                        // Convert and add to G-code
-                        if (currentLine.length === 2) {
-                            const start_x_mm = (currentLine[0].x * x_scale).toFixed(2);
-                            const start_y_mm = (currentLine[0].y * y_scale).toFixed(2);
-                            G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
-                            G.push(settings.penDown);
-                            const end_x_mm = (currentLine[1].x * x_scale).toFixed(2);
-                            const end_y_mm = (currentLine[1].y * y_scale).toFixed(2);
-                            G.push(`G1 X${end_x_mm} Y${end_y_mm}`);
-                            G.push(settings.penUp);
-                        }
-
-                        y_start += infillStepPx;
-                        direction *= -1; // Alternate direction
-                    }
-                    G.push(`; End infill for path`);
-                } else {
-                    // Simple line drawing (for 'pen' type with thin strokes)
-                    drawOutline(G, p.path, x_scale, y_scale, settings);
+                // Draw the path (G1 moves)
+                for (let i = 1; i < p.path.length; i++) {
+                    let next_x_mm = (p.path[i].x * x_scale).toFixed(2);
+                    let next_y_mm = (p.path[i].y * y_scale).toFixed(2);
+                    G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
                 }
+
+                // Pen Up
+                G.push(settings.penUp);
+                G.push('');
             }
 
             // 3. Finalization
@@ -672,43 +593,11 @@
             return G.join('\n');
         }
 
-        function drawOutline(G, path, x_scale, y_scale, settings) {
-             // Move to the start of the path (Pen Up)
-            let start_x_mm = (path[0].x * x_scale).toFixed(2);
-            let start_y_mm = (path[0].y * y_scale).toFixed(2);
-            G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
-
-            // Pen Down
-            G.push(settings.penDown);
-
-            // Draw the path (G1 moves)
-            for (let i = 1; i < path.length; i++) {
-                let next_x_mm = (path[i].x * x_scale).toFixed(2);
-                let next_y_mm = (path[i].y * y_scale).toFixed(2);
-                G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
-            }
-
-            // Pen Up
-            G.push(settings.penUp);
-            G.push('');
-        }
-        
-        // Function to rotate a point around a center
-        function rotatePoint(point, centerX, centerY, angleRad) {
-            const dx = point.x - centerX;
-            const dy = point.y - centerY;
-            const cosA = Math.cos(angleRad);
-            const sinA = Math.sin(angleRad);
-            const rotatedX = dx * cosA - dy * sinA + centerX;
-            const rotatedY = dx * sinA + dy * cosA + centerY;
-            return { x: rotatedX, y: rotatedY };
-        }
-
-
         // --- CLEAR CANVAS ---
         clearCanvasBtn.addEventListener('click', () => {
             ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
             paths = []; // Clear the path data as well
+            redrawCanvas(); // Redraw border
             showMessage('Canvas cleared!', 'info');
         });
 
@@ -731,15 +620,6 @@
 
             // Set up initial view for stepped settings
             showStep(1);
-
-            // Update infill threshold display
-            infillThresholdDisplay.textContent = INFILL_THRESHOLD_PX;
-
-            // Optional: Draw a subtle border on the canvas for visual paper size
-            ctx.strokeStyle = '#ccc';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
-            paths = []; // Ensure paths is empty after drawing border
         };
 
         // Initialize settings panel inputs on load
