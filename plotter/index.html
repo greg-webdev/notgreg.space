@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotter Drawing Studio - 16:9</title>
+    <title>Plotter Drawing Studio - 16:9 (Fixed Width)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for the drawing area */
-        /* Flexbox handles sizing, but we need the container to force 100% height for the flex-1 main area */
         html, body {
             height: 100%;
             margin: 0;
@@ -21,18 +20,17 @@
             align-items: center;
             background-color: #f0f0f0;
             overflow: hidden;
-            flex-grow: 1; /* Allows it to take up available vertical space */
+            flex-grow: 1;
         }
 
         #drawingCanvas {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
             cursor: crosshair;
-            background-color: white; /* Actual paper color */
+            background-color: white;
             max-width: 100%;
             max-height: 100%;
         }
 
-        /* Hide number input spinners */
         input[type='number']::-webkit-inner-spin-button,
         input[type='number']::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -46,7 +44,6 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col lg:flex-row font-sans">
 
-    <!-- Settings Panel (Aside) - Fixed width, scrollable on large screens -->
     <aside id="settingsPanel" class="w-full lg:w-80 bg-white p-4 shadow-xl flex-shrink-0 order-2 lg:order-1 lg:h-screen lg:overflow-y-auto">
         <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Drawing & Plotter Settings</h2>
 
@@ -55,21 +52,20 @@
 
             <div class="flex space-x-2 mb-3">
                 <button id="toolPen" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-indigo-600 text-white hover:bg-indigo-700">
-                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Pen (Outline)
                 </button>
-                <!-- Removed Fill Tool Button -->
+                <button id="toolHollow" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> Hollow (Thick Line)
+                </button>
                 <button id="toolEraser" class="flex-1 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-gray-200 text-gray-700 hover:bg-gray-300">
                     <svg class="inline w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Eraser
                 </button>
             </div>
+            
+            <p class="text-xs font-semibold text-gray-700 mb-2">Pen Width is Fixed at 8px.</p>
 
             <label for="strokeColor" class="block text-xs font-medium text-gray-700">Stroke Color</label>
             <input type="color" id="strokeColor" value="#1f2937" class="w-full h-10 p-1 border border-gray-300 rounded-lg cursor-pointer shadow-sm mb-3">
-
-            <label for="strokeWidth" class="block text-xs font-medium text-gray-700">Stroke Width (<span id="widthValue">8</span> px)</label>
-            <input type="range" id="strokeWidth" min="1" max="50" value="8" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-            
-            <!-- Removed Infill Settings Div -->
 
             <div id="step1Nav" class="mt-4 pt-4 border-t border-indigo-200">
                 <button id="nextToStep2" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg shadow transition duration-150">
@@ -137,22 +133,17 @@
 
     </aside>
 
-    <!-- Main Content (Canvas Area) - Takes up the rest of the space -->
     <main class="flex-1 p-4 flex flex-col items-center order-1 lg:order-2 lg:h-screen overflow-hidden">
         
-        <!-- Header -->
         <div class="text-center mb-2 flex-shrink-0">
             <h1 class="text-3xl font-extrabold text-gray-900">Drawing Canvas (16:9)</h1>
-            <p class="text-sm text-gray-500">Draw paths below. Only outlines will be exported to G-Code.</p>
+            <p class="text-sm text-gray-500">Fixed pen width (8px). Use "Hollow" to draw outlines of thick strokes.</p>
         </div>
 
-        <!-- Canvas Container - Flex-1 makes it grow to fill available vertical space -->
         <div class="canvas-container flex-1 w-full max-w-full rounded-xl flex items-center justify-center overflow-auto">
-            <!-- Removed fixed width/height attributes to allow JavaScript control -->
             <canvas id="drawingCanvas" class="rounded-lg shadow-2xl"></canvas>
         </div>
 
-        <!-- Footer/Action Button -->
         <div class="mt-4 flex-shrink-0">
              <button id="clearCanvasBtn" class="px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition duration-150 bg-red-100 text-red-700 hover:bg-red-200">
                 Clear Canvas
@@ -164,20 +155,23 @@
     <script>
         // --- CONSTANTS AND INITIALIZATION ---
         const TARGET_RATIO = 16 / 9; // Enforce the requested 16:9 aspect ratio
-        const PLOTTER_WIDTH_MM = 160; // Corresponding physical size for G-Code (160:90 = 16:9)
+        const PLOTTER_WIDTH_MM = 160; 
         const PLOTTER_HEIGHT_MM = 90; 
         
-        let CANVAS_WIDTH_PX = 0; // Dynamic size
-        let CANVAS_HEIGHT_PX = 0; // Dynamic size
+        // Fixed pen width in pixels
+        const FIXED_STROKE_WIDTH = 8; 
+        
+        let CANVAS_WIDTH_PX = 0; 
+        let CANVAS_HEIGHT_PX = 0; 
         
         const canvas = document.getElementById('drawingCanvas');
         const ctx = canvas.getContext('2d');
         const canvasContainerDiv = document.querySelector('.canvas-container');
 
-        // Array to store all paths drawn (used for NC generation)
-        // Each element is: { tool: 'pen'|'eraser', path: [{x,y}, ...], color, width }
+        // Array to store all paths drawn
+        // Each element is: { tool: 'pen'|'hollow'|'eraser', path: [{x,y}, ...], color, width }
         let paths = []; 
-        let currentPath = null; // Stores current path being drawn
+        let currentPath = null; 
 
         // Drawing state
         let isDrawing = false;
@@ -186,9 +180,8 @@
 
         // UI element references
         const strokeColorInput = document.getElementById('strokeColor');
-        const strokeWidthInput = document.getElementById('strokeWidth');
-        const widthValueSpan = document.getElementById('widthValue');
         const toolPenBtn = document.getElementById('toolPen');
+        const toolHollowBtn = document.getElementById('toolHollow');
         const toolEraserBtn = document.getElementById('toolEraser');
         
         const savePngBtn = document.getElementById('savePngBtn');
@@ -206,8 +199,8 @@
         
         let settings = {
             color: strokeColorInput.value,
-            width: parseInt(strokeWidthInput.value),
-            tool: 'pen', // 'pen' or 'eraser'
+            width: FIXED_STROKE_WIDTH, // Now a fixed value
+            tool: 'pen', 
             plottingSpeed: 1500,
             travelSpeed: 3000,
             penDown: 'M3 S800', 
@@ -222,7 +215,6 @@
         function resizeCanvasAndRedraw() {
             if (!canvasContainerDiv) return;
 
-            // Get the current available space for the canvas container
             const containerRect = canvasContainerDiv.getBoundingClientRect();
             const availableW = containerRect.width;
             const availableH = containerRect.height;
@@ -231,43 +223,35 @@
 
             let newW, newH;
             
-            // Check if the container space is wider or narrower than the target ratio (16:9)
             if (containerRatio > TARGET_RATIO) {
-                // Constrain by Height
                 newH = availableH;
                 newW = newH * TARGET_RATIO;
             } else {
-                // Constrain by Width
                 newW = availableW;
                 newH = newW / TARGET_RATIO;
             }
 
-            // Apply calculated dimensions to the canvas element
             canvas.width = newW;
             canvas.height = newH;
             
             CANVAS_WIDTH_PX = newW;
             CANVAS_HEIGHT_PX = newH;
             
-            // Redraw existing content after resize
             redrawCanvas();
         }
 
         // --- STEP NAVIGATION LOGIC ---
 
         function showStep(step) {
-            // Hide all step content sections
             [step1Section, step2Section, step3Section].forEach(section => {
                 section.classList.add('hidden');
                 section.classList.remove('p-3', 'mb-6');
             });
 
-            // Hide all navigation blocks
             [step1Nav, step2Nav, step3Nav].forEach(nav => {
                 nav.classList.add('hidden');
             });
 
-            // Show the relevant section and its navigation block
             if (step === 1) {
                 step1Section.classList.remove('hidden');
                 step1Nav.classList.remove('hidden');
@@ -279,20 +263,17 @@
                 step3Nav.classList.remove('hidden');
             }
 
-            // Re-add padding/margins to the active section for aesthetics
             document.getElementById(`step${step}Section`).classList.add('p-3', 'mb-6');
-            
             currentStep = step;
         }
 
-        // Add listeners for navigation buttons
         document.getElementById('nextToStep2').addEventListener('click', () => {
-            updateSettings(); // Ensure settings are up-to-date before moving
+            updateSettings();
             showStep(2);
         });
         document.getElementById('prevToStep1').addEventListener('click', () => showStep(1));
         document.getElementById('nextToStep3').addEventListener('click', () => {
-             updateSettings(); // Ensure settings are up-to-date before moving
+             updateSettings();
              showStep(3);
         });
         document.getElementById('prevToStep2').addEventListener('click', () => showStep(2));
@@ -319,7 +300,6 @@
 
             const { x, y } = getCanvasPoint(e);
 
-            // Redraw everything to simulate continuous drawing without clearing
             redrawCanvas();
 
             ctx.beginPath();
@@ -328,7 +308,8 @@
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
 
-            if (settings.tool === 'pen') {
+            // Use the fixed width for visual rendering
+            if (settings.tool === 'pen' || settings.tool === 'hollow') {
                 ctx.strokeStyle = settings.color;
                 ctx.lineWidth = settings.width;
                 ctx.globalCompositeOperation = 'source-over';
@@ -340,7 +321,6 @@
 
             ctx.stroke();
 
-            // Store path data
             if (settings.tool !== 'eraser' && currentPath) {
                 currentPath.path.push({ x: x, y: y });
             }
@@ -353,13 +333,12 @@
 
             const { x, y } = getCanvasPoint(e);
 
-            // Start a new path
             if (settings.tool !== 'eraser') {
                 currentPath = {
-                    tool: settings.tool, // Should always be 'pen' now
+                    tool: settings.tool, // 'pen' or 'hollow'
                     path: [{ x: x, y: y }],
                     color: settings.color,
-                    width: settings.width
+                    width: settings.width // Storing the fixed width
                 };
                 paths.push(currentPath);
             }
@@ -370,20 +349,18 @@
         function stopDrawing() {
             if (isDrawing) {
                 isDrawing = false;
-                ctx.globalCompositeOperation = 'source-over'; // Reset to default
-                currentPath = null; // Clear current path for next stroke
+                ctx.globalCompositeOperation = 'source-over';
+                currentPath = null;
             }
         }
 
         function redrawCanvas() {
             ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
             
-            // Draw a subtle border on the canvas for visual paper size
             ctx.strokeStyle = '#ccc';
             ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
 
-            // Redraw all stored paths
             for (const p of paths) {
                 if (p.path.length < 2) continue;
 
@@ -395,10 +372,9 @@
                 ctx.lineJoin = 'round';
                 ctx.lineCap = 'round';
                 
-                // Use stored path properties
-                if (p.tool === 'pen') {
+                if (p.tool === 'pen' || p.tool === 'hollow') { 
                     ctx.strokeStyle = p.color;
-                    ctx.lineWidth = p.width;
+                    ctx.lineWidth = p.width; // Use the stored width (which is the fixed 8px)
                     ctx.globalCompositeOperation = 'source-over';
                 } else { // Eraser
                     ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
@@ -410,15 +386,13 @@
             }
         }
 
-        // Event Listeners for drawing
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Touch event listeners
         canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent scrolling
+            e.preventDefault();
             startDrawing(e);
         });
         canvas.addEventListener('touchmove', (e) => {
@@ -432,10 +406,8 @@
 
         function updateSettings() {
             settings.color = strokeColorInput.value;
-            settings.width = parseInt(strokeWidthInput.value);
-            widthValueSpan.textContent = settings.width;
-            
-            // Update G-code settings
+            // settings.width is fixed
+
             settings.plottingSpeed = parseInt(document.getElementById('plottingSpeed').value) || 1500;
             settings.travelSpeed = parseInt(document.getElementById('travelSpeed').value) || 3000;
             settings.penDown = document.getElementById('penDownCommand').value.trim() || 'M3 S800'; 
@@ -444,7 +416,7 @@
 
         function setTool(tool) {
             settings.tool = tool;
-            [toolPenBtn, toolEraserBtn].forEach(btn => {
+            [toolPenBtn, toolHollowBtn, toolEraserBtn].forEach(btn => {
                 btn.classList.replace('bg-indigo-600', 'bg-gray-200');
                 btn.classList.replace('text-white', 'text-gray-700');
                 btn.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-300');
@@ -459,10 +431,10 @@
         }
 
         toolPenBtn.addEventListener('click', () => setTool('pen'));
-        // toolFillBtn.addEventListener('click', () => setTool('fill')); // Removed
+        toolHollowBtn.addEventListener('click', () => setTool('hollow')); 
         toolEraserBtn.addEventListener('click', () => setTool('eraser'));
         strokeColorInput.addEventListener('input', updateSettings);
-        strokeWidthInput.addEventListener('input', updateSettings);
+        // Removed strokeWidthInput listener
         document.getElementById('plottingSpeed').addEventListener('input', updateSettings);
         document.getElementById('travelSpeed').addEventListener('input', updateSettings);
         document.getElementById('penDownCommand').addEventListener('input', updateSettings);
@@ -505,15 +477,6 @@
             URL.revokeObjectURL(url);
         }
 
-        // --- EXPORT FUNCTIONS ---
-
-        savePngBtn.addEventListener('click', () => {
-            const dataURL = canvas.toDataURL('image/png');
-            const dateStr = new Date().toISOString().slice(0, 10);
-            downloadFile(dataURLtoBlob(dataURL), `drawing-${dateStr}.png`, 'image/png');
-            showMessage('Drawing successfully saved as PNG!', 'success');
-        });
-
         function dataURLtoBlob(dataurl) {
             const arr = dataurl.split(',');
             const mime = arr[0].match(/:(.*?);/)[1];
@@ -526,10 +489,19 @@
             return new Blob([u8arr], {type:mime});
         }
 
-        // G-Code Generation Function (The core logic)
+
+        // --- EXPORT FUNCTIONS ---
+
+        savePngBtn.addEventListener('click', () => {
+            const dataURL = canvas.toDataURL('image/png');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            downloadFile(dataURLtoBlob(dataURL), `drawing-${dateStr}.png`, 'image/png');
+            showMessage('Drawing successfully saved as PNG!', 'success');
+        });
+
         generateNcBtn.addEventListener('click', () => {
-            if (paths.filter(p => p.tool === 'pen').length === 0) {
-                showMessage('The canvas is empty. Please draw something with the pen tool first!', 'error');
+            if (paths.filter(p => p.tool === 'pen' || p.tool === 'hollow').length === 0) {
+                showMessage('The canvas is empty. Please draw something with the pen or hollow tool first!', 'error');
                 return;
             }
 
@@ -543,6 +515,7 @@
             const G = [];
             G.push('; Plotter G-Code generated by Plotter Drawing Studio');
             G.push(`; Paper Size: 16:9 Ratio (${PLOTTER_WIDTH_MM}mm x ${PLOTTER_HEIGHT_MM}mm)`);
+            G.push(`; Fixed Pen Width used for hollow calculation: ${FIXED_STROKE_WIDTH}px`);
             G.push(`; Pen Down Command: ${settings.penDown}`);
             G.push(`; Generated: ${new Date().toISOString()}`);
             G.push('');
@@ -556,34 +529,65 @@
             G.push('G0 X0 Y0 ; Move to origin');
             G.push('');
 
-            // 2. Path Processing (only for 'pen' paths)
+            // 2. Path Processing
             const x_scale = PLOTTER_WIDTH_MM / CANVAS_WIDTH_PX;
             const y_scale = PLOTTER_HEIGHT_MM / CANVAS_HEIGHT_PX;
-            const penPaths = paths.filter(p => p.tool === 'pen');
+            const drawablePaths = paths.filter(p => p.tool === 'pen' || p.tool === 'hollow');
 
-            for (const p of penPaths) {
-                if (p.path.length < 2) continue; // Skip single-point paths
+            for (const p of drawablePaths) {
+                if (p.path.length < 2) continue;
 
-                G.push(`; Starting path segment. Stroke Width: ${p.width}px`);
+                if (p.tool === 'pen') {
+                    G.push(`; Drawing single outline path.`);
+                    drawPath(G, p.path, x_scale, y_scale, settings);
+                } else if (p.tool === 'hollow') {
+                    G.push(`; Drawing hollow path. Calculating outline based on ${p.width}px stroke.`);
 
-                // Move to the start of the path (Pen Up/Travel speed)
-                let start_x_mm = (p.path[0].x * x_scale).toFixed(2);
-                let start_y_mm = (p.path[0].y * y_scale).toFixed(2);
-                G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
+                    // Calculate offset paths for hollow effect
+                    const offset = p.width / 2; // Half the stroke width for each side
 
-                // Pen Down (Plotting speed implied by G1)
-                G.push(settings.penDown);
+                    // Create two offset paths
+                    const outerPath = [];
+                    const innerPath = [];
 
-                // Draw the path (G1 moves)
-                for (let i = 1; i < p.path.length; i++) {
-                    let next_x_mm = (p.path[i].x * x_scale).toFixed(2);
-                    let next_y_mm = (p.path[i].y * y_scale).toFixed(2);
-                    G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
+                    for (let i = 0; i < p.path.length; i++) {
+                        const current = p.path[i];
+                        const prev = p.path[i - 1] || current;
+                        const next = p.path[i + 1] || current;
+
+                        // Calculate tangent vector
+                        let tanX = next.x - prev.x;
+                        let tanY = next.y - prev.y;
+
+                        // Normalize tangent
+                        const length = Math.sqrt(tanX * tanX + tanY * tanY);
+                        if (length > 0) {
+                            tanX /= length;
+                            tanY /= length;
+                        } else { 
+                            tanX = 0; tanY = 1;
+                        }
+
+                        // Calculate normal vector (perpendicular to tangent)
+                        const normalX = -tanY;
+                        const normalY = tanX;
+
+                        // Offset points
+                        outerPath.push({
+                            x: current.x + normalX * offset,
+                            y: current.y + normalY * offset
+                        });
+                        innerPath.push({
+                            x: current.x - normalX * offset,
+                            y: current.y - normalY * offset
+                        });
+                    }
+
+                    // Draw outer path
+                    drawPath(G, outerPath, x_scale, y_scale, settings);
+                    // Draw inner path (reversed for potentially better plotter movement)
+                    drawPath(G, innerPath.reverse(), x_scale, y_scale, settings);
                 }
-
-                // Pen Up
-                G.push(settings.penUp);
-                G.push('');
             }
 
             // 3. Finalization
@@ -593,36 +597,51 @@
             return G.join('\n');
         }
 
+        // Generic function to draw a series of points
+        function drawPath(G, pathPoints, x_scale, y_scale, settings) {
+             // Move to the start of the path (Pen Up/Travel speed)
+            let start_x_mm = (pathPoints[0].x * x_scale).toFixed(2);
+            let start_y_mm = (pathPoints[0].y * y_scale).toFixed(2);
+            G.push(`G0 X${start_x_mm} Y${start_y_mm}`);
+
+            // Pen Down (Plotting speed implied by G1)
+            G.push(settings.penDown);
+
+            // Draw the path (G1 moves)
+            for (let i = 1; i < pathPoints.length; i++) {
+                let next_x_mm = (pathPoints[i].x * x_scale).toFixed(2);
+                let next_y_mm = (pathPoints[i].y * y_scale).toFixed(2);
+                G.push(`G1 X${next_x_mm} Y${next_y_mm}`);
+            }
+
+            // Pen Up
+            G.push(settings.penUp);
+            G.push('');
+        }
+
         // --- CLEAR CANVAS ---
         clearCanvasBtn.addEventListener('click', () => {
             ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
-            paths = []; // Clear the path data as well
-            redrawCanvas(); // Redraw border
+            paths = [];
+            redrawCanvas();
             showMessage('Canvas cleared!', 'info');
         });
 
 
         // --- INITIALIZATION ---
         window.onload = function() {
-            // Set initial drawing context
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            // 1. Initial size calculation and canvas dimension setup
             resizeCanvasAndRedraw(); 
-
-            // 2. Attach the resize listener
             window.addEventListener('resize', resizeCanvasAndRedraw);
 
-            // Initial setting update
             updateSettings();
-            setTool(settings.tool); // Initialize tool button state
+            setTool(settings.tool);
 
-            // Set up initial view for stepped settings
             showStep(1);
         };
 
-        // Initialize settings panel inputs on load
         document.querySelectorAll('input, select').forEach(input => {
             input.dispatchEvent(new Event('input'));
         });
