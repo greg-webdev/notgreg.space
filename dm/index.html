@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drive Mad Game Embed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Essential styles to make the iframe fill the entire viewport */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            display: none; /* Hidden until proven loaded */
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay to show loading state or error state -->
+    <div id="loading-overlay" class="absolute inset-0 bg-gray-900 flex flex-col justify-center items-center text-white z-10 p-8 rounded-lg">
+        <div class="animate-spin h-8 w-8 border-4 border-t-4 border-blue-500 border-t-transparent rounded-full"></div>
+        <p class="mt-4 text-lg font-semibold">Attempting to load external game...</p>
+        <p class="mt-2 text-sm text-gray-400">If this message remains, the game may be blocked from embedding.</p>
+    </div>
+
+    <!-- The iframe containing the game -->
+    <iframe 
+        id="game-iframe"
+        src="https://f9564e4e-ef25-4e4b-ba67-cb11a1576bbd.poki-gdn.com/8027f894-da89-4fe9-a057-0246b8ccb757/index.html?country=SG&ccpaApplies=0&url_referrer=https%3A%2F%2Fpoki.com%2F&tag=pg-754de0c150dc4742957b29e6dcc23e86ff4fa9e8&site_id=3&iso_lang=en&poki_url=https%3A%2F%2Fpoki.com%2Fen%2Fg%2Fdrive-mad&hoist=yes&nonPersonalized=n&cloudsavegames=n&familyFriendly=n&categories=78%2C93%2C96%2C103%2C377%2C390%2C400%2C893%2C929%2C1139%2C1140%2C1147%2C1163%2C1185%2C1190%2C1193%2C1197&special_condition=landing&game_id=f9564e4e-ef25-4e4b-ba67-cb11a1576bbd&game_version_id=8027f894-da89-4fe9-a057-0246b8ccb757&inspector=0&csp=1" 
+        allow="autoplay; fullscreen; game pad; picture-in-picture"
+        onload="document.getElementById('loading-overlay').style.display='none'; this.style.display='block';"
+    >
+    </iframe>
+
+    <script>
+        // Check after a timeout if the iframe is still blocked
+        setTimeout(() => {
+            const overlay = document.getElementById('loading-overlay');
+            const iframe = document.getElementById('game-iframe');
+            
+            // If the overlay is still visible (meaning onload didn't fire), show the error
+            if (overlay.style.display !== 'none') {
+                overlay.classList.remove('bg-gray-900');
+                overlay.classList.add('bg-red-800');
+                overlay.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4">Content Blocked</h2>
+                    <p class="text-center text-lg">The game server is preventing this content from being embedded due to security policies.</p>
+                    <p class="text-center mt-6">You will need to play the game on the original website.</p>
+                    <a href="${iframe.src}" target="_blank" class="mt-4 px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-full transition duration-300 shadow-lg">
+                        Open Game in New Tab
+                    </a>
+                `;
+            }
+        }, 5000); // 5-second delay to confirm failure
+    </script>
+</body>
+</html>
