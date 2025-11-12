@@ -78,6 +78,11 @@
       font-size: 0.9rem;
       color: #bbb;
     }
+    
+    /* Default: Hide mobile hint on desktop */
+    #mobile-hint {
+        display: none;
+    }
 
     /* New button and input styles */
     #nameInput, #saveNameButton, #tpButton, #collapseButton {
@@ -118,17 +123,92 @@
     #collapseButton:hover { background-color: #444; }
     #collapseButton:active { background-color: #333; }
     
-    /* Responsive adjustments for smaller screens */
-    @media (max-width: 600px) {
+    /* --- NEW MOBILE CONTROLS STYLES --- */
+    #mobileControls {
+        position: fixed;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        z-index: 99;
+        pointer-events: none; /* Allows clicks/taps to pass through unless on a control */
+        display: none; /* Default hidden on desktop */
+    }
+
+    #joystickArea, #lookArea, #jumpButton {
+        pointer-events: auto; /* Re-enable pointer events for controls */
+        background-color: rgba(0, 0, 0, 0.4);
+        border-radius: 50%;
+        position: absolute;
+        box-shadow: 0 0 10px rgba(0, 255, 170, 0.5);
+    }
+    
+    /* Joystick container (Base) */
+    #joystickArea {
+        width: 100px;
+        height: 100px;
+        left: 20px;
+        bottom: 0;
+    }
+
+    /* Joystick handle (Movable part) */
+    #joystickHandle {
+        width: 50px;
+        height: 50px;
+        background-color: rgba(0, 255, 170, 0.6);
+        border-radius: 50%;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        touch-action: none; /* Prevents default browser actions */
+    }
+    
+    /* Jump Button */
+    #jumpButton {
+        width: 80px;
+        height: 80px;
+        right: 20px;
+        bottom: 10px;
+        background-color: rgba(255, 0, 0, 0.6);
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        color: white;
+        font-size: 1.1rem;
+        user-select: none;
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    }
+
+    /* Look area (Invisible, covers the right half of the screen) */
+    #lookArea {
+        width: 50vw;
+        height: 100vh;
+        top: 0;
+        right: 0;
+        background-color: transparent;
+        border-radius: 0;
+        box-shadow: none; /* Remove shadow to make it truly invisible */
+    }
+    
+    /* Responsive adjustments for smaller screens (Phone detection) */
+    @media (max-width: 768px) {
+      /* Show mobile controls */
+      #mobileControls {
+          display: block;
+      }
+      /* Hide keyboard instructions on desktop */
+      #desktop-hint {
+          display: none;
+      }
+      /* Show mobile hint */
+      #mobile-hint {
+          display: block;
+      }
+      /* Ensure the UI bar doesn't interfere with the controls */
       #ui {
-        padding: 8px 16px;
         top: 10px;
-      }
-      h1 {
-        font-size: 1.2rem;
-      }
-      p {
-        font-size: 0.8rem;
       }
     }
   </style>
@@ -145,16 +225,7 @@
 
     // Global variables from the Canvas environment
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    
-    // Updated with the API key you provided
-    const firebaseConfig = {
-      apiKey: "AIzaSyB8jSaahlLxSfFST2Q46YEFSmF8sZmNHIU",
-      authDomain: "my-awsome-project-ids.firebaseapp.com",
-      projectId: "my-awsome-project-ids",
-      storageBucket: "my-awsome-project-ids.appspot.com",
-      messagingSenderId: "342082456671",
-      appId: "1:342082456671:web:1e3c23e8f8c4b22c8c4391"
-    };
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
     // Initialize Firebase
     let app, db, auth;
@@ -163,11 +234,12 @@
     // A map to hold all player data and their 3D objects
     const players = {};
     const playerCubes = {};
+    const playerBodies = {}; 
 
     // Three.js and Cannon.js variables
     let scene, camera, renderer, world;
     let playerBody, playerMesh;
-    let cameraPivot; // New pivot for camera orbit
+    let cameraPivot; 
 
     // Camera control state
     let isRightMouseDown = false;
@@ -177,16 +249,34 @@
     // Keyboard input state
     const keyboard = {};
 
+    // --- Mobile/Joystick Control State ---
+    let joystickInput = { x: 0, z: 0 }; // Normalized -1 to 1 for forward/side movement
+    let joystickActive = false;
+    let joystickHandle; // Global DOM element variable
+    let joystickArea;   // Global DOM element variable
+    const JOYSTICK_RADIUS = 50;
+
+    let lookTouchID = null;
+    let jumpButtonPressed = false;
+
     // Initial setup for authentication and data listening
     let userId = null;
-    let multiplayerMessage = "Multiplayer is OFF";
+    let multiplayerMessage = "Initializing...";
+    
+    // Flag to track Firebase initialization status
+    let firebaseInitialized = false;
+
     try {
-      if (!firebaseConfig.projectId) {
+      if (!firebaseConfig || !firebaseConfig.projectId) {
         throw new Error("Missing 'projectId' in Firebase configuration. The application cannot connect to the database.");
       }
       app = initializeApp(firebaseConfig);
       db = getFirestore(app);
       auth = getAuth(app);
+      firebaseInitialized = true;
+
+      // Log the debug level
+      // setLogLevel('debug'); 
 
       // Start the auth flow if Firebase is initialized
       onAuthStateChanged(auth, (user) => {
@@ -213,15 +303,13 @@
      * Function to handle initial sign-in with better error handling.
      */
     async function handleSignIn() {
+      if (!firebaseInitialized) return;
+
       try {
-        if (auth) {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-           console.warn("Firebase Auth not initialized, skipping sign-in.");
+          await signInAnonymously(auth);
         }
       } catch (error) {
         console.error("Firebase Auth Error:", error);
@@ -230,15 +318,9 @@
 
     /**
      * Creates a glowing outline mesh for a given object.
-     * @param {THREE.Mesh} targetMesh The mesh to create the glow for.
-     * @param {string} glowColor The hex color for the glow.
-     * @returns {THREE.Mesh} The glowing mesh.
      */
     function createGlowMesh(targetMesh, glowColor) {
-      // Create a duplicate of the ball's geometry
       const glowGeometry = targetMesh.geometry.clone();
-      
-      // Create a glowing material
       const glowMaterial = new THREE.MeshBasicMaterial({
         color: new THREE.Color(glowColor),
         side: THREE.BackSide,
@@ -247,35 +329,27 @@
         opacity: 0.8
       });
 
-      // Create the glowing mesh
       const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-      
-      // Scale it up slightly to create the outline effect
-      const scale = 1.1; // 10% larger than the original mesh
+      const scale = 1.1; 
       glowMesh.scale.set(scale, scale, scale);
-
-      // We need to add this to the scene separately so it is rendered after the player's main mesh
-      scene.add(glowMesh);
-
+      
+      // The glow mesh is added as a child to the ball mesh in createPlayerMesh
       return glowMesh;
     }
     
     /**
      * Creates a nametag sprite that always faces the camera.
-     * @param {string} name The name to display.
-     * @returns {THREE.Sprite} The nametag sprite.
      */
     function createNametag(name) {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       
-      // --- CHANGE: Smaller font size for nametag ---
       const font = 'Bold 32px Inter';
       context.font = font;
       
       const metrics = context.measureText(name);
       const textWidth = metrics.width;
-      const textHeight = 32; // Font size
+      const textHeight = 32; 
       
       canvas.width = textWidth + 10;
       canvas.height = textHeight + 10;
@@ -292,9 +366,11 @@
       const material = new THREE.SpriteMaterial({ map: texture });
       const sprite = new THREE.Sprite(material);
       
-      // --- CHANGE: Smaller scale factor for the nametag ---
       const scaleFactor = 0.03;
       sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
+      
+      // Store the name on the sprite for easy lookup
+      sprite.name = name;
       
       return sprite;
     }
@@ -302,10 +378,6 @@
 
     /**
      * Creates a new ball mesh with an attached face and a glowing outline.
-     * @param {number} radius The radius of the ball.
-     * @param {string} color The hex color for the ball material.
-     * @param {string} name The name for the nametag.
-     * @returns {THREE.Group} The new mesh object group.
      */
     function createPlayerMesh(radius, color, name) {
         const ballGeometry = new THREE.SphereGeometry(radius, 32, 32);
@@ -351,7 +423,7 @@
 
     /**
      * Sets up the initial game world, including the 3D scene, physics,
-     * and the player's cube. This runs only after authentication is complete.
+     * and the player's cube.
      */
     function setupInitialGame() {
       // 1. Scene setup
@@ -361,7 +433,7 @@
       // 2. Camera setup - We will now use a third-person camera
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       
-      // --- NEW: Create a pivot point for the camera to orbit around ---
+      // Create a pivot point for the camera to orbit around
       cameraPivot = new THREE.Object3D();
       scene.add(cameraPivot);
 
@@ -414,7 +486,6 @@
       world.addBody(ceilingBody);
 
       // 8. Add invisible walls to prevent falling off the map
-      // The position is the origin point, and the quaternion sets the orientation (which way the plane's normal faces).
       const wallShape = new CANNON.Plane();
       
       // Front Wall: Prevents movement past z = -wallPosition.
@@ -438,22 +509,30 @@
 
       // 9. Player's ball (3D and Physics)
       const playerShape = new CANNON.Sphere(1); // Radius of 1
-      playerBody = new CANNON.Body({ mass: 5, shape: playerShape, position: new CANNON.Vec3(0, 10, 0) });
+      playerBody = new CANNON.Body({ 
+          mass: 5, 
+          shape: playerShape, 
+          position: new CANNON.Vec3(0, 10, 0),
+          // --- Linear Damping added to simulate rolling resistance/friction ---
+          linearDamping: 0.95 
+      });
       world.addBody(playerBody);
 
-      // Create the player's mesh using the new function
-      playerMesh = createPlayerMesh(1, 0xff0000, document.getElementById('nameInput').value); // Changed color to red
-      // Add the player mesh to the camera pivot so it moves with the camera
-      cameraPivot.add(playerMesh);
+      // Get initial name from input for the nametag
+      const initialName = document.getElementById('nameInput').value || 'Player';
+      // Create the player's mesh
+      playerMesh = createPlayerMesh(1, 0xff0000, initialName); // Changed color to red
+      // FIX: Add the player mesh directly to the SCENE. The camera pivot will track its position.
+      scene.add(playerMesh);
     }
 
     /**
      * Listens for real-time updates from other players in Firestore.
-     * This is the core of the multiplayer functionality.
      */
     function listenForPlayerUpdates() {
-      if (!authReady) return; // Ensure auth is ready before listening
+      if (!authReady || !firebaseInitialized) return; // Ensure auth and firebase are ready
 
+      // Path: /artifacts/{appId}/public/data/players
       const playersRef = collection(db, `artifacts/${appId}/public/data/players`);
       onSnapshot(playersRef, (snapshot) => {
         snapshot.docChanges().forEach(change => {
@@ -473,24 +552,43 @@
               const otherPlayerMesh = createPlayerMesh(1, randomColor, playerData.name);
               scene.add(otherPlayerMesh);
               playerCubes[playerId] = otherPlayerMesh;
-            } else {
-              // Update existing player's position and name
-              const cubeMesh = playerCubes[playerId];
-              if (playerData.position) {
-                cubeMesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
-              }
-              if (playerData.rotation) {
-                cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
-              }
-              if (playerData.name) {
-                // Update the nametag if the name has changed
-                const nametag = cubeMesh.children.find(child => child.isSprite);
-                if (nametag && nametag.name !== playerData.name) {
-                    const newNametag = createNametag(playerData.name);
-                    newNametag.position.copy(nametag.position);
-                    cubeMesh.remove(nametag);
-                    cubeMesh.add(newNametag);
-                }
+
+              // Create a physics body for the new player
+              const otherPlayerShape = new CANNON.Sphere(1);
+              const otherPlayerBody = new CANNON.Body({ 
+                  mass: 5, 
+                  shape: otherPlayerShape,
+                  linearDamping: 0.95 
+              });
+              world.addBody(otherPlayerBody);
+              playerBodies[playerId] = otherPlayerBody;
+
+            }
+            
+            // Update the player's position and rotation
+            const cubeMesh = playerCubes[playerId];
+            const physicsBody = playerBodies[playerId];
+
+            if (playerData.position) {
+              // Smoothly interpolate remote player position to avoid jitter
+              cubeMesh.position.lerp(new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z), 0.3);
+              // Also update the physics body (though this player is primarily visual)
+              physicsBody.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
+            }
+            if (playerData.rotation) {
+              cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
+              // Also update the physics body
+              physicsBody.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
+            }
+            if (playerData.name) {
+              // Update the nametag if the name has changed
+              const nametag = cubeMesh.children.find(child => child.isSprite);
+              // Only update if the name is genuinely different to avoid unnecessary sprite regeneration
+              if (nametag && nametag.name !== playerData.name) { 
+                  const newNametag = createNametag(playerData.name);
+                  newNametag.position.copy(nametag.position);
+                  cubeMesh.remove(nametag);
+                  cubeMesh.add(newNametag);
               }
             }
           }
@@ -499,10 +597,15 @@
             // Remove the cube from the scene if the player disconnected
             if (playerCubes[playerId]) {
               scene.remove(playerCubes[playerId]);
+              // Remove the physics body from the world
+              world.removeBody(playerBodies[playerId]);
               delete playerCubes[playerId];
+              delete playerBodies[playerId]; 
             }
           }
         });
+      }, (error) => {
+          console.error("Firestore Snapshot Error:", error);
       });
     }
 
@@ -510,24 +613,29 @@
      * Updates the current user's ball position and rotation in Firestore.
      */
     function updateMyPositionInFirestore() {
-      if (!authReady) return;
+      if (!authReady || !userId) return;
+      
       const playerRef = doc(db, `artifacts/${appId}/public/data/players/${userId}`);
       const myName = document.getElementById('nameInput').value || 'Player';
-      setDoc(playerRef, {
-        name: myName,
-        position: {
-          x: playerBody.position.x,
-          y: playerBody.position.y,
-          z: playerBody.position.z,
-        },
-        rotation: {
-          x: playerBody.quaternion.x,
-          y: playerBody.quaternion.y,
-          z: playerBody.quaternion.z,
-          w: playerBody.quaternion.w,
-        },
-        // You could add more data here like score, etc.
-      }, { merge: true });
+      
+      try {
+          setDoc(playerRef, {
+            name: myName,
+            position: {
+              x: playerBody.position.x,
+              y: playerBody.position.y,
+              z: playerBody.position.z,
+            },
+            rotation: {
+              x: playerBody.quaternion.x,
+              y: playerBody.quaternion.y,
+              z: playerBody.quaternion.z,
+              w: playerBody.quaternion.w,
+            },
+          }, { merge: true });
+      } catch (error) {
+          console.error("Error setting document:", error);
+      }
     }
 
     /**
@@ -548,50 +656,73 @@
         }
         
         // Update the pivot's position to match the player body's position
+        // This is the essential part that makes the camera follow the ball!
         cameraPivot.position.copy(playerBody.position);
 
-        // This line makes the face always face away from the camera.
-        playerMesh.rotation.y = camera.rotation.y + Math.PI;
+        // Update the player mesh's position and rotation to match the physics body
+        playerMesh.position.copy(playerBody.position);
+        playerMesh.quaternion.copy(playerBody.quaternion);
 
-        // Handle keyboard input and apply forces
+        // --- REMOVED COMPLEX/CONFLICTING VISUAL ROTATION LOGIC ---
+        // Since playerMesh is now correctly parented to the scene,
+        // playerMesh.quaternion.copy(playerBody.quaternion) handles rolling.
+        
+        // Find and update the nametag position (it is a child of playerMesh)
+        const nametag = playerMesh.children.find(child => child.isSprite);
+        if (nametag) {
+             nametag.position.y = 2; // Keep it above the ball, relative to the ball's center
+        }
+
+        // Handle keyboard and joystick input and apply forces
         const force = 15;
         const jumpForce = 400;
         
-        // --- START OF FIX ---
-        // Get the forward and right vectors from the cameraPivot, since its rotation
-        // is what we are controlling with the mouse. This ensures movement is
-        // relative to where the camera is looking.
-        const pivotForward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraPivot.quaternion);
-        const pivotRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraPivot.quaternion);
+        // --- Calculate combined input vectors (Keyboard + Joystick) ---
+        let moveX = 0;
+        let moveZ = 0;
 
-        // Normalize these vectors to ensure consistent speed
-        pivotForward.normalize();
-        pivotRight.normalize();
+        // 1. Keyboard Input
+        if (keyboard['ArrowUp'] || keyboard['KeyW']) moveZ -= 1;
+        if (keyboard['ArrowDown'] || keyboard['KeyS']) moveZ += 1;
+        if (keyboard['ArrowLeft'] || keyboard['KeyA']) moveX -= 1;
+        if (keyboard['ArrowRight'] || keyboard['KeyD']) moveX += 1;
+        
+        // 2. Joystick Input (Overrides/complements keyboard)
+        if (joystickActive) {
+            moveX = joystickInput.x;
+            moveZ = joystickInput.z;
+        }
 
-        // Use the pivot's orientation to apply impulse for movement.
-        if (keyboard['ArrowUp'] || keyboard['KeyW']) {
-          playerBody.applyImpulse(new CANNON.Vec3(pivotForward.x * force, 0, pivotForward.z * force), playerBody.position);
-        }
-        if (keyboard['ArrowDown'] || keyboard['KeyS']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-pivotForward.x * force, 0, -pivotForward.z * force), playerBody.position);
-        }
-        if (keyboard['ArrowLeft'] || keyboard['KeyA']) {
-          playerBody.applyImpulse(new CANNON.Vec3(-pivotRight.x * force, 0, -pivotRight.z * force), playerBody.position);
-        }
-        if (keyboard['ArrowRight'] || keyboard['KeyD']) {
-          playerBody.applyImpulse(new CANNON.Vec3(pivotRight.x * force, 0, pivotRight.z * force), playerBody.position);
-        }
-        // --- END OF FIX ---
+        // Apply Movement if input exists
+        if (moveX !== 0 || moveZ !== 0) {
+            // Get the camera's forward and right vectors projected onto the XZ plane
+            const pivotForward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraPivot.quaternion);
+            const pivotRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraPivot.quaternion);
 
-        if (keyboard['Space']) {
+            pivotForward.normalize();
+            pivotRight.normalize();
+
+            // Calculate impulse from combined input
+            // Note: We use -moveZ here because moving forward (positive Z input) means applying force in the negative Z direction (pivotForward)
+            const forwardImpulse = new CANNON.Vec3(pivotForward.x * force * -moveZ, 0, pivotForward.z * force * -moveZ);
+            const rightImpulse = new CANNON.Vec3(pivotRight.x * force * moveX, 0, pivotRight.z * force * moveX);
+
+            // Combine and apply
+            playerBody.applyImpulse(forwardImpulse.vadd(rightImpulse), playerBody.position);
+        }
+
+        // Apply Jump
+        if (keyboard['Space'] || jumpButtonPressed) {
           // Simple jump logic: check if on the ground
           if (Math.abs(playerBody.velocity.y) < 0.1) {
             playerBody.applyImpulse(new CANNON.Vec3(0, jumpForce, 0), playerBody.position);
           }
+          jumpButtonPressed = false; // Reset jump flag immediately after checking
         }
 
         // Update position in Firebase periodically to reduce writes
-        if (authReady && Math.random() < 0.2) { // Update ~20% of frames
+        // Check if auth is ready and sample the update rate
+        if (authReady && Math.random() < 0.2) { 
            updateMyPositionInFirestore();
         }
       }
@@ -611,26 +742,61 @@
       keyboard[event.code] = false;
     });
 
-    // Add event listener for the teleport button
-    document.addEventListener('DOMContentLoaded', () => {
-      const tpButton = document.getElementById('tpButton');
-      if (tpButton) {
-        tpButton.addEventListener('click', () => {
-          if (playerBody) {
-            // Teleport the player back to the spawn point
-            playerBody.position.set(0, 10, 0);
-            playerBody.velocity.set(0, 0, 0); // Stop any existing movement
-            playerBody.angularVelocity.set(0, 0, 0); // Stop any existing rotation
+    /**
+     * Calculates and applies movement for the joystick handle.
+     */
+    function getJoystickCoords(touch) {
+        const rect = joystickArea.getBoundingClientRect();
+        const baseCenterX = rect.left + JOYSTICK_RADIUS;
+        const baseCenterY = rect.top + JOYSTICK_RADIUS;
+        
+        let x = touch.clientX - baseCenterX;
+        let y = touch.clientY - baseCenterY;
+        
+        const distance = Math.sqrt(x * x + y * y);
+        
+        // Clamp position to the joystick radius
+        if (distance > JOYSTICK_RADIUS) {
+            x *= JOYSTICK_RADIUS / distance;
+            y *= JOYSTICK_RADIUS / distance;
+        }
+        
+        // Move the handle
+        // Using `translate` relative to the handle's initial `-50%, -50%` position
+        joystickHandle.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+        
+        // Normalize input for game logic (-1 to 1). Note: Y is inverted for forward/backward movement
+        joystickInput.x = x / JOYSTICK_RADIUS;
+        joystickInput.z = -y / JOYSTICK_RADIUS; // -Y is forward, so we flip it
+    }
+    
+    /**
+     * Set up all UI and mobile control listeners after the DOM is ready.
+     */
+    function setupGameListeners() {
+        // Retrieve global DOM elements
+        joystickHandle = document.getElementById('joystickHandle');
+        joystickArea = document.getElementById('joystickArea');
+        const jumpButton = document.getElementById('jumpButton');
+        const lookArea = document.getElementById('lookArea');
 
-            // Immediately update Firestore so other players see the teleport
-            updateMyPositionInFirestore();
-          }
-        });
-      }
-    });
+        // Teleport Button Listener
+        const tpButton = document.getElementById('tpButton');
+        if (tpButton) {
+            tpButton.addEventListener('click', () => {
+                if (playerBody) {
+                    // Teleport the player back to the spawn point
+                    playerBody.position.set(0, 10, 0);
+                    playerBody.velocity.set(0, 0, 0); // Stop any existing movement
+                    playerBody.angularVelocity.set(0, 0, 0); // Stop any existing rotation
 
-    // Event listener for the "Save Name" button
-    document.addEventListener('DOMContentLoaded', () => {
+                    // Immediately update Firestore so other players see the teleport
+                    updateMyPositionInFirestore();
+                }
+            });
+        }
+
+        // Save Name Button Listener
         const saveNameButton = document.getElementById('saveNameButton');
         const nameInput = document.getElementById('nameInput');
         if (saveNameButton && nameInput) {
@@ -640,20 +806,20 @@
                     // Update the player's nametag locally
                     const nametag = playerMesh.children.find(child => child.isSprite);
                     if (nametag) {
-                        const newNametag = createNametag(newName);
-                        newNametag.position.copy(nametag.position);
                         playerMesh.remove(nametag);
-                        playerMesh.add(newNametag);
                     }
+                    // Add new nametag
+                    const newNametag = createNametag(newName);
+                    newNametag.position.y = 2; // Position above the ball
+                    playerMesh.add(newNametag);
+                    
                     // Trigger a Firestore update to save the new name
                     updateMyPositionInFirestore();
                 }
             });
         }
-    });
 
-    // --- NEW: Event listener for the collapse button ---
-    document.addEventListener('DOMContentLoaded', () => {
+        // Collapse Button Listener
         const collapseButton = document.getElementById('collapseButton');
         const uiContainer = document.getElementById('ui');
         if (collapseButton && uiContainer) {
@@ -662,18 +828,98 @@
                 uiContainer.classList.toggle('collapsed');
             });
         }
-    });
 
-    // Camera control event listeners
+        // --- MOBILE CONTROL LISTENERS ---
+        if (joystickArea && jumpButton && lookArea) {
+            // Joystick Touch Handlers
+            joystickArea.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                joystickActive = true;
+                getJoystickCoords(e.touches[0]);
+            }, { passive: false });
+
+            joystickArea.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (joystickActive) {
+                    // Find the active touch (the one that started the move)
+                    const activeTouch = Array.from(e.touches).find(t => {
+                        const rect = joystickArea.getBoundingClientRect();
+                        return t.clientX >= rect.left && t.clientX <= rect.right &&
+                               t.clientY >= rect.top && t.clientY <= rect.bottom;
+                    });
+                    if (activeTouch) {
+                        getJoystickCoords(activeTouch);
+                    }
+                }
+            }, { passive: false });
+
+            joystickArea.addEventListener('touchend', (e) => {
+                // Reset joystick position and input
+                joystickActive = false;
+                joystickInput = { x: 0, z: 0 };
+                joystickHandle.style.transform = `translate(-50%, -50%)`;
+            });
+
+            // Jump Button Handlers
+            jumpButton.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                jumpButtonPressed = true;
+                jumpButton.style.backgroundColor = 'rgba(255, 0, 0, 1)';
+            }, { passive: false });
+
+            jumpButton.addEventListener('touchend', (e) => {
+                jumpButton.style.backgroundColor = 'rgba(255, 0, 0, 0.6)';
+            });
+
+
+            // Look Area Handlers
+            lookArea.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                // Use the first touch for looking that starts in the look area
+                if (lookTouchID === null) {
+                    lookTouchID = e.changedTouches[0].identifier;
+                    lastMouseX = e.changedTouches[0].clientX;
+                }
+            }, { passive: false });
+
+            lookArea.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier === lookTouchID) {
+                        const deltaX = touch.clientX - lastMouseX;
+                        const rotationSpeed = 0.01; // Slightly faster rotation for touch
+
+                        cameraPivot.rotation.y -= deltaX * rotationSpeed;
+                        lastMouseX = touch.clientX;
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            lookArea.addEventListener('touchend', (e) => {
+                // Check if the touch released is the one controlling the look
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === lookTouchID) {
+                        lookTouchID = null;
+                        break;
+                    }
+                }
+            });
+        }
+    }
+
+
+    // Camera control event listeners for DESKTOP MOUSE
     window.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
+        event.preventDefault(); // Prevent right-click context menu
     });
 
     window.addEventListener('mousedown', (event) => {
-        if (event.button === 2) { // Right mouse button
+        // Only activate mouse look if mobile controls are not active (based on screen size)
+        if (window.innerWidth > 768 && event.button === 2) { // Right mouse button
             isRightMouseDown = true;
             lastMouseX = event.clientX;
-            lastMouseY = event.clientY;
         }
     });
 
@@ -690,7 +936,6 @@
         const rotationSpeed = 0.005;
 
         // Only rotate the camera pivot around the Y-axis to keep the horizon level.
-        // We commented out the X-axis rotation to stop the camera from tilting.
         cameraPivot.rotation.y -= deltaX * rotationSpeed;
         
         lastMouseX = event.clientX;
@@ -709,6 +954,7 @@
     // Start authentication flow and game setup on window load
     window.onload = function() {
       setupInitialGame(); // Call setup function immediately
+      setupGameListeners(); // Call the listener setup function after DOM is ready
       animate(); // Start the animation loop immediately
       handleSignIn(); // Start the sign-in process
     };
@@ -717,11 +963,12 @@
 <body>
   <!-- UI overlay for instructions and user ID -->
   <div id="ui">
-    <!-- NEW: All content to be collapsed is now inside a separate div -->
     <div id="menu-content">
       <h1>3D Ball Game</h1>
-      <p>Move with Arrow Keys or WASD (relative to camera), Jump with Space</p>
-      <p>Drag with Right Mouse to look around</p>
+      <!-- Hint shown on desktop -->
+      <p id="desktop-hint">Move with **WASD** or **Arrow Keys**, Jump with **Space**. Drag with **Right Mouse** to look around.</p>
+      <!-- Hint shown on mobile -->
+      <p id="mobile-hint">Use **Joystick (Left)** and **Look Area (Right)** for control. Tap **JUMP** to jump.</p>
       <div>
           <input type="text" id="nameInput" placeholder="Enter your name">
           <button id="saveNameButton">Save Name</button>
@@ -729,11 +976,23 @@
       <button id="tpButton">Teleport to Spawn</button>
       <p id="userIdDisplay">Connecting...</p>
     </div>
-    <!-- NEW: The toggle button is now outside the collapsible content -->
     <button id="collapseButton">Toggle Menu</button>
   </div>
   
   <!-- Canvas for the 3D game -->
   <canvas id="gameCanvas"></canvas>
+
+  <!-- --- MOBILE CONTROLS OVERLAY (Automatically shown/hidden via CSS Media Query) --- -->
+  <div id="mobileControls">
+    <!-- Joystick for movement -->
+    <div id="joystickArea">
+        <div id="joystickHandle"></div>
+    </div>
+    <!-- Jump button -->
+    <div id="jumpButton">JUMP</div>
+    <!-- Look Area for camera control -->
+    <div id="lookArea"></div>
+  </div>
+  <!-- --- END MOBILE CONTROLS --- -->
 </body>
 </html>
