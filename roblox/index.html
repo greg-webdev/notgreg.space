@@ -79,9 +79,13 @@
       color: #bbb;
     }
     
-    /* Default: Hide mobile hint on desktop */
+    /* Default: Hide mobile hint on desktop, desktop hint is shown by default */
     #mobile-hint {
         display: none;
+    }
+    /* Default: Hide desktop hint on mobile */
+    #desktop-hint {
+        display: block;
     }
 
     /* New button and input styles */
@@ -198,13 +202,13 @@
       #mobileControls {
           display: block;
       }
-      /* Hide keyboard instructions on desktop */
+      /* Hide desktop hint */
       #desktop-hint {
-          display: none;
+          display: none !important; /* Force hide desktop hint */
       }
       /* Show mobile hint */
       #mobile-hint {
-          display: block;
+          display: block !important; /* Force show mobile hint */
       }
       /* Ensure the UI bar doesn't interfere with the controls */
       #ui {
@@ -221,13 +225,14 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // Global variables from the Canvas environment
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    // Initialize Firebase
+    // Initialize Firebase variables
     let app, db, auth;
     let authReady = false;
 
@@ -266,48 +271,64 @@
     // Flag to track Firebase initialization status
     let firebaseInitialized = false;
 
-    try {
-      if (!firebaseConfig || !firebaseConfig.projectId) {
-        throw new Error("Missing 'projectId' in Firebase configuration. The application cannot connect to the database.");
-      }
-      app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      auth = getAuth(app);
-      firebaseInitialized = true;
+    // Element references
+    const userIdDisplay = document.getElementById('userIdDisplay');
+    const nameInput = document.getElementById('nameInput');
 
-      // Log the debug level
-      // setLogLevel('debug'); 
-
-      // Start the auth flow if Firebase is initialized
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
-          userId = user.uid;
-          multiplayerMessage = `Your User ID: ${userId}`;
-          authReady = true;
-          listenForPlayerUpdates();
-        } else {
-          userId = null;
-          multiplayerMessage = 'Connection failed. Check console for details.';
-          authReady = false;
+    /**
+     * Initializes Firebase and sets up authentication listeners.
+     */
+    function setupFirebase() {
+        if (!firebaseConfig || !firebaseConfig.projectId) {
+            console.error("Missing 'projectId' in Firebase configuration. Multiplayer is disabled.");
+            multiplayerMessage = "Firebase setup incomplete. Multiplayer is OFF.";
+            userIdDisplay.textContent = multiplayerMessage;
+            return;
         }
-        document.getElementById('userIdDisplay').textContent = multiplayerMessage;
-      });
 
-    } catch (error) {
-      console.error("Firebase Initialization Error:", error);
-      multiplayerMessage = "Firebase setup is incomplete. Multiplayer is OFF.";
-      document.getElementById('userIdDisplay').textContent = multiplayerMessage;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            firebaseInitialized = true;
+
+            // Set debug log level for Firestore
+            setLogLevel('Debug'); 
+
+            // Start the auth flow
+            handleSignIn();
+
+            // Set up listener for authentication state changes
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    multiplayerMessage = `User ID: ${userId.substring(0, 8)}... (Multiplayer ON)`;
+                    authReady = true;
+                    listenForPlayerUpdates();
+                } else {
+                    userId = null;
+                    multiplayerMessage = 'Connection failed. Check console.';
+                    authReady = false;
+                }
+                userIdDisplay.textContent = multiplayerMessage;
+            });
+
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error);
+            multiplayerMessage = "Firebase setup failed. Check console for details.";
+            userIdDisplay.textContent = multiplayerMessage;
+        }
     }
 
     /**
-     * Function to handle initial sign-in with better error handling.
+     * Function to handle initial sign-in.
      */
     async function handleSignIn() {
       if (!firebaseInitialized) return;
 
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
         } else {
           await signInAnonymously(auth);
         }
@@ -333,7 +354,6 @@
       const scale = 1.1; 
       glowMesh.scale.set(scale, scale, scale);
       
-      // The glow mesh is added as a child to the ball mesh in createPlayerMesh
       return glowMesh;
     }
     
@@ -369,7 +389,6 @@
       const scaleFactor = 0.03;
       sprite.scale.set(canvas.width * scaleFactor, canvas.height * scaleFactor, 1);
       
-      // Store the name on the sprite for easy lookup
       sprite.name = name;
       
       return sprite;
@@ -430,16 +449,16 @@
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
       
-      // 2. Camera setup - We will now use a third-person camera
+      // 2. Camera setup - Third-person camera
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       
-      // Create a pivot point for the camera to orbit around
+      // Create a pivot point for the camera to orbit around and follow the player
       cameraPivot = new THREE.Object3D();
       scene.add(cameraPivot);
 
       // Position the camera relative to the pivot
       camera.position.set(0, 3, 7);
-      camera.lookAt(0, 0, 0); // Make the camera look at the pivot point
+      camera.lookAt(0, 0, 0); 
       cameraPivot.add(camera);
       
       // 3. Renderer setup
@@ -456,10 +475,9 @@
 
       // 5. Physics world (Cannon.js)
       world = new CANNON.World();
-      world.gravity.set(0, -9.82, 0); // Standard gravity
+      world.gravity.set(0, -9.82, 0); 
       world.broadphase = new CANNON.NaiveBroadphase();
 
-      // --- MAP SIZE INCREASE ---
       const mapSize = 500;
       const wallPosition = mapSize / 2;
 
@@ -477,52 +495,38 @@
       groundMesh.rotation.x = -Math.PI / 2;
       scene.add(groundMesh);
 
-      // 7. Add a ceiling (3D and Physics)
-      const ceilingHeight = 40; // Define the height of the ceiling
-      
-      // Physics ceiling
-      const ceilingBody = new CANNON.Body({ mass: 0, shape: groundShape, position: new CANNON.Vec3(0, ceilingHeight, 0) });
-      ceilingBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
-      world.addBody(ceilingBody);
-
-      // 8. Add invisible walls to prevent falling off the map
+      // 7. Add walls
       const wallShape = new CANNON.Plane();
       
-      // Front Wall: Prevents movement past z = -wallPosition.
       const wallFront = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, -wallPosition) });
       world.addBody(wallFront);
       
-      // Back Wall: Prevents movement past z = wallPosition.
       const wallBack = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(0, 0, wallPosition) });
       wallBack.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI);
       world.addBody(wallBack);
 
-      // Left Wall: Prevents movement past x = -wallPosition.
       const wallLeft = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(-wallPosition, 0, 0) });
       wallLeft.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
       world.addBody(wallLeft);
       
-      // Right Wall: Prevents movement past x = wallPosition.
       const wallRight = new CANNON.Body({ mass: 0, shape: wallShape, position: new CANNON.Vec3(wallPosition, 0, 0) });
       wallRight.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
       world.addBody(wallRight);
 
-      // 9. Player's ball (3D and Physics)
+      // 8. Player's ball (3D and Physics)
       const playerShape = new CANNON.Sphere(1); // Radius of 1
       playerBody = new CANNON.Body({ 
           mass: 5, 
           shape: playerShape, 
           position: new CANNON.Vec3(0, 10, 0),
-          // --- Linear Damping added to simulate rolling resistance/friction ---
           linearDamping: 0.95 
       });
       world.addBody(playerBody);
 
       // Get initial name from input for the nametag
-      const initialName = document.getElementById('nameInput').value || 'Player';
-      // Create the player's mesh
-      playerMesh = createPlayerMesh(1, 0xff0000, initialName); // Changed color to red
-      // FIX: Add the player mesh directly to the SCENE. The camera pivot will track its position.
+      const initialName = nameInput.value || 'Player';
+      playerMesh = createPlayerMesh(1, 0xff0000, initialName); 
+      // CRITICAL FIX: Add the player mesh directly to the SCENE, not the cameraPivot.
       scene.add(playerMesh);
     }
 
@@ -530,7 +534,7 @@
      * Listens for real-time updates from other players in Firestore.
      */
     function listenForPlayerUpdates() {
-      if (!authReady || !firebaseInitialized) return; // Ensure auth and firebase are ready
+      if (!authReady || !firebaseInitialized) return; 
 
       // Path: /artifacts/{appId}/public/data/players
       const playersRef = collection(db, `artifacts/${appId}/public/data/players`);
@@ -540,20 +544,16 @@
           const playerId = change.doc.id;
           
           if (playerId === userId) {
-            // Ignore updates from the current user as they are handled locally
             return;
           }
 
           if (change.type === "added" || change.type === "modified") {
-            // Add or update the player's cube/ball
             if (!playerCubes[playerId]) {
-              // Create a sphere with a random color for other players
               const randomColor = Math.random() * 0xffffff;
               const otherPlayerMesh = createPlayerMesh(1, randomColor, playerData.name);
               scene.add(otherPlayerMesh);
               playerCubes[playerId] = otherPlayerMesh;
 
-              // Create a physics body for the new player
               const otherPlayerShape = new CANNON.Sphere(1);
               const otherPlayerBody = new CANNON.Body({ 
                   mass: 5, 
@@ -565,25 +565,21 @@
 
             }
             
-            // Update the player's position and rotation
             const cubeMesh = playerCubes[playerId];
             const physicsBody = playerBodies[playerId];
 
             if (playerData.position) {
-              // Smoothly interpolate remote player position to avoid jitter
+              // Interpolate remote player position
               cubeMesh.position.lerp(new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z), 0.3);
-              // Also update the physics body (though this player is primarily visual)
               physicsBody.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
             }
             if (playerData.rotation) {
               cubeMesh.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
-              // Also update the physics body
               physicsBody.quaternion.set(playerData.rotation.x, playerData.rotation.y, playerData.rotation.z, playerData.rotation.w);
             }
             if (playerData.name) {
               // Update the nametag if the name has changed
               const nametag = cubeMesh.children.find(child => child.isSprite);
-              // Only update if the name is genuinely different to avoid unnecessary sprite regeneration
               if (nametag && nametag.name !== playerData.name) { 
                   const newNametag = createNametag(playerData.name);
                   newNametag.position.copy(nametag.position);
@@ -594,10 +590,8 @@
           }
 
           if (change.type === "removed") {
-            // Remove the cube from the scene if the player disconnected
             if (playerCubes[playerId]) {
               scene.remove(playerCubes[playerId]);
-              // Remove the physics body from the world
               world.removeBody(playerBodies[playerId]);
               delete playerCubes[playerId];
               delete playerBodies[playerId]; 
@@ -616,7 +610,7 @@
       if (!authReady || !userId) return;
       
       const playerRef = doc(db, `artifacts/${appId}/public/data/players/${userId}`);
-      const myName = document.getElementById('nameInput').value || 'Player';
+      const myName = nameInput.value || 'Player';
       
       try {
           setDoc(playerRef, {
@@ -648,24 +642,19 @@
         // Update physics world
         world.step(1/60);
         
-        // Check if the ball has fallen off the world and reset it
+        // Handle falling off the world
         if (playerBody.position.y < -10) {
             playerBody.position.set(0, 10, 0);
             playerBody.velocity.set(0, 0, 0);
             playerBody.angularVelocity.set(0, 0, 0);
         }
         
-        // Update the pivot's position to match the player body's position
-        // This is the essential part that makes the camera follow the ball!
+        // CRITICAL FIX: Update the camera pivot's position to match the player body's position
         cameraPivot.position.copy(playerBody.position);
 
-        // Update the player mesh's position and rotation to match the physics body
+        // Update the player mesh's position and rotation to match the physics body (ensures rolling)
         playerMesh.position.copy(playerBody.position);
         playerMesh.quaternion.copy(playerBody.quaternion);
-
-        // --- REMOVED COMPLEX/CONFLICTING VISUAL ROTATION LOGIC ---
-        // Since playerMesh is now correctly parented to the scene,
-        // playerMesh.quaternion.copy(playerBody.quaternion) handles rolling.
         
         // Find and update the nametag position (it is a child of playerMesh)
         const nametag = playerMesh.children.find(child => child.isSprite);
@@ -677,7 +666,6 @@
         const force = 15;
         const jumpForce = 400;
         
-        // --- Calculate combined input vectors (Keyboard + Joystick) ---
         let moveX = 0;
         let moveZ = 0;
 
@@ -687,7 +675,7 @@
         if (keyboard['ArrowLeft'] || keyboard['KeyA']) moveX -= 1;
         if (keyboard['ArrowRight'] || keyboard['KeyD']) moveX += 1;
         
-        // 2. Joystick Input (Overrides/complements keyboard)
+        // 2. Joystick Input
         if (joystickActive) {
             moveX = joystickInput.x;
             moveZ = joystickInput.z;
@@ -703,7 +691,6 @@
             pivotRight.normalize();
 
             // Calculate impulse from combined input
-            // Note: We use -moveZ here because moving forward (positive Z input) means applying force in the negative Z direction (pivotForward)
             const forwardImpulse = new CANNON.Vec3(pivotForward.x * force * -moveZ, 0, pivotForward.z * force * -moveZ);
             const rightImpulse = new CANNON.Vec3(pivotRight.x * force * moveX, 0, pivotRight.z * force * moveX);
 
@@ -713,15 +700,13 @@
 
         // Apply Jump
         if (keyboard['Space'] || jumpButtonPressed) {
-          // Simple jump logic: check if on the ground
           if (Math.abs(playerBody.velocity.y) < 0.1) {
             playerBody.applyImpulse(new CANNON.Vec3(0, jumpForce, 0), playerBody.position);
           }
-          jumpButtonPressed = false; // Reset jump flag immediately after checking
+          jumpButtonPressed = false; 
         }
 
-        // Update position in Firebase periodically to reduce writes
-        // Check if auth is ready and sample the update rate
+        // Update position in Firebase periodically 
         if (authReady && Math.random() < 0.2) { 
            updateMyPositionInFirestore();
         }
@@ -762,69 +747,56 @@
         }
         
         // Move the handle
-        // Using `translate` relative to the handle's initial `-50%, -50%` position
         joystickHandle.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
         
-        // Normalize input for game logic (-1 to 1). Note: Y is inverted for forward/backward movement
+        // Normalize input for game logic
         joystickInput.x = x / JOYSTICK_RADIUS;
-        joystickInput.z = -y / JOYSTICK_RADIUS; // -Y is forward, so we flip it
+        joystickInput.z = -y / JOYSTICK_RADIUS; 
     }
     
     /**
      * Set up all UI and mobile control listeners after the DOM is ready.
      */
     function setupGameListeners() {
-        // Retrieve global DOM elements
         joystickHandle = document.getElementById('joystickHandle');
         joystickArea = document.getElementById('joystickArea');
         const jumpButton = document.getElementById('jumpButton');
         const lookArea = document.getElementById('lookArea');
+        const tpButton = document.getElementById('tpButton');
+        const saveNameButton = document.getElementById('saveNameButton');
+        const collapseButton = document.getElementById('collapseButton');
+        const uiContainer = document.getElementById('ui');
 
         // Teleport Button Listener
-        const tpButton = document.getElementById('tpButton');
         if (tpButton) {
             tpButton.addEventListener('click', () => {
                 if (playerBody) {
-                    // Teleport the player back to the spawn point
                     playerBody.position.set(0, 10, 0);
-                    playerBody.velocity.set(0, 0, 0); // Stop any existing movement
-                    playerBody.angularVelocity.set(0, 0, 0); // Stop any existing rotation
-
-                    // Immediately update Firestore so other players see the teleport
+                    playerBody.velocity.set(0, 0, 0); 
+                    playerBody.angularVelocity.set(0, 0, 0); 
                     updateMyPositionInFirestore();
                 }
             });
         }
 
         // Save Name Button Listener
-        const saveNameButton = document.getElementById('saveNameButton');
-        const nameInput = document.getElementById('nameInput');
         if (saveNameButton && nameInput) {
             saveNameButton.addEventListener('click', () => {
                 const newName = nameInput.value.trim();
                 if (newName) {
-                    // Update the player's nametag locally
                     const nametag = playerMesh.children.find(child => child.isSprite);
-                    if (nametag) {
-                        playerMesh.remove(nametag);
-                    }
-                    // Add new nametag
+                    if (nametag) { playerMesh.remove(nametag); }
                     const newNametag = createNametag(newName);
-                    newNametag.position.y = 2; // Position above the ball
+                    newNametag.position.y = 2; 
                     playerMesh.add(newNametag);
-                    
-                    // Trigger a Firestore update to save the new name
                     updateMyPositionInFirestore();
                 }
             });
         }
 
         // Collapse Button Listener
-        const collapseButton = document.getElementById('collapseButton');
-        const uiContainer = document.getElementById('ui');
         if (collapseButton && uiContainer) {
             collapseButton.addEventListener('click', () => {
-                // Toggle the 'collapsed' class to show/hide the menu
                 uiContainer.classList.toggle('collapsed');
             });
         }
@@ -841,7 +813,6 @@
             joystickArea.addEventListener('touchmove', (e) => {
                 e.preventDefault();
                 if (joystickActive) {
-                    // Find the active touch (the one that started the move)
                     const activeTouch = Array.from(e.touches).find(t => {
                         const rect = joystickArea.getBoundingClientRect();
                         return t.clientX >= rect.left && t.clientX <= rect.right &&
@@ -854,7 +825,6 @@
             }, { passive: false });
 
             joystickArea.addEventListener('touchend', (e) => {
-                // Reset joystick position and input
                 joystickActive = false;
                 joystickInput = { x: 0, z: 0 };
                 joystickHandle.style.transform = `translate(-50%, -50%)`;
@@ -875,7 +845,6 @@
             // Look Area Handlers
             lookArea.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                // Use the first touch for looking that starts in the look area
                 if (lookTouchID === null) {
                     lookTouchID = e.changedTouches[0].identifier;
                     lastMouseX = e.changedTouches[0].clientX;
@@ -888,7 +857,7 @@
                     const touch = e.changedTouches[i];
                     if (touch.identifier === lookTouchID) {
                         const deltaX = touch.clientX - lastMouseX;
-                        const rotationSpeed = 0.01; // Slightly faster rotation for touch
+                        const rotationSpeed = 0.01; 
 
                         cameraPivot.rotation.y -= deltaX * rotationSpeed;
                         lastMouseX = touch.clientX;
@@ -898,7 +867,6 @@
             }, { passive: false });
 
             lookArea.addEventListener('touchend', (e) => {
-                // Check if the touch released is the one controlling the look
                 for (let i = 0; i < e.changedTouches.length; i++) {
                     if (e.changedTouches[i].identifier === lookTouchID) {
                         lookTouchID = null;
@@ -912,11 +880,10 @@
 
     // Camera control event listeners for DESKTOP MOUSE
     window.addEventListener('contextmenu', (event) => {
-        event.preventDefault(); // Prevent right-click context menu
+        event.preventDefault(); 
     });
 
     window.addEventListener('mousedown', (event) => {
-        // Only activate mouse look if mobile controls are not active (based on screen size)
         if (window.innerWidth > 768 && event.button === 2) { // Right mouse button
             isRightMouseDown = true;
             lastMouseX = event.clientX;
@@ -935,7 +902,7 @@
         const deltaX = event.clientX - lastMouseX;
         const rotationSpeed = 0.005;
 
-        // Only rotate the camera pivot around the Y-axis to keep the horizon level.
+        // Rotate the camera pivot around the Y-axis
         cameraPivot.rotation.y -= deltaX * rotationSpeed;
         
         lastMouseX = event.clientX;
@@ -950,13 +917,34 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
     });
+    
+    /**
+     * Detects device type and updates the UI hints.
+     */
+    function detectDeviceAndSetHints() {
+        const isMobile = window.innerWidth <= 768;
+        const mobileHint = document.getElementById('mobile-hint');
+        const desktopHint = document.getElementById('desktop-hint');
+        
+        if (isMobile) {
+            // Show mobile controls hint
+            mobileHint.style.display = 'block';
+            desktopHint.style.display = 'none';
+        } else {
+            // Show desktop controls hint
+            mobileHint.style.display = 'none';
+            desktopHint.style.display = 'block';
+        }
+    }
 
     // Start authentication flow and game setup on window load
     window.onload = function() {
-      setupInitialGame(); // Call setup function immediately
-      setupGameListeners(); // Call the listener setup function after DOM is ready
-      animate(); // Start the animation loop immediately
-      handleSignIn(); // Start the sign-in process
+      setupInitialGame(); 
+      setupGameListeners(); 
+      setupFirebase(); // Firebase setup, including sign-in
+      detectDeviceAndSetHints(); // Initial detection
+      window.addEventListener('resize', detectDeviceAndSetHints); // Update on resize
+      animate(); 
     };
   </script>
 </head>
@@ -965,10 +953,10 @@
   <div id="ui">
     <div id="menu-content">
       <h1>3D Ball Game</h1>
-      <!-- Hint shown on desktop -->
+      <!-- Desktop Hint (Initially visible) -->
       <p id="desktop-hint">Move with **WASD** or **Arrow Keys**, Jump with **Space**. Drag with **Right Mouse** to look around.</p>
-      <!-- Hint shown on mobile -->
-      <p id="mobile-hint">Use **Joystick (Left)** and **Look Area (Right)** for control. Tap **JUMP** to jump.</p>
+      <!-- Mobile Hint (Initially hidden) -->
+      <p id="mobile-hint" style="display: none;">Use **Joystick (Left)** and **Look Area (Right)** for control. Tap **JUMP** to jump.</p>
       <div>
           <input type="text" id="nameInput" placeholder="Enter your name">
           <button id="saveNameButton">Save Name</button>
@@ -982,7 +970,7 @@
   <!-- Canvas for the 3D game -->
   <canvas id="gameCanvas"></canvas>
 
-  <!-- --- MOBILE CONTROLS OVERLAY (Automatically shown/hidden via CSS Media Query) --- -->
+  <!-- --- MOBILE CONTROLS OVERLAY --- -->
   <div id="mobileControls">
     <!-- Joystick for movement -->
     <div id="joystickArea">
