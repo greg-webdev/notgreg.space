@@ -103,9 +103,20 @@
         let userId = null;
         let chatHistoryCollection = null;
 
-        // Constants from global environment
+        // --- CONSTANTS FROM GLOBAL ENVIRONMENT ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        // Safer parsing for firebaseConfig to handle missing/invalid JSON
+        let parsedConfig = {};
+        try {
+            if (typeof __firebase_config === 'string' && __firebase_config.trim() !== '') {
+                parsedConfig = JSON.parse(__firebase_config);
+            }
+        } catch (e) {
+            console.error("Critical Error: Failed to parse __firebase_config JSON string.", e);
+        }
+        const firebaseConfig = parsedConfig; 
+        
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const apiKey = ""; // API Key is left empty for runtime provision
 
@@ -186,9 +197,7 @@
             // Path: /artifacts/{appId}/users/{userId}/chat_history
             chatHistoryCollection = collection(db, `artifacts/${appId}/users/${userId}/chat_history`);
             
-            // Query: Get all messages, sorted by timestamp.
-            // NOTE: Firestore requires an index for orderBy. To avoid index errors, we
-            // will fetch all documents and sort them in-memory using JavaScript.
+            // Query: Get all messages
             const q = query(chatHistoryCollection);
 
             onSnapshot(q, (snapshot) => {
@@ -198,7 +207,7 @@
                 // Get documents and convert them to an array of message objects
                 const messages = snapshot.docs.map(doc => doc.data());
                 
-                // Sort messages in-memory by timestamp, as Firestore orderBy can cause index errors
+                // Sort messages in-memory by timestamp
                 messages.sort((a, b) => {
                     const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
                     const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
@@ -217,8 +226,8 @@
                 console.log(`Chat history loaded. Total messages: ${messages.length}`);
             }, (error) => {
                 console.error("Firestore onSnapshot error:", error);
-                // The permission error should be handled by the auth check, but logging here is good.
-                displayMessage(`System Error: Failed to load chat history. ${error.message}`, 'model');
+                // Report any real-time permission error
+                displayMessage(`System Error: Failed to load chat history. ${error.message}`, 'model', new Date());
             });
         }
 
@@ -236,11 +245,11 @@
                 await addDoc(chatHistoryCollection, {
                     text: text,
                     role: role,
-                    timestamp: new Date() // Use server timestamp later if needed, but local date is fine for now
+                    timestamp: new Date() 
                 });
             } catch (error) {
                 console.error("Error saving message to Firestore:", error);
-                displayMessage(`System Error: Could not save message. ${error.message}`, 'model');
+                displayMessage(`System Error: Could not save message. ${error.message}`, 'model', new Date());
             }
         }
 
@@ -279,7 +288,6 @@
                     });
 
                     if (!response.ok) {
-                        // Throw error if response status is not OK (e.g., 400, 500)
                         const errorData = await response.json();
                         throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
                     }
@@ -287,7 +295,6 @@
                     const result = await response.json();
                     const modelText = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
                     
-                    // You would normally extract citations here, but for simplicity, we'll just return the text.
                     return modelText;
 
                 } catch (error) {
@@ -323,7 +330,6 @@
                 await saveMessage(userText, 'user');
                 
                 // 3. Get model response from API
-                // We use the full chatHistory (populated by the onSnapshot listener) for context
                 const modelResponse = await callGeminiApi(userText);
                 
                 // 4. Save model response to Firestore (which triggers UI update via onSnapshot)
@@ -349,6 +355,11 @@
          */
         async function setupFirebase() {
             try {
+                // Check if config has basic requirements
+                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                    throw new Error(`Invalid Firebase Configuration: Config is empty or missing 'projectId'. Config: ${JSON.stringify(firebaseConfig)}`);
+                }
+
                 // Initialize app
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -390,12 +401,12 @@
                     }
                 }, (error) => {
                     console.error("Authentication State Change Error:", error);
-                    authStatusEl.textContent = `Auth Error: ${error.code}`;
+                    authStatusEl.textContent = `Auth Error: ${error.code || error.message}`;
                 });
 
             } catch (error) {
                 console.error("Firebase Initialization Failed:", error);
-                authStatusEl.textContent = `Init Error: ${error.code || error.message}`;
+                authStatusEl.textContent = `Init Error: ${error.message}`;
             }
         }
 
@@ -407,7 +418,7 @@
             }
         });
         
-        // Initialize Firebase and Auth on load
+        // Initialize Firebase and Auth immediately
         setupFirebase(); 
 
     </script>
