@@ -157,7 +157,9 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
             
             // Safe check for auth initialization
             if (!auth) {
-                userStatusEl.innerHTML = '<p class="text-red-400">Authentication Failed to Initialize.</p>';
+                // If auth failed to initialize but we are ready, show the guest ID if set
+                const currentStatusId = userId !== 'unknown' ? userId : 'Failed';
+                userStatusEl.innerHTML = `<div class="flex items-center justify-center text-sm">Signed in as: <span class="font-semibold text-red-400">Guest</span> (ID: ${currentStatusId})</div>`;
                 return;
             }
 
@@ -199,7 +201,11 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
             if (!firebaseConfig) {
                  console.error("Firebase config is missing. Cannot initialize Firebase.");
                  isAuthReady = true;
+                 // Set a fallback ID and status if config is missing but allow UI to load
+                 userId = crypto.randomUUID();
                  renderUserStatus();
+                 userInputEl.disabled = true;
+                 sendBtnEl.disabled = true;
                  return;
             }
 
@@ -219,7 +225,6 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                     } catch (tokenError) {
                         // Log the error but continue to anonymous sign-in
                         console.warn("Custom token sign-in failed (likely mismatch or expiration). Falling back to Anonymous Sign-in.", tokenError.message);
-                        // The token mismatch error is caught here
                     }
                 }
                 
@@ -241,6 +246,8 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                         sendBtnEl.disabled = false;
                     } else {
                         // User is signed out, use a temporary fallback ID
+                        // NOTE: If the user is signed out, we should try to use a locally generated ID
+                        // but since the previous sign-in attempt usually works, this branch is often for signOut.
                         userId = crypto.randomUUID(); 
                         console.log("Auth State Changed: No user signed in. Using fallback ID:", userId);
                         
@@ -254,6 +261,7 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
             } catch (error) {
                 console.error("Firebase setup encountered an error:", error);
                 
+                // Ensure UI reflects the failure state
                 isAuthReady = true;
                 userId = crypto.randomUUID();
                 
@@ -305,6 +313,7 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                     const data = change.doc.data();
                     
                     // Client-side filter: Only display messages belonging to the current user
+                    // Note: We use the current 'userId' which is set by auth or fallback.
                     if (data.userId !== userId) return;
 
                     const role = data.sender === 'user' ? 'user' : 'model';
@@ -343,14 +352,19 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
          * @param {string} content - The message content.
          */
         async function saveMessage(sender, content) {
-            if (!db || !userId) {
+            if (!db || !userId || userId === 'unknown') {
                 console.error("Cannot save message: DB not initialized or User ID missing.");
+                // Since this app relies on Firestore for chat history, we return gracefully if it fails.
                 return;
             }
             
             try {
+                // IMPORTANT: When saving, if the user is authenticated (auth.currentUser exists), 
+                // we must use auth.currentUser.uid to pass the Firestore security rules.
+                const actualUserId = auth && auth.currentUser ? auth.currentUser.uid : userId;
+                
                 await addDoc(collection(db, CHAT_COLLECTION_PATH), {
-                    userId: userId,
+                    userId: actualUserId,
                     sender: sender,
                     content: content,
                     timestamp: serverTimestamp()
