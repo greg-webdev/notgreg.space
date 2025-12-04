@@ -102,14 +102,14 @@
                 </button>
             </div>
             
-            <button id="new-chat-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md mb-4 flex items-center justify-center transition duration-150">
+            <button id="new-chat-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md mb-4 flex items-center justify-center transition duration-150" disabled>
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 New Chat
             </button>
 
             <div class="flex items-center space-x-2 mb-4">
                 <p id="user-id" class="text-xs text-gray-400 truncate flex-grow">User ID: Loading...</p>
-                <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150">
+                <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled>
                     Sign In
                 </button>
             </div>
@@ -228,6 +228,17 @@
 
 
         // --- FIREBASE SETUP AND STATE ---
+        // Hardcoded fallback configuration provided by the user, used only if environment variables are missing.
+        const FALLBACK_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
+            authDomain: "greai-c598d.firebaseapp.com",
+            projectId: "greai-c598d",
+            storageBucket: "greai-c598d.firebasestorage.app",
+            messagingSenderId: "620495902794",
+            appId: "1:620495902794:web:fcf3570f455cf1f0e62eb3",
+            measurementId: "G-JMKT2M3RJD"
+        };
+        
         let app;
         let db;
         let auth;
@@ -237,15 +248,22 @@
         let unsubscribeChats = null; // Listener for chat list
         let isSending = false;
         let chatHistory = [];
-        const API_KEY = ""; // Placeholder for the actual API key from the environment.
-        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-chat-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        let isFirebaseDisabled = false; // New flag to track if Firebase failed to initialize
+        
+        // The Gemini API key is left empty to be supplied by the execution environment.
+        const API_KEY = ""; 
+        
+        // Use the environment's __app_id for Firestore paths, falling back to the projectId from the config.
+        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : FALLBACK_FIREBASE_CONFIG.projectId; 
+        
+        // Use the environment's config, falling back to the user-provided hardcoded config.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : FALLBACK_FIREBASE_CONFIG;
+        
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
-        // UPDATED: Delimiter structure to include Title and Filename
-        // The model should generate: HTml:{Title}:{filename.html}\nContent\nhtML
-        const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/g;
+        // UPDATED REGEX: Added 'i' flag for case-insensitive matching of HTml and htML delimiters.
+        const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/gi;
 
 
         // --- DOM ELEMENTS ---
@@ -357,6 +375,10 @@
             if (enabled && !isSending) {
                 userInputEl.focus();
             }
+            // Disable new chat button, rename, delete if Firebase is disabled
+            newChatBtn.disabled = isFirebaseDisabled || !enabled;
+            renameBtnEl.disabled = isFirebaseDisabled || !enabled;
+            deleteBtnEl.disabled = isFirebaseDisabled || !enabled;
         }
 
         /**
@@ -432,9 +454,22 @@
                 // Extract file metadata and content from regex groups
                 const fileTitle = match[1].trim();
                 const fileName = match[2].trim();
-                const fileContent = match[3].trim();
+                let fileContent = match[3]; // Keep fileContent with trailing whitespace for now
                 
-                if (fileContent) {
+                // If the file is HTML, check for the mandatory 'htmlend' marker and strip it for download
+                let contentToDownload = fileContent;
+                if (fileName.toLowerCase().endsWith('.html')) {
+                    const htmlendIndex = fileContent.toLowerCase().lastIndexOf('htmlend');
+                    if (htmlendIndex > -1) {
+                        // Strip 'htmlend' from content used for downloading
+                        contentToDownload = fileContent.substring(0, htmlendIndex).trim();
+                    }
+                }
+
+                // Use the original content (potentially with 'htmlend') for display in the code block
+                const contentForDisplay = fileContent.trim();
+                
+                if (contentForDisplay) {
                     fileCount++;
                     
                     // File Header (Title and Filename)
@@ -450,7 +485,7 @@
                     const codeContainer = document.createElement('div');
                     codeContainer.className = 'p-3 bg-gray-900 rounded-b-lg overflow-x-auto text-xs font-mono border border-gray-700';
                     const codePre = document.createElement('pre');
-                    codePre.textContent = fileContent;
+                    codePre.textContent = contentForDisplay;
                     codeContainer.appendChild(codePre);
                     container.appendChild(codeContainer);
 
@@ -463,7 +498,6 @@
                     `;
                     // Use a closure to capture the correct content and filename
                     downloadBtn.onclick = (() => {
-                        const contentToDownload = fileContent;
                         const nameToDownload = fileName;
                         return () => downloadFileBlob(contentToDownload, nameToDownload);
                     })();
@@ -650,7 +684,7 @@
          * @param {'user' | 'model'} role 
          */
         async function saveMessage(chatId, text, role) {
-            if (!chatId || !userId) return;
+            if (isFirebaseDisabled || !chatId || !userId) return;
 
             try {
                 const messagesCollectionRef = collection(db, getUserCollectionPath(`chats/${chatId}/messages`));
@@ -664,6 +698,7 @@
                 const chatDocRef = doc(db, getUserCollectionPath('chats'), chatId);
                 await updateDoc(chatDocRef, {
                     lastUpdated: serverTimestamp(),
+                    // Only update title on the first user message of the chat
                     ...(role === 'user' && chatHistory.length === 0 && { title: text.substring(0, 50) + '...' })
                 });
 
@@ -678,6 +713,10 @@
          * @param {string} chatId 
          */
         function loadChat(chatId) {
+            if (isFirebaseDisabled) {
+                showAlert('Feature Disabled', 'Cannot load chat history because Firebase is not initialized.');
+                return;
+            }
             if (currentChatId === chatId) {
                 sidebarEl.classList.remove('open'); // Close sidebar on mobile if already selected
                 return;
@@ -700,6 +739,10 @@
          * Creates a new chat document in Firestore.
          */
         async function createNewChat() {
+            if (isFirebaseDisabled) {
+                showAlert('Feature Disabled', 'Cannot create a new chat because Firebase is not initialized.');
+                return;
+            }
             if (!userId) {
                 await showAlert('Authentication Required', 'Please sign in to start a new chat.');
                 return;
@@ -734,7 +777,7 @@
          * Renames the current chat.
          */
         async function renameChat() {
-            if (!currentChatId) return;
+            if (isFirebaseDisabled || !currentChatId) return;
 
             const currentTitle = chatTitleEl.textContent;
             const newTitle = await showModal(
@@ -764,7 +807,7 @@
          * Deletes the current chat.
          */
         async function deleteChat() {
-            if (!currentChatId) return;
+            if (isFirebaseDisabled || !currentChatId) return;
 
             const confirmDelete = await showModal(
                 'Delete Chat',
@@ -803,7 +846,7 @@
          */
         async function getGeminiResponse(userText) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
-            // UPDATED SYSTEM PROMPT: Instructs the model on the new multi-file format.
+            // System prompt remains strict but the front-end parser is now case-insensitive.
             const systemPrompt = "You are a friendly, helpful, and concise AI assistant. Respond conversationally. When asked who made you or if you are related to any company, you must respond that you were made by Greg and are not related to any other major corporation. If the user asks what 'ng.s' or anything similar stands for, you must state that it stands for 'notgreg.space'. Always provide clear and concise answers. IMPORTANT: If you generate ANY HTML code, you MUST wrap EACH file in the exact delimiters 'HTml:{Title}:{filename.html}' (on a new line) for the start and 'htML' (on a new line) for the end. You may generate multiple files in one response. Do not use markdown code fences (```html) for HTML, only use the structured HTml...htML format.";
 
             // Map chat history to API format, excluding the latest user message which is passed separately.
@@ -882,6 +925,9 @@
             const userText = userInputEl.value.trim();
 
             if (userText === '' || !currentChatId) {
+                if (isFirebaseDisabled) {
+                    showAlert('Chat Disabled', 'Chat history is disabled due to a missing Firebase configuration. The send button requires an active chat.');
+                }
                 return;
             }
 
@@ -908,7 +954,7 @@
             } catch (error) {
                 console.error("Chat Error:", error);
                 chatStatusEl.textContent = `Error: ${error.message}. Please try again.`;
-                displayMessage(`System Alert: ${error.message}`, 'model', new Date());
+                displayMessage(`System Alert: Failed to get a response. ${error.message}`, 'model', new Date());
             } finally {
                 showTypingIndicator(false);
                 setChatUIEnabled(true);
@@ -921,6 +967,10 @@
          * Handles Google Sign-In using a popup.
          */
         async function signInWithGoogle() {
+            if (isFirebaseDisabled) {
+                showAlert('Feature Disabled', 'Sign-in is disabled because Firebase is not initialized.');
+                return;
+            }
             try {
                 const provider = new GoogleAuthProvider();
                 await signInWithPopup(auth, provider);
@@ -936,7 +986,23 @@
          */
         async function setupFirebase() {
             if (!firebaseConfig) {
-                authStatusEl.textContent = 'Error: Firebase config not found.';
+                isFirebaseDisabled = true;
+                // Update status and disable related buttons
+                authStatusEl.textContent = '🔴 ERROR: Config Missing';
+                userIdEl.textContent = 'User ID: N/A';
+                newChatBtn.disabled = true;
+                googleSignInBtn.disabled = true;
+                
+                // Display error in chat area and status bar
+                chatStatusEl.textContent = 'History/Auth Disabled: Missing Firebase config.';
+                chatMessagesEl.innerHTML = `
+                    <div class="text-center text-red-400 mt-20">
+                        <p class="text-3xl mb-2">🚨 System Error</p>
+                        <p class="text-lg">Firebase configuration is missing.</p>
+                        <p class="text-sm mt-4 text-gray-400">Chat history, sign-in, and persistence features are UNAVAILABLE. Please ensure the execution environment provides the "__firebase_config" variable.</p>
+                    </div>
+                `;
+                setChatUIEnabled(false);
                 return;
             }
 
@@ -954,6 +1020,7 @@
                     await setPersistence(auth, inMemoryPersistence);
                 } catch (error) {
                     // inMemoryPersistence is used as a safer fallback/default in environments like Canvas
+                    // Logging error to console for debug, but not displaying it in the chat UI
                     console.log("Using in-memory persistence or persistence failed:", error.code);
                 }
                 
@@ -971,6 +1038,7 @@
                         userIdEl.textContent = `User ID: ${userId.substring(0, 10)}...`;
                         authStatusEl.textContent = user.isAnonymous ? 'Signed In Anonymously' : `Signed In: ${user.email || 'Google User'}`;
                         googleSignInBtn.textContent = 'Sign Out';
+                        googleSignInBtn.disabled = false;
                         googleSignInBtn.onclick = () => {
                             signOut(auth);
                         };
@@ -978,6 +1046,11 @@
                         // Start listening for chats and load the UI
                         setupChatListListener();
                         setChatUIEnabled(currentChatId !== null);
+
+                        // Enable chat-related buttons
+                        newChatBtn.disabled = false;
+                        renameBtnEl.disabled = false;
+                        deleteBtnEl.disabled = false;
 
                         // If the sidebar is closed on desktop, ensure it opens
                         if (window.innerWidth >= 768) {
@@ -989,6 +1062,7 @@
                         userIdEl.textContent = 'User ID: Not Signed In';
                         authStatusEl.textContent = 'Signed Out. Please Sign In.';
                         googleSignInBtn.textContent = 'Sign In';
+                        googleSignInBtn.disabled = false;
                         googleSignInBtn.onclick = signInWithGoogle;
 
                         // Clean up listeners and UI
@@ -996,6 +1070,7 @@
                         if (unsubscribeMessages) unsubscribeMessages();
                         clearChatMessages();
                         setChatUIEnabled(false);
+                        newChatBtn.disabled = false; // Allow creation of new chat to prompt sign in
                         chatListEl.innerHTML = '<p class="text-sm text-gray-500 mt-4">Please sign in to view your chats.</p>';
                         
                         // Attempt to re-sign in anonymously if not already signing in with Google
@@ -1015,7 +1090,7 @@
                 console.error("Firebase Initialization Failed:", error);
                 authStatusEl.textContent = `Init Error: ${error.message}`;
                 setChatUIEnabled(false); // Disable chat UI if auth fails
-                showAlert('System Alert', `Failed to initialize Firebase. You can still chat if permissions allow, but history is not saved.`);
+                showAlert('System Alert', `Failed to initialize Firebase. History is disabled.`);
             }
         }
 
