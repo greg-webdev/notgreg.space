@@ -106,6 +106,9 @@
         // --- CONSTANTS FROM GLOBAL ENVIRONMENT ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
+        // Use the user-provided project ID as a fallback for initialization validation
+        const USER_FALLBACK_PROJECT_ID = 'greai-c598d'; 
+
         // Safer parsing for firebaseConfig to handle missing/invalid JSON
         let parsedConfig = {};
         try {
@@ -115,7 +118,12 @@
         } catch (e) {
             console.error("Critical Error: Failed to parse __firebase_config JSON string.", e);
         }
-        const firebaseConfig = parsedConfig; 
+        
+        // Ensure projectId is present, either from the parsed config or the user's explicit value
+        const firebaseConfig = {
+            ...parsedConfig,
+            projectId: parsedConfig.projectId || USER_FALLBACK_PROJECT_ID
+        }; 
         
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const apiKey = ""; // API Key is left empty for runtime provision
@@ -357,6 +365,8 @@
             try {
                 // Check if config has basic requirements
                 if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                    // This error should now only occur if the user-provided ID is somehow missing too, 
+                    // as the logic above guarantees projectId exists.
                     throw new Error(`Invalid Firebase Configuration: Config is empty or missing 'projectId'. Config: ${JSON.stringify(firebaseConfig)}`);
                 }
 
