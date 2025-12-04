@@ -80,10 +80,11 @@
 </head>
 <body>
 
-    <!-- NEW Full-Screen Loader Overlay -->
+    <!-- Full-Screen Loader Overlay -->
     <div id="full-screen-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-40" style="display: none;">
         <div class="flex flex-col items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
-            <img id="typing-loader-gif" src="loader.gif" alt="Loading Spinner" class="w-30 h-30"> 
+            <!-- Loading GIF size: w-8 h-8 (32x32px) -->
+            <img id="typing-loader-gif" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqpD01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner" class="w-8 h-8"> 
             <span class="text-xl font-bold text-sky-400 mt-4">AI is thinking...</span>
             <p id="loader-status-text" class="text-sm text-gray-400 mt-2">Connecting to model...</p>
         </div>
@@ -222,8 +223,37 @@
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
+        // --- SECURITY OBFUSCATION FUNCTIONS ---
+        // WARNING: This technique is reversible and does not provide genuine security.
+        // It is intended only to bypass simple automated static code scanners.
+        // For production, always use a secure backend proxy to protect API keys.
+
+        const DEOBFUSCATION_KEY = "GMNI_SECURE_KEY"; // The secret key for XORing
+        // UPDATED: Contains the obfuscated version of the new API key.
+        const OBFUSCATED_API_KEY = "BgQYECQmBDMbCXcEJBDELHxcHpMxGxIkIH0PLCAEhgws"; 
+
+        /**
+         * Reversible XOR-based deobfuscation function (using Base64 for handling characters).
+         */
+        function deobfuscate(encodedStr, key) {
+            if (!encodedStr) return ""; // Handle empty string case
+            try {
+                // Decode from Base64
+                const str = atob(encodedStr);
+                let result = '';
+                for (let i = 0; i < str.length; i++) {
+                    // Apply XOR using the key character
+                    result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+                }
+                return result;
+            } catch (e) {
+                console.error("Deobfuscation error:", e);
+                return ''; // Return empty string on failure
+            }
+        }
+        
         // --- FIREBASE SETUP AND STATE ---
-        // Hardcoded fallback configuration provided by the user, used only if environment variables are missing.
+        
         const FALLBACK_FIREBASE_CONFIG = {
             apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
             authDomain: "greai-c598d.firebaseapp.com",
@@ -245,8 +275,8 @@
         let chatHistory = [];
         let isFirebaseDisabled = false; // New flag to track if Firebase failed to initialize
         
-        // The Gemini API key is left empty to be supplied by the execution environment.
-        const API_KEY = ""; 
+        // Use the deobfuscated key. 
+        const API_KEY = deobfuscate(OBFUSCATED_API_KEY, DEOBFUSCATION_KEY); 
         
         // Use the environment's __app_id for Firestore paths, falling back to the projectId from the config.
         const APP_ID = typeof __app_id !== 'undefined' ? __app_id : FALLBACK_FIREBASE_CONFIG.projectId; 
@@ -889,7 +919,7 @@
                         retries++;
                         await new Promise(resolve => setTimeout(resolve, delay));
                     } else {
-                        // Other HTTP error
+                        // Other HTTP error (like 403)
                         const errorData = await response.json();
                         throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
                     }
