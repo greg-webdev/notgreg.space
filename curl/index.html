@@ -199,7 +199,8 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
             setLogLevel('Debug');
             
             if (!firebaseConfig) {
-                 console.error("Firebase config is missing. Cannot initialize Firebase.");
+                 // Suppress console.error here to avoid confusing the user with expected missing config
+                 // console.error("Firebase config is missing. Cannot initialize Firebase.");
                  isAuthReady = true;
                  // Set a fallback ID and status if config is missing but allow UI to load
                  userId = crypto.randomUUID();
@@ -353,8 +354,13 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
          */
         async function saveMessage(sender, content) {
             if (!db || !userId || userId === 'unknown') {
-                console.error("Cannot save message: DB not initialized or User ID missing.");
-                // Since this app relies on Firestore for chat history, we return gracefully if it fails.
+                console.error("Cannot save message: DB not initialized or User ID missing. Displaying locally.");
+                
+                // If Firestore is unavailable, display the message locally but don't save to chatHistory array
+                displayMessage(content, sender);
+
+                // If the user's message failed to save, the subsequent API call will likely fail 
+                // due to lack of a stable userId/auth state, but we return to attempt the API call.
                 return;
             }
             
@@ -510,9 +516,11 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                 if (part.type === 'text') {
                     
                     if (!foundFirstText) {
+                        // Start the message text right after the name
                         headerEl.innerHTML += ' ' + part.content;
                         foundFirstText = true;
                     } else {
+                        // Subsequent text parts get their own paragraph
                         const paragraph = document.createElement('p');
                         paragraph.className = 'whitespace-pre-wrap';
                         paragraph.innerHTML = part.content;
@@ -543,6 +551,7 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                 }
             });
             
+            // If the message only contained code (or the first part was code), add an intro sentence
             if (!foundFirstText && parts.some(p => p.type === 'code')) {
                  headerEl.innerHTML += ' Here is the requested code:';
             }
@@ -550,6 +559,7 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
             messageBubble.appendChild(tempDiv);
             messageContainer.appendChild(messageBubble);
             chatHistoryEl.appendChild(messageContainer);
+            chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight; // Auto-scroll to ensure latest message is visible
         }
 
         /**
@@ -625,20 +635,24 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
 
             try {
                 // 2. Save user message to Firestore (this will trigger the UI update via onSnapshot)
+                // If Firestore save fails, the message will be displayed locally via the saveMessage fallback
                 await saveMessage('user', userText);
                 
                 // 3. Get model response
                 const modelResponse = await callGeminiApi(userText);
                 
                 // 4. Save model response to Firestore (this will trigger the final UI update)
+                // If Firestore save fails, the message will be displayed locally via the saveMessage fallback
                 await saveMessage('model', modelResponse);
 
             } catch (error) {
                 console.error("Chatbot Error:", error);
                 
-                // Manually display the error message as a model response if we couldn't save it
-                const errorContent = `ERROR: Failed to get or save response. Details: ${error.message}`;
-                saveMessage('model', errorContent);
+                // If anything truly catastrophic happened, log it and display a generic error
+                const errorContent = `ERROR: Failed to get response. Please check your network connection and try again.`;
+                
+                // Save/display the error message
+                await saveMessage('model', errorContent);
 
             } finally {
                 // 5. Re-enable UI and hide loading
