@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curl Animation Response</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind to use the 'Inter' font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbar due to full-height */
+        }
+
+        /* Custom CSS for the Spinning Animation */
+        .curl-spinner {
+            width: 80px;
+            height: 80px;
+            border: 8px solid rgba(255, 255, 255, 0.2);
+            border-top: 8px solid #6366f1; /* Indigo 500 */
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+
+        /* Keyframes for the custom spin animation */
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg) scale(1);
+            }
+            50% {
+                transform: rotate(180deg) scale(1.1); /* Slight pulse in the middle */
+                border-top-color: #818cf8; /* Lighter indigo */
+            }
+            100% {
+                transform: rotate(360deg) scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Container - Centered Content -->
+    <div class="text-center p-8 max-w-lg mx-auto bg-gray-800 rounded-xl shadow-2xl transition-all hover:shadow-indigo-500/50">
+        
+        <!-- The Custom Spinner -->
+        <div class="flex justify-center mb-8">
+            <div class="curl-spinner"></div>
+        </div>
+
+        <!-- Content -->
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-white mb-4">
+            Request Retrieved!
+        </h1>
+        <p class="text-gray-300 mb-6 text-sm sm:text-base">
+            You successfully reached the endpoint. This animation confirms the content delivery.
+        </p>
+
+        <!-- Information Card -->
+        <div class="bg-gray-700 p-4 rounded-lg text-left">
+            <p class="text-indigo-400 font-semibold text-xs mb-1">CURL NOTE</p>
+            <p class="text-gray-400 text-sm">
+                When using the `curl` command, you receive the raw text/HTML data instantly. This animation is rendered by your browser after the content is loaded.
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>
