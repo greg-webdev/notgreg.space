@@ -77,28 +77,13 @@
             }
         }
 
-        /* --- Loader Animation --- */
-        .loader {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: block;
-            margin: 0 auto;
-            position: relative;
-            color: #38bdf8;
-            box-sizing: border-box;
-            animation: anim-loader 1s linear infinite alternate;
-        }
-
-        @keyframes anim-loader {
-            0% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            100% {
-                transform: scale(1.5);
-                opacity: 0;
-            }
+        /* --- Loader GIF Style --- */
+        #typing-loader {
+            width: 20px; 
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
         }
 
     </style>
@@ -185,8 +170,10 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
                     </button>
                 </div>
-                <div id="typing-indicator" class="text-center text-sm text-gray-400 mt-2" style="display: none;">
-                    <span class="loader"></span> AI is thinking...
+                <!-- Updated typing-indicator to use the loader.gif replacement -->
+                <div id="typing-indicator" class="text-center text-sm text-gray-400 mt-2 flex items-center justify-center" style="display: none;">
+                    <img id="typing-loader" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqpD01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner"> 
+                    <span>AI is thinking...</span>
                 </div>
                 <p id="chat-status" class="text-center text-sm text-red-400 mt-2"></p>
             </div>
@@ -255,8 +242,10 @@
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
-        const HTML_START_DELIMITER = 'HTml';
-        const HTML_END_DELIMITER = 'htML';
+        
+        // UPDATED: Delimiter structure to include Title and Filename
+        // The model should generate: HTml:{Title}:{filename.html}\nContent\nhtML
+        const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/g;
 
 
         // --- DOM ELEMENTS ---
@@ -375,7 +364,7 @@
          * @param {boolean} show 
          */
         function showTypingIndicator(show) {
-            typingIndicatorEl.style.display = show ? 'block' : 'none';
+            typingIndicatorEl.style.display = show ? 'flex' : 'none'; // Use flex for better alignment
             isSending = show;
             sendBtnEl.disabled = show || !currentChatId;
         }
@@ -398,13 +387,14 @@
         /**
          * Creates a Blob from the content and triggers a file download.
          * @param {string} content The HTML content to download.
+         * @param {string} filename The name of the file to save.
          */
-        function downloadHtmlBlob(content) {
+        function downloadFileBlob(content, filename) {
             const blob = new Blob([content], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'generated_code.html';
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -412,7 +402,7 @@
         }
 
         /**
-         * Processes the model's text, extracting HTML code blocks for download.
+         * Processes the model's text, extracting multiple structured file blocks.
          * @param {string} text 
          * @returns {HTMLElement} The container element with text, code blocks, and download buttons.
          */
@@ -420,30 +410,47 @@
             const container = document.createElement('div');
             container.className = 'w-full';
 
-            // Regex to find content between the HTml and htML delimiters
-            const regex = new RegExp(`${HTML_START_DELIMITER}([\\s\\S]*?)${HTML_END_DELIMITER}`, 'g');
             let lastIndex = 0;
             let match;
+            let fileCount = 0;
 
-            while ((match = regex.exec(text)) !== null) {
+            // Reset the regex index before starting the search
+            HTML_DELIMITER_REGEX.lastIndex = 0; 
+
+            // Loop to find all matching file blocks
+            while ((match = HTML_DELIMITER_REGEX.exec(text)) !== null) {
                 // 1. Add preceding text
                 const preText = text.substring(lastIndex, match.index).trim();
                 if (preText) {
                     const p = document.createElement('p');
+                    p.className = 'mt-3 first:mt-0';
                     // Simple newline to <br> conversion for pre-wrap effect
                     p.innerHTML = preText.replace(/\n/g, '<br>');
                     container.appendChild(p);
                 }
 
-                // 2. Add the HTML code block and download button
-                const htmlContent = match[1].trim();
-                if (htmlContent) {
+                // Extract file metadata and content from regex groups
+                const fileTitle = match[1].trim();
+                const fileName = match[2].trim();
+                const fileContent = match[3].trim();
+                
+                if (fileContent) {
+                    fileCount++;
                     
+                    // File Header (Title and Filename)
+                    const fileHeader = document.createElement('div');
+                    fileHeader.className = 'mt-4 mb-2 p-2 bg-gray-700 rounded-t-lg border border-b-0 border-gray-600';
+                    fileHeader.innerHTML = `
+                        <p class="text-sm font-semibold text-sky-400">${fileTitle}</p>
+                        <p class="text-xs text-gray-400">${fileName}</p>
+                    `;
+                    container.appendChild(fileHeader);
+
                     // Code Block (for display)
                     const codeContainer = document.createElement('div');
-                    codeContainer.className = 'my-2 p-3 bg-gray-900 rounded-xl overflow-x-auto text-xs font-mono border border-gray-700';
+                    codeContainer.className = 'p-3 bg-gray-900 rounded-b-lg overflow-x-auto text-xs font-mono border border-gray-700';
                     const codePre = document.createElement('pre');
-                    codePre.textContent = htmlContent;
+                    codePre.textContent = fileContent;
                     codeContainer.appendChild(codePre);
                     container.appendChild(codeContainer);
 
@@ -452,19 +459,25 @@
                     downloadBtn.className = 'mt-1 mb-2 px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition duration-150 flex items-center shadow-md';
                     downloadBtn.innerHTML = `
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        Download HTML File
+                        Download ${fileName}
                     `;
-                    downloadBtn.onclick = () => downloadHtmlBlob(htmlContent);
+                    // Use a closure to capture the correct content and filename
+                    downloadBtn.onclick = (() => {
+                        const contentToDownload = fileContent;
+                        const nameToDownload = fileName;
+                        return () => downloadFileBlob(contentToDownload, nameToDownload);
+                    })();
                     container.appendChild(downloadBtn);
                 }
 
-                lastIndex = regex.lastIndex;
+                lastIndex = HTML_DELIMITER_REGEX.lastIndex;
             }
 
             // 3. Add remaining text
             const remainder = text.substring(lastIndex).trim();
             if (remainder) {
                 const p = document.createElement('p');
+                p.className = 'mt-3 first:mt-0';
                 p.innerHTML = remainder.replace(/\n/g, '<br>');
                 container.appendChild(p);
             }
@@ -567,7 +580,9 @@
             chatMessagesEl.innerHTML = '';
             chatHistory = messages;
             messages.forEach(msg => {
-                displayMessage(msg.text, msg.role, msg.timestamp.toDate());
+                // FIX: Check if msg.timestamp exists before calling toDate()
+                const timestamp = msg.timestamp ? msg.timestamp.toDate() : new Date();
+                displayMessage(msg.text, msg.role, timestamp);
             });
             scrollToBottom();
         }
@@ -645,11 +660,11 @@
                     timestamp: serverTimestamp()
                 });
 
-                // Update the chat's lastUpdated time
+                // Update the chat's lastUpdated time and title if it's the first user message
                 const chatDocRef = doc(db, getUserCollectionPath('chats'), chatId);
                 await updateDoc(chatDocRef, {
                     lastUpdated: serverTimestamp(),
-                    ...(role === 'user' && { title: chatHistory.length === 0 ? text.substring(0, 50) + '...' : chatTitleEl.textContent })
+                    ...(role === 'user' && chatHistory.length === 0 && { title: text.substring(0, 50) + '...' })
                 });
 
             } catch (error) {
@@ -760,10 +775,7 @@
 
             if (confirmDelete) {
                 try {
-                    // 1. Delete all messages (Firestore auto-deletion of subcollections is NOT automatic, but since we are deleting the whole chat doc, we can rely on security rules to prevent access)
-                    // For a real-world app, you'd batch-delete the messages. For simplicity here, we rely on deleting the parent document.
-                    
-                    // 2. Delete the chat document
+                    // For simplicity, we rely on deleting the parent document, and security rules should prevent orphans from being accessed.
                     const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
                     await deleteDoc(chatDocRef);
                     
@@ -791,14 +803,14 @@
          */
         async function getGeminiResponse(userText) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
-            // UPDATED SYSTEM PROMPT: Enforces the new AI persona (Greg and notgreg.space rules) and the new HTML output format.
-            const systemPrompt = "You are a friendly, helpful, and concise AI assistant. Respond conversationally. When asked who made you or if you are related to any company, you must respond that you were made by Greg and are not related to any other major corporation. If the user asks what 'ng.s' or anything similar stands for, you must state that it stands for 'notgreg.space'. Always provide clear and concise answers. IMPORTANT: If you generate ANY HTML code, you MUST wrap it in the exact delimiters 'HTml' for the start and 'htML' for the end. Do not use markdown code fences (```html) for HTML, only use HTml...htML.";
+            // UPDATED SYSTEM PROMPT: Instructs the model on the new multi-file format.
+            const systemPrompt = "You are a friendly, helpful, and concise AI assistant. Respond conversationally. When asked who made you or if you are related to any company, you must respond that you were made by Greg and are not related to any other major corporation. If the user asks what 'ng.s' or anything similar stands for, you must state that it stands for 'notgreg.space'. Always provide clear and concise answers. IMPORTANT: If you generate ANY HTML code, you MUST wrap EACH file in the exact delimiters 'HTml:{Title}:{filename.html}' (on a new line) for the start and 'htML' (on a new line) for the end. You may generate multiple files in one response. Do not use markdown code fences (```html) for HTML, only use the structured HTml...htML format.";
 
             // Map chat history to API format, excluding the latest user message which is passed separately.
             const historyForApi = chatHistory.map(msg => ({
                 role: msg.role === 'user' ? 'user' : 'model',
-                // Clean up previous model responses if they contain the delimiters to simplify the API context
-                parts: [{ text: msg.text.replace(new RegExp(`${HTML_START_DELIMITER}([\\s\\S]*?)${HTML_END_DELIMITER}`, 'g'), 'HTML code block (redacted)') }]
+                // Clean up previous model responses to simplify the API context and reduce token count
+                parts: [{ text: msg.text.replace(HTML_DELIMITER_REGEX, 'HTML code block (redacted)') }]
             }));
             
             const contents = [
