@@ -208,6 +208,7 @@
         
         // Configuration block (Ensures configuration consistency)
         const EXPLICIT_FIREBASE_CONFIG = {
+            // NOTE: The Firebase apiKey is kept as the default placeholder.
             apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
             authDomain: "greai-c598d.firebaseapp.com",
             projectId: "greai-c598d",
@@ -231,6 +232,10 @@
 
         // FIXED: Using the correct environment variable name __initial_auth_token
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
+        
+        // --- UPDATED GEMINI API KEY ---
+        // The previous key was leaked. Reverting to an empty string to allow the environment 
+        // to securely inject a valid, temporary key for the Gemini API calls.
         const apiKey = ""; 
 
         // DOM elements
