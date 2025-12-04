@@ -104,7 +104,10 @@
         let chatHistoryCollection = null;
 
         // --- CONSTANTS FROM GLOBAL ENVIRONMENT ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // The environment variable __app_id is mandatory for security rules.
+        // If missing, we use the projectId as a safer fallback than 'default-app-id' to prevent permission errors.
+        const PATH_ID_FALLBACK = 'greai-c598d';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : PATH_ID_FALLBACK;
         
         // 1. Define the user's full, explicit Firebase configuration as a guaranteed base.
         const EXPLICIT_FIREBASE_CONFIG = {
