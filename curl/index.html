@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NG.S Ai Chatbot</title>
+    <title>NG.S AI Assistant - Multi-Chat</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -15,9 +15,8 @@
         }
 
         .chat-scroll {
-            /* Scrollbar styling for a cleaner look */
             scrollbar-width: thin;
-            scrollbar-color: #38bdf8 #1f2937; /* Sky thumb, dark track */
+            scrollbar-color: #38bdf8 #1f2937;
         }
 
         .chat-scroll::-webkit-scrollbar {
@@ -25,12 +24,12 @@
         }
 
         .chat-scroll::-webkit-scrollbar-track {
-            background: #1f2937; /* dark track */
+            background: #1f2937;
             border-radius: 10px;
         }
 
         .chat-scroll::-webkit-scrollbar-thumb {
-            background-color: #38bdf8; /* sky thumb */
+            background-color: #38bdf8;
             border-radius: 10px;
             border: 2px solid #1f2937;
         }
@@ -40,45 +39,130 @@
             background-color: #3b82f6; /* Blue for user */
             color: white;
             align-self: flex-end;
-            border-bottom-right-radius: 0;
+            border-bottom-right-radius: 4px;
         }
 
         .model-message {
             background-color: #4b5563; /* Dark gray for model */
             color: white;
             align-self: flex-start;
-            border-bottom-left-radius: 0;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Style for active chat item */
+        .chat-item.active {
+            background-color: #0c4a6e; /* Darker sky blue */
+            border-left: 4px solid #38bdf8;
+            font-weight: 700;
+        }
+
+        /* Hide sidebar content on mobile by default, show menu icon */
+        #sidebar-content {
+            display: none;
+        }
+
+        /* Show sidebar content on medium/desktop screens */
+        @media (min-width: 768px) {
+            #sidebar-content {
+                display: block !important;
+            }
+            #menu-toggle {
+                display: none;
+            }
+        }
+        
+        /* When sidebar is explicitly open via toggle */
+        #sidebar.open #sidebar-content {
+            display: block;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 40; /* Below sidebar, above main content */
+            display: none;
+        }
+        #sidebar.open + .sidebar-overlay {
+            display: block;
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased">
-
-    <!-- Main Chat Container -->
-    <div class="flex flex-col flex-grow w-full max-w-4xl mx-auto p-4 md:p-8">
+<body class="min-h-screen flex antialiased">
+    
+    <!-- Sidebar Menu -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-gray-900 flex-shrink-0 z-50 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col rounded-r-xl shadow-2xl">
         
-        <!-- Header, now including the Sign-in Button for side-by-side layout on desktop -->
-        <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-4 border-b border-gray-700 mb-4">
+        <div class="p-4 flex flex-col h-full">
+            <h2 class="text-xl font-bold text-sky-400 mb-4 border-b border-gray-700 pb-2">Chats</h2>
             
-            <!-- Title and Auth Status (Left side/Top) -->
-            <div class="mb-4 sm:mb-0 text-center sm:text-left">
-                <h1 class="text-2xl font-bold text-sky-400">NG.S AI Assistant</h1>
-                <p id="auth-status" class="text-xs text-gray-400 mt-1">Initializing...</p>
-            </div>
+            <div id="sidebar-content" class="flex flex-col flex-grow">
+                <!-- New Chat Button -->
+                <button id="new-chat-btn"
+                        class="flex items-center justify-center space-x-2 px-3 py-2 mb-4 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg shadow-md transition duration-150 disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    <span>New Chat</span>
+                </button>
 
-            <!-- Google Sign-in Button (Right side/Bottom) -->
-            <div id="google-sign-in-container">
+                <!-- Chat List -->
+                <div id="chat-list" class="flex-grow overflow-y-auto space-y-2 chat-scroll">
+                    <!-- Chat items will be injected here -->
+                </div>
+            </div>
+            
+            <!-- Auth Status and Footer -->
+            <div class="mt-4 pt-4 border-t border-gray-700">
+                <p class="text-xs text-gray-400">User ID:</p>
+                <p id="auth-status" class="text-xs font-mono text-gray-400 truncate mt-1">Initializing...</p>
                 <button id="google-sign-in-btn"
-                        class="flex items-center space-x-2 px-4 py-2 bg-white text-gray-900 font-semibold rounded-lg shadow-md hover:bg-gray-100 transition duration-150 w-full justify-center sm:w-auto">
-                    <!-- Google Logo SVG -->
-                    <svg class="w-5 h-5" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg"><path d="M533.5 275.43c0-18.42-1.52-36.56-4.71-54.24H271.7v102.77h146.43c-6.38 34.6-26.69 63.95-55.88 83.39l-4.73 3.09 82.5 63.88 5.75.56c48.81-45.1 77.26-111.4 77.26-199.45z" fill="#4285F4"/><path d="M271.7 544.3c73.4 0 135.26-24.18 180.37-65.73l-88.25-68.31c-24.64 16.5-56.9 26.25-92.12 26.25-70.81 0-131.25-47.9-153.2-111.9l-5.46.33-85.25 66.02-1.2 5.56c47.1 92.74 150.3 151.78 265.13 151.78z" fill="#34A853"/><path d="M118.5 328.31c-11.23-34.62-11.23-71.69 0-106.31L33.24 135.91c-32.99 65.17-32.99 140.24 0 205.41l85.25-63.01z" fill="#FBBC04"/><path d="M271.7 108.33c40.42 0 76.51 13.91 105.15 41.21L450 78.58C402.9 33.34 342.3 0 271.7 0c-114.83 0-218.03 59.04-265.13 151.78l85.25 66.02c21.95-64 82.39-111.9 153.2-111.9z" fill="#EA4335"/></svg>
-                    <span>Sign in with Google</span>
+                        class="flex items-center space-x-2 px-3 py-1 mt-3 text-xs bg-white text-gray-900 font-semibold rounded-lg shadow-md hover:bg-gray-100 transition duration-150 w-full justify-center">
+                    <svg class="w-4 h-4" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg"><path d="M533.5 275.43c0-18.42-1.52-36.56-4.71-54.24H271.7v102.77h146.43c-6.38 34.6-26.69 63.95-55.88 83.39l-4.73 3.09 82.5 63.88 5.75.56c48.81-45.1 77.26-111.4 77.26-199.45z" fill="#4285F4"/><path d="M271.7 544.3c73.4 0 135.26-24.18 180.37-65.73l-88.25-68.31c-24.64 16.5-56.9 26.25-92.12 26.25-70.81 0-131.25-47.9-153.2-111.9l-5.46.33-85.25 66.02-1.2 5.56c47.1 92.74 150.3 151.78 265.13 151.78z" fill="#34A853"/><path d="M118.5 328.31c-11.23-34.62-11.23-71.69 0-106.31L33.24 135.91c-32.99 65.17-32.99 140.24 0 205.41l85.25-63.01z" fill="#FBBC04"/><path d="M271.7 108.33c40.42 0 76.51 13.91 105.15 41.21L450 78.58C402.9 33.34 342.3 0 271.7 0c-114.83 0-218.03 59.04-265.13 151.78l85.25 66.02c21.95-64 82.39-111.9 153.2-111.9z" fill="#EA4335"/></svg>
+                    <span>Sign in / Sign up</span>
                 </button>
             </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar Overlay (for mobile use) -->
+    <div class="sidebar-overlay" onclick="document.getElementById('sidebar').classList.remove('open')"></div>
+
+    <!-- Main Chat Content -->
+    <div class="flex flex-col flex-grow max-w-full md:max-w-[calc(100%-16rem)] mx-auto p-4 md:p-8">
+        
+        <!-- Header & Toggle -->
+        <header class="flex items-center justify-between pb-4 border-b border-gray-700 mb-4">
+            
+            <!-- Mobile Menu Toggle -->
+            <button id="menu-toggle" class="p-2 mr-3 text-sky-400 md:hidden rounded-lg hover:bg-gray-700 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            
+            <h1 id="chat-title" class="text-2xl font-bold text-sky-400 truncate max-w-xs sm:max-w-md">Select or Create a Chat</h1>
+            
+            <!-- Rename Button -->
+            <button id="rename-btn" title="Rename Chat"
+                    class="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition duration-150 disabled:opacity-30 hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-1.888 4.792a.5.5 0 01.353.147l4.136 4.136-1.5 1.5-4.136-4.136a.5.5 0 01-.147-.353V8.5a.5.5 0 01.5-.5h.944zM10 18a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+            </button>
         </header>
 
         <!-- Chat Display Area -->
         <div id="chat-messages" class="flex-grow overflow-y-auto chat-scroll space-y-4 p-4 bg-gray-800 rounded-lg shadow-xl mb-4">
-            <!-- Messages will be injected here -->
+            <div class="flex justify-start mb-3">
+                <div class="max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-md text-sm model-message border-b-left-0">
+                    Welcome! Please create a new chat or select one from the sidebar.
+                    <span class="block mt-1 text-xs opacity-70 text-left"></span>
+                </div>
+            </div>
         </div>
 
         <!-- Input Area -->
@@ -89,7 +173,7 @@
             <button id="send-btn"
                     class="p-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg shadow-md transition duration-150 disabled:opacity-50"
                     disabled>
-                Send
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </button>
         </div>
 
@@ -109,22 +193,23 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, query, orderBy, addDoc, onSnapshot, doc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, query, orderBy, addDoc, onSnapshot, doc, updateDoc, setDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Firebase variables
+        // --- GLOBAL STATE & CONFIGURATION ---
+        
         let app;
         let db;
         let auth;
         let userId = null;
-        let chatHistoryCollection = null;
+        let currentChatId = null;
+        let chatHistory = [];
+        let unsubscribeMessages = null; // To manage the active listener
+        let isHistoryPersistent = true; 
 
-        // --- CONSTANTS FROM GLOBAL ENVIRONMENT ---
-        // The environment variable __app_id is mandatory for security rules.
-        // If missing, we use the projectId as a safer fallback than 'default-app-id' to prevent permission errors.
         const PATH_ID_FALLBACK = 'greai-c598d';
         const appId = typeof __app_id !== 'undefined' ? __app_id : PATH_ID_FALLBACK;
         
-        // 1. Define the user's full, explicit Firebase configuration as a guaranteed base.
+        // Configuration block (Ensures configuration consistency)
         const EXPLICIT_FIREBASE_CONFIG = {
             apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
             authDomain: "greai-c598d.firebaseapp.com",
@@ -134,8 +219,6 @@
             appId: "1:620495902794:web:fcf3570f455cf1f0e62eb3",
             measurementId: "G-JMKT2M3RJD"
         };
-
-        // 2. Safely parse the environment configuration.
         let parsedConfig = {};
         try {
             if (typeof __firebase_config === 'string' && __firebase_config.trim() !== '') {
@@ -144,175 +227,348 @@
         } catch (e) {
             console.error("Critical Error: Failed to parse __firebase_config JSON string.", e);
         }
-
-        // 3. Merge the explicit config with the environment config, prioritizing environment values if present.
         const firebaseConfig = {
-            ...EXPLICIT_FIREBASE_CONFIG, // Start with the guaranteed values
-            ...parsedConfig // Overwrite with any values provided by the environment
+            ...EXPLICIT_FIREBASE_CONFIG,
+            ...parsedConfig
         };
 
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const apiKey = ""; // API Key is left empty for runtime provision (for Gemini API)
+        const apiKey = ""; 
 
         // DOM elements
+        const sidebarEl = document.getElementById('sidebar');
         const chatMessagesEl = document.getElementById('chat-messages');
+        const chatListEl = document.getElementById('chat-list');
         const userInputEl = document.getElementById('user-input');
         const sendBtnEl = document.getElementById('send-btn');
         const loadingEl = document.getElementById('loading');
         const authStatusEl = document.getElementById('auth-status');
-        const googleSignInBtn = document.getElementById('google-sign-in-btn'); // NEW
-        const googleSignInContainer = document.getElementById('google-sign-in-container'); // NEW
+        const googleSignInBtn = document.getElementById('google-sign-in-btn');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const chatTitleEl = document.getElementById('chat-title');
+        const renameBtnEl = document.getElementById('rename-btn');
+        const menuToggleEl = document.getElementById('menu-toggle');
 
-        // Internal chat history state (used to generate API prompt)
-        let chatHistory = [];
 
-        // --- UTILITY FUNCTIONS ---
+        // --- FIRESTORE REFERENCE HELPERS ---
 
         /**
-         * Converts a Firestore timestamp object to a readable time string.
-         * @param {Object} timestamp - Firestore Timestamp object.
-         * @returns {string} Formatted time string.
+         * Returns the reference to the user's main 'chats' collection.
          */
-        function formatTimestamp(timestamp) {
-            if (timestamp && timestamp.toDate) {
-                const date = timestamp.toDate();
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }
-            return '';
+        function getChatsRef() {
+            if (!db || !userId) return null;
+            // Path: /artifacts/{appId}/users/{userId}/chats
+            return collection(db, `artifacts/${appId}/users/${userId}/chats`);
         }
 
         /**
-         * Displays a message in the chat UI.
-         * @param {string} text - The message content.
-         * @param {string} role - 'user' or 'model'.
-         * @param {Object} timestamp - The Firestore Timestamp object.
+         * Returns the reference to the 'messages' subcollection for a specific chat.
+         * @param {string} chatId 
          */
+        function getMessagesRef(chatId) {
+            if (!db || !userId || !chatId) return null;
+            // Path: /artifacts/{appId}/users/{userId}/chats/{chatId}/messages
+            return collection(db, `artifacts/${appId}/users/${userId}/chats/${chatId}/messages`);
+        }
+        
+        /**
+         * Returns the document reference for a specific chat metadata.
+         * @param {string} chatId 
+         */
+        function getChatDocRef(chatId) {
+            if (!db || !userId || !chatId) return null;
+            return doc(db, `artifacts/${appId}/users/${userId}/chats/${chatId}`);
+        }
+
+
+        // --- UTILITY FUNCTIONS ---
+
+        function formatTimestamp(timestamp) {
+            let date;
+            if (timestamp instanceof Date) {
+                date = timestamp;
+            } else if (timestamp && timestamp.toDate) {
+                date = timestamp.toDate();
+            } else {
+                return '';
+            }
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
         function displayMessage(text, role, timestamp) {
             const messageDiv = document.createElement('div');
-            // Use flex and Tailwind for styling
             messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-3`;
             
             const contentDiv = document.createElement('div');
-            // Apply role-specific styles
             contentDiv.className = `max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-md text-sm ${role}-message`;
-            contentDiv.style.wordBreak = 'break-word'; // Ensure long words wrap
+            contentDiv.style.wordBreak = 'break-word';
 
-            // Sanitize text before injecting (basic)
             contentDiv.innerHTML = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
             const timeSpan = document.createElement('span');
             timeSpan.className = `block mt-1 text-xs opacity-70 ${role === 'user' ? 'text-right' : 'text-left'}`;
-            timeSpan.textContent = formatTimestamp(timestamp);
+            timeSpan.textContent = formatTimestamp(timestamp || new Date());
             
             contentDiv.appendChild(timeSpan);
             messageDiv.appendChild(contentDiv);
             chatMessagesEl.appendChild(messageDiv);
             
-            // Scroll to bottom
             chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
         }
 
-        /**
-         * Clears all messages from the chat UI.
-         */
         function clearMessages() {
             chatMessagesEl.innerHTML = '';
         }
+
+        function setChatUIEnabled(enabled) {
+            userInputEl.disabled = !enabled;
+            sendBtnEl.disabled = !enabled;
+            if (enabled) {
+                userInputEl.focus();
+                renameBtnEl.classList.remove('hidden');
+            } else {
+                renameBtnEl.classList.add('hidden');
+            }
+        }
         
-        // --- FIRESTORE / CHAT LOGIC ---
+        // --- CHAT MANAGEMENT LOGIC ---
 
         /**
-         * Listens to the chat history collection in real-time and updates the UI.
+         * Sets up the listener for the chat list (sidebar).
          */
-        function listenForHistory() {
-            if (!db || !userId) {
-                console.warn("Firestore or UserId not ready for listening.");
-                return;
+        function listenForChatList() {
+            const chatsRef = getChatsRef();
+            if (!chatsRef) return;
+
+            // Order by last updated time to show latest chats first
+            const q = query(chatsRef, orderBy('updatedAt', 'desc'));
+
+            onSnapshot(q, (snapshot) => {
+                const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                chatListEl.innerHTML = ''; // Clear existing list
+
+                if (chats.length === 0) {
+                    // If no chats, prompt user to create one
+                    if (currentChatId === null) {
+                        displayMessage(`You have no chats yet. Click 'New Chat' to start one!`, 'model', new Date());
+                        setChatUIEnabled(false);
+                    }
+                } else {
+                    // Check if current chat is still valid, otherwise switch to the latest one
+                    const currentChatExists = chats.find(c => c.id === currentChatId);
+                    if (!currentChatExists) {
+                        switchChat(chats[0].id, chats[0].name);
+                    }
+
+                    // Render list items
+                    chats.forEach(chat => {
+                        const item = document.createElement('div');
+                        item.id = `chat-item-${chat.id}`;
+                        item.className = `chat-item p-3 text-sm text-gray-200 hover:bg-gray-800 rounded-lg cursor-pointer transition truncate ${chat.id === currentChatId ? 'active' : ''}`;
+                        item.textContent = chat.name || 'Untitled Chat';
+                        item.title = chat.name || 'Untitled Chat';
+                        item.addEventListener('click', () => {
+                            // Close sidebar on mobile when switching chat
+                            if (sidebarEl.classList.contains('open')) {
+                                sidebarEl.classList.remove('open');
+                            }
+                            switchChat(chat.id, chat.name);
+                        });
+                        chatListEl.appendChild(item);
+                    });
+                }
+            }, (error) => {
+                console.error("Firestore Chat List error:", error);
+                displayMessage(`System Alert: Failed to load chat list due to permissions. ${error.message}`, 'model', new Date());
+            });
+        }
+        
+        /**
+         * Handles the creation of a new chat document.
+         */
+        async function createNewChat() {
+            const chatsRef = getChatsRef();
+            if (!chatsRef) return;
+
+            newChatBtn.disabled = true;
+
+            try {
+                const now = new Date();
+                const newChatName = `New Chat ${now.toLocaleDateString()}`;
+                const newDocRef = await addDoc(chatsRef, {
+                    name: newChatName,
+                    createdAt: now,
+                    updatedAt: now,
+                    lastMessageText: ""
+                });
+                
+                // Immediately switch to the new chat
+                switchChat(newDocRef.id, newChatName);
+
+            } catch (error) {
+                console.error("Error creating new chat:", error);
+                displayMessage(`System Error: Could not create new chat. ${error.message}`, 'model', new Date());
+            } finally {
+                newChatBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Switches the active chat and starts listening to its messages.
+         * @param {string} chatId - The ID of the chat to switch to.
+         * @param {string} chatName - The name of the chat.
+         */
+        function switchChat(chatId, chatName) {
+            if (currentChatId === chatId) return; // Already active
+
+            // 1. Clean up old listener
+            if (unsubscribeMessages) {
+                unsubscribeMessages();
+                unsubscribeMessages = null;
             }
 
-            // Path: /artifacts/{appId}/users/{userId}/chat_history
-            chatHistoryCollection = collection(db, `artifacts/${appId}/users/${userId}/chat_history`);
+            // 2. Update state
+            currentChatId = chatId;
+            chatHistory = [];
+            chatTitleEl.textContent = chatName || 'Untitled Chat';
+            clearMessages();
+            setChatUIEnabled(true);
             
-            // Query: Get all messages
-            const q = query(chatHistoryCollection);
+            // 3. Update UI to highlight active chat
+            document.querySelectorAll('.chat-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            const activeEl = document.getElementById(`chat-item-${chatId}`);
+            if (activeEl) {
+                activeEl.classList.add('active');
+            }
 
-            // This ensures the listener is set up correctly after auth state changes
-            onSnapshot(q, (snapshot) => {
+            // 4. Start listening to new messages
+            listenForHistory(chatId);
+        }
+
+        /**
+         * Listens to the messages subcollection for the active chat.
+         * @param {string} chatId - The ID of the chat to listen to.
+         */
+        function listenForHistory(chatId) {
+            const messagesRef = getMessagesRef(chatId);
+            if (!messagesRef) return;
+
+            const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+            // Store the unsubscribe function
+            unsubscribeMessages = onSnapshot(q, (snapshot) => {
                 clearMessages();
                 chatHistory = [];
-                
-                // Get documents and convert them to an array of message objects
+                isHistoryPersistent = true;
+
                 const messages = snapshot.docs.map(doc => doc.data());
                 
-                // Sort messages in-memory by timestamp
-                messages.sort((a, b) => {
-                    const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
-                    const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
-                    return timeA - timeB;
-                });
-
-                // Display sorted messages and rebuild the local chat history for the API call
                 messages.forEach(message => {
                     displayMessage(message.text, message.role, message.timestamp);
-                    // Only push valid role/text pairs to the API history
                     if (message.role && message.text) {
                         chatHistory.push({ role: message.role, parts: [{ text: message.text }] });
                     }
                 });
+                
+                if (messages.length === 0) {
+                    displayMessage(`Start your new conversation here: ${chatTitleEl.textContent}`, 'model', new Date());
+                }
 
-                console.log(`Chat history loaded. Total messages: ${messages.length}`);
+                console.log(`Chat history for ${chatId} loaded. Messages: ${messages.length}`);
             }, (error) => {
+                isHistoryPersistent = false; 
                 console.error("Firestore onSnapshot error:", error);
-                // Report any real-time permission error
-                displayMessage(`System Error: Failed to load chat history. ${error.message}`, 'model', new Date());
+                const friendlyMessage = error.message.includes('permissions') 
+                    ? `System Alert: Failed to load persistent chat history due to Firebase Security Rules. You can still chat, but history won't be saved.` 
+                    : `System Error: Failed to load chat history. ${error.message}`;
+                
+                clearMessages();
+                displayMessage(friendlyMessage, 'model', new Date());
             });
+        }
+        
+        /**
+         * Renames the current chat.
+         */
+        async function renameChat() {
+            if (!currentChatId) return;
+
+            const currentTitle = chatTitleEl.textContent;
+            const newName = prompt("Enter a new name for this chat:", currentTitle);
+
+            if (newName && newName.trim() !== currentTitle && newName.trim().length > 0) {
+                const chatDocRef = getChatDocRef(currentChatId);
+                if (!chatDocRef) return;
+
+                try {
+                    await updateDoc(chatDocRef, {
+                        name: newName.trim(),
+                        updatedAt: new Date()
+                    });
+                    chatTitleEl.textContent = newName.trim();
+                } catch (error) {
+                    console.error("Error renaming chat:", error);
+                    displayMessage(`System Error: Could not rename chat. ${error.message}`, 'model', new Date());
+                }
+            }
         }
 
         /**
-         * Saves a new message to Firestore.
+         * Saves a new message to the active chat's messages subcollection.
+         * Also updates the parent chat document's metadata.
          * @param {string} text - The message content.
          * @param {string} role - 'user' or 'model'.
          */
         async function saveMessage(text, role) {
-            if (!chatHistoryCollection) {
-                console.error("Chat collection not initialized. Cannot save message.");
+            if (!currentChatId || !isHistoryPersistent) {
+                console.warn("Persistence is disabled or no chat is active. Message not saved.");
                 return;
             }
+            
+            const messagesRef = getMessagesRef(currentChatId);
+            const chatDocRef = getChatDocRef(currentChatId);
+            if (!messagesRef || !chatDocRef) return;
+
+            const now = new Date();
+
             try {
-                await addDoc(chatHistoryCollection, {
+                // 1. Add message to subcollection
+                await addDoc(messagesRef, {
                     text: text,
                     role: role,
-                    timestamp: new Date() 
+                    timestamp: now 
                 });
+                
+                // 2. Update parent chat metadata (non-blocking)
+                await updateDoc(chatDocRef, {
+                    updatedAt: now,
+                    lastMessageText: text.substring(0, 100) + (text.length > 100 ? '...' : '')
+                });
+
             } catch (error) {
                 console.error("Error saving message to Firestore:", error);
-                displayMessage(`System Error: Could not save message. ${error.message}`, 'model', new Date());
+                displayMessage(`System Warning: Could not save message to persistence. ${error.message}`, 'model', new Date());
             }
         }
 
         // --- GEMINI API INTERACTION ---
 
-        /**
-         * Calls the Gemini API to get a response.
-         * @param {string} userText - The user's latest query.
-         * @returns {Promise<string>} The model's generated text.
-         */
         async function callGeminiApi(userText) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             
-            // Append the new user message to the history for the API call
             const currentChatHistory = [...chatHistory, { role: 'user', parts: [{ text: userText }] }];
 
             const payload = {
                 contents: currentChatHistory,
-                // Optional: Add system instruction for persona
                 systemInstruction: {
                     parts: [{ text: "You are a friendly, helpful, and concise AI assistant. Respond conversationally." }]
                 },
-                tools: [{ "google_search": {} }] // Enable Google Search grounding
+                tools: [{ "google_search": {} }]
             };
 
-            // Use exponential backoff for retries
             const maxRetries = 5;
             let delay = 1000;
 
@@ -337,9 +593,9 @@
                 } catch (error) {
                     if (i < maxRetries - 1) {
                         await new Promise(resolve => setTimeout(resolve, delay));
-                        delay *= 2; // Exponential backoff
+                        delay *= 2;
                     } else {
-                        throw error; // Throw the error on the last attempt
+                        throw error;
                     }
                 }
             }
@@ -347,147 +603,101 @@
 
         // --- MAIN CHAT APPLICATION LOGIC ---
 
-        /**
-         * Handles sending a message: calls API and saves both messages to Firestore.
-         */
         async function sendMessage() {
             const userText = userInputEl.value.trim();
-            if (!userText || !userId) {
-                return; // Do nothing if input is empty or not authenticated
+            if (!userText || !userId || !currentChatId) {
+                return; 
             }
 
             // 1. Disable UI and show loading
-            userInputEl.value = ''; // Clear input immediately
-            userInputEl.disabled = true;
-            sendBtnEl.disabled = true;
+            userInputEl.value = '';
+            setChatUIEnabled(false);
             loadingEl.classList.remove('hidden');
+            
+            // 2. Display user message immediately (UI is updated via onSnapshot, but this provides instant feedback)
+            // Note: The listener will re-render the messages shortly after saveMessage is called.
+            const tempTimestamp = new Date();
+            displayMessage(userText, 'user', tempTimestamp);
 
             try {
-                // 2. Save user message to Firestore (which triggers UI update via onSnapshot)
+                // 3. Save user message to Firestore
                 await saveMessage(userText, 'user');
                 
-                // 3. Get model response from API
+                // 4. Get model response from API
                 const modelResponse = await callGeminiApi(userText);
                 
-                // 4. Save model response to Firestore (which triggers UI update via onSnapshot)
+                // 5. Save model response to Firestore
                 await saveMessage(modelResponse, 'model');
+
+                // The onSnapshot listeners (listenForHistory and listenForChatList) will automatically handle:
+                // a) Displaying both messages correctly.
+                // b) Updating the local chatHistory for context.
+                // c) Re-ordering the chat in the sidebar.
 
             } catch (error) {
                 console.error("Chatbot Error:", error);
-                // Directly display a system error message if saving failed or API call failed
-                displayMessage(`ERROR: Failed to process your request. Details: ${error.message}`, 'model', new Date());
+                displayMessage(`API Error: Failed to process request. Details: ${error.message}`, 'model', new Date());
             } finally {
-                // 5. Re-enable UI and hide loading
-                userInputEl.disabled = false;
-                sendBtnEl.disabled = false;
+                // 6. Re-enable UI and hide loading
+                setChatUIEnabled(true);
                 loadingEl.classList.add('hidden');
-                userInputEl.focus();
             }
         }
         
-        /**
-         * Initiates Google Sign-In using a popup.
-         */
+        // --- AUTHENTICATION & INITIALIZATION ---
+        
         async function signInWithGoogle() {
-            if (!auth) {
-                console.error("Auth service not initialized.");
-                return;
-            }
-
-            // Disable buttons during sign-in process
+            if (!auth) return;
             googleSignInBtn.disabled = true;
-            sendBtnEl.disabled = true;
-            userInputEl.disabled = true;
-            authStatusEl.textContent = 'Signing in with Google...';
+            authStatusEl.textContent = 'Signing in...';
 
             try {
                 const provider = new GoogleAuthProvider();
-                // signInWithPopup handles the sign-in flow
                 await signInWithPopup(auth, provider);
-                // The onAuthStateChanged listener will handle UI update upon success
-                displayMessage('Successfully signed in with Google! Your chat history is now linked to your account.', 'model', new Date());
-
             } catch (error) {
                 console.error("Google Sign-In Error:", error);
-                
-                let errorMessage = "Sign-in failed. Please try again.";
-                if (error.code === 'auth/popup-closed-by-user') {
-                    errorMessage = 'Sign-in cancelled.';
-                } else if (error.code === 'auth/cancelled-popup-request') {
-                    errorMessage = 'Sign-in window already open.';
-                }
+                let errorMessage = error.code === 'auth/unauthorized-domain' 
+                    ? `Sign-in failed. Error: auth/unauthorized-domain. Please authorize the running domain in your Firebase Console.` 
+                    : `Sign-in failed. ${error.message}`;
                 displayMessage(`System Notification: ${errorMessage}`, 'model', new Date());
-
             } finally {
-                // Re-enable the Google sign-in button
                 googleSignInBtn.disabled = false;
             }
         }
 
-
-        // --- FIREBASE INITIALIZATION ---
-
-        /**
-         * Initializes Firebase app and handles authentication.
-         */
         async function setupFirebase() {
             try {
-                // Check if config has basic requirements
                 if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
-                    throw new Error(`Invalid Firebase Configuration: Config is empty or missing 'projectId'. Config: ${JSON.stringify(firebaseConfig)}`);
+                    throw new Error(`Invalid Firebase Configuration.`);
                 }
 
-                // Initialize app
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                setLogLevel('debug'); // Enable debug logging for troubleshooting
+                setLogLevel('debug');
 
-                // Set session persistence
                 await setPersistence(auth, browserSessionPersistence);
 
-                // Try to sign in using the custom token or anonymously
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
-                    authStatusEl.textContent = 'Authenticating via Custom Token...';
                 } else {
                     await signInAnonymously(auth);
-                    authStatusEl.textContent = 'Authenticating Anonymously...';
                 }
 
-                // IMPORTANT: Use onAuthStateChanged to ensure we get the user ID *after* a successful sign-in
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        
-                        // Determine the status text based on sign-in method
-                        let statusText;
-                        if (user.isAnonymous) {
-                            statusText = `Anonymous User: ${userId.substring(0, 8)}... (Ready)`;
-                            // Show Google button to encourage upgrade
-                            googleSignInContainer.classList.remove('hidden');
-                        } else {
-                            statusText = `Signed in as: ${user.email || userId.substring(0, 8) + '...'} (Ready)`;
-                            // Hide Google button if signed in with a persistent method
-                            googleSignInContainer.classList.add('hidden');
-                        }
+                        const statusText = user.isAnonymous 
+                            ? `Anon User: ${userId.substring(0, 8)}...`
+                            : `Signed in: ${user.email || userId.substring(0, 8) + '...'}`;
                         authStatusEl.textContent = statusText;
                         
-                        // Authentication is complete: Start listening to Firestore
-                        listenForHistory();
+                        listenForChatList(); // Start listening for chat metadata
                         
-                        // Enable UI elements
-                        userInputEl.disabled = false;
-                        sendBtnEl.disabled = false;
-                        userInputEl.focus();
-
                     } else {
                         userId = null;
-                        authStatusEl.textContent = 'Not signed in. Please reload or sign in.';
-                        userInputEl.disabled = true;
-                        sendBtnEl.disabled = true;
-                        googleSignInContainer.classList.remove('hidden');
-                        console.error("Authentication failed or user signed out.");
+                        authStatusEl.textContent = 'Not signed in. Sign in for persistence.';
+                        setChatUIEnabled(false);
                     }
                 }, (error) => {
                     console.error("Authentication State Change Error:", error);
@@ -497,22 +707,30 @@
             } catch (error) {
                 console.error("Firebase Initialization Failed:", error);
                 authStatusEl.textContent = `Init Error: ${error.message}`;
+                setChatUIEnabled(false); // Disable chat UI if auth fails
+                displayMessage(`System Alert: Failed to initialize persistence. You can still chat if permissions allow, but history is not saved.`, 'model', new Date());
             }
         }
 
         // --- EVENT LISTENERS & INIT ---
         sendBtnEl.addEventListener('click', sendMessage);
         userInputEl.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !userInputEl.disabled) {
                 sendMessage();
             }
         });
         
-        googleSignInBtn.addEventListener('click', signInWithGoogle); // NEW listener
+        googleSignInBtn.addEventListener('click', signInWithGoogle);
+        newChatBtn.addEventListener('click', createNewChat);
+        renameBtnEl.addEventListener('click', renameChat);
+        
+        // Mobile menu toggle
+        menuToggleEl.addEventListener('click', () => {
+            sidebarEl.classList.toggle('open');
+        });
 
         // Initialize Firebase and Auth immediately
         setupFirebase(); 
-
     </script>
 
 </body>
