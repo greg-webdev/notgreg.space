@@ -30,17 +30,13 @@
             border-radius: 10px;
             border: 2px solid #1f2937;
         }
-
-        /* Model button styles removed as buttons are gone */
     </style>
 </head>
-<!-- Removed 'p-4' and adjusted centering for a full-screen effect -->
 <body class="bg-gray-900 text-gray-100 min-h-screen flex items-stretch justify-center" style="font-family: 'Inter', sans-serif;">
 
-    <!-- Removed max-w-lg and fixed height classes for full width/height -->
     <div id="app" class="w-full bg-gray-800 shadow-2xl flex flex-col min-h-screen overflow-hidden border-sky-400">
         
-        <!-- Header: Tagline content has been removed -->
+        <!-- Header: NG.S Ai 1.1 -->
         <header class="p-4 bg-sky-600/70 border-b-4 border-sky-400">
             <h1 class="text-3xl font-extrabold text-center text-white tracking-wide">
                 NG.S Ai 1.1
@@ -49,10 +45,9 @@
         </header>
 
         <!-- Chat History -->
-        <!-- Added pt-8 pb-8 for vertical padding when no fixed height -->
         <div id="chat-history" class="flex-grow p-4 pt-8 pb-8 space-y-4 overflow-y-auto chat-scroll max-w-4xl w-full mx-auto">
             <div class="flex justify-start">
-                <!-- Initial message updated to NG.S Ai -->
+                <!-- Initial message -->
                 <div class="max-w-xs md:max-w-md p-3 rounded-xl bg-sky-500 shadow-md text-gray-900">
                     <strong class="font-bold">NG.S Ai:</strong>
                     <p class="mt-1">Hello! How can I assist you today? Feel free to ask me anything.</p>
@@ -61,7 +56,7 @@
             <!-- Messages will be appended here -->
         </div>
 
-        <!-- Loading Indicator - Moved up to the top of the input area -->
+        <!-- Loading Indicator -->
         <div class="p-4 bg-gray-700 border-t border-b border-gray-600 flex flex-col items-center">
             
             <div id="loading-indicator" class="hidden text-sm text-sky-300 flex items-center justify-center">
@@ -71,8 +66,6 @@
                 </svg>
                 Generating response...
             </div>
-            
-            <!-- Model Selector Buttons removed from here -->
 
         </div>
 
@@ -99,7 +92,7 @@
         import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- GLOBAL CONFIG & STATE ---
-        // Single, fixed model name as requested
+        // Using the standard Gemini model for general chat
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
         const apiKey = ""; 
@@ -113,10 +106,7 @@
         const sendBtnEl = document.getElementById('send-btn');
         const loadingEl = document.getElementById('loading-indicator');
         
-        // Removed model button elements from JS vars
-
-
-        // Professional Persona System Prompt: Updated to mention "Greg" as the creator
+        // Professional Persona System Prompt
         const systemPrompt = `You are a helpful and professional large language model. Your purpose is to provide clear, concise, and accurate information, answer questions, and assist the user in their tasks.
 If the user asks what 'NG.S Ai' stands for, you MUST reply with the exact phrase: "NG.S Ai stands for notgreg.space ai."
 If the user asks who created you, who made you, or similar questions about your origin, you MUST reply with the exact phrase: "I was created by a developer named Greg."
@@ -398,7 +388,13 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 
                 if (!text) {
-                     throw new Error("No bad words huh.");
+                     // Check if a blockReason is present, which usually means the prompt or response was blocked.
+                     const blockReason = result.candidates?.[0]?.safetyRatings?.[0]?.blockReason;
+                     if (blockReason) {
+                         throw new Error(`The request was blocked by safety settings (${blockReason}).`);
+                     }
+                     // Fallback for an empty response
+                     throw new Error("Received an empty response from the model.");
                 }
                 return text;
 
@@ -450,8 +446,6 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                 sendMessage();
             }
         });
-        
-        // Removed model button listeners
         
         // Initialize Firebase and Auth on load
         window.onload = setupFirebase;
