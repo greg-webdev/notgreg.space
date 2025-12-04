@@ -95,7 +95,8 @@
         // Using the standard Gemini model for general chat
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
-        const apiKey = ""; 
+        // Key is dynamically injected by the environment when left empty
+        const apiKey = "AIzaSyBGf8AHbe72jamL45XYPa9kRxQD9nT98-8"; // <-- API KEY UPDATED HERE
         
         let chatHistory = [];
         let userId = 'unknown';
@@ -114,44 +115,60 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
 
         // --- FIREBASE & AUTH SETUP (Mandatory for Canvas Environment) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        let firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
         let app, db, auth;
 
         async function setupFirebase() {
             setLogLevel('Debug');
+            
             try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Sign in using the custom token or anonymously
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
+                // Ensure projectId is present for initialization if possible
+                if (!firebaseConfig.projectId && appId !== 'default-app-id') {
+                    firebaseConfig.projectId = appId;
                 }
+                
+                // Initialize Firebase App ONLY if configuration is sufficient
+                if (firebaseConfig && firebaseConfig.projectId) {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app); // Get auth instance tied to the app
 
-                // Wait for the auth state to settle and get the userId
-                await new Promise(resolve => {
-                    const unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            userId = user.uid;
-                            console.log("Firebase Auth Ready. User ID:", userId);
-                        } else {
-                             userId = crypto.randomUUID();
-                             console.log("Firebase Auth Ready. Signed in anonymously. User ID:", userId);
-                        }
-                        unsubscribe(); 
-                        resolve();
+                    // Sign in using the custom token or anonymously
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    // Wait for the auth state to settle and get the userId
+                    await new Promise(resolve => {
+                        const unsubscribe = onAuthStateChanged(auth, (user) => {
+                            if (user) {
+                                userId = user.uid;
+                                console.log("Firebase Auth Ready. User ID:", userId);
+                            } else {
+                                userId = crypto.randomUUID();
+                                console.log("Firebase Auth Ready. Signed in anonymously. User ID:", userId);
+                            }
+                            unsubscribe(); 
+                            resolve();
+                        });
                     });
-                });
+                    
+                } else {
+                    console.warn("Firebase config incomplete or missing. Cannot initialize Firebase. Using temporary local user ID.");
+                    userId = crypto.randomUUID(); // Fallback to random ID without attempting Firebase services
+                }
                 
             } catch (error) {
                 console.error("Firebase setup encountered an error:", error);
-                // Set a random ID if auth fails
-                userId = crypto.randomUUID();
+                
+                // If initialization or auth failed, ensure we still have a unique user ID
+                if (!userId || userId === 'unknown') {
+                    userId = crypto.randomUUID();
+                }
             }
         }
         
@@ -379,7 +396,8 @@ Otherwise, do not mention that you are an LLM, a large language model, Gemini, o
                         return callGeminiApi(userQuery, attempt + 1);
                     }
                     if (response.status === 403) {
-                         throw new Error(`API error! Status: 403 (Forbidden). The model name '${MODEL_NAME}' may be incorrect or unauthorized.`);
+                         // The most critical failure: API Key issue or model restriction
+                         throw new Error(`API error! Status: 403 (Forbidden). The model name '${MODEL_NAME}' may be incorrect or unauthorized. Please ensure the API key is valid.`);
                     }
                     throw new Error(`API error! Status: ${response.status}`);
                 }
