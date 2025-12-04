@@ -234,9 +234,8 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
         
         // --- UPDATED GEMINI API KEY ---
-        // The previous key was leaked. Reverting to an empty string to allow the environment 
-        // to securely inject a valid, temporary key for the Gemini API calls.
-        const apiKey = ""; 
+        // Using the key provided by the user in the previous turn.
+        const apiKey = "AIzaSyBrdwy_u8H1bfJNs5FI6kkiRne9e1l6J2k"; 
 
         // DOM elements
         const sidebarEl = document.getElementById('sidebar');
