@@ -76,19 +76,18 @@
                 width: 256px; /* md:w-64 */
             }
         }
-
-        /* --- Loader GIF Style --- */
-        #typing-loader {
-            width: 20px; 
-            height: 20px;
-            display: inline-block;
-            vertical-align: middle;
-            margin-right: 8px;
-        }
-
     </style>
 </head>
 <body>
+
+    <!-- NEW Full-Screen Loader Overlay -->
+    <div id="full-screen-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-40" style="display: none;">
+        <div class="flex flex-col items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
+            <img id="typing-loader-gif" src="loader.gif" alt="Loading Spinner" class="w-30 h-30"> 
+            <span class="text-xl font-bold text-sky-400 mt-4">AI is thinking...</span>
+            <p id="loader-status-text" class="text-sm text-gray-400 mt-2">Connecting to model...</p>
+        </div>
+    </div>
 
     <!-- Main Application Container -->
     <div class="flex h-screen w-full">
@@ -170,11 +169,7 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
                     </button>
                 </div>
-                <!-- Updated typing-indicator to use the loader.gif replacement -->
-                <div id="typing-indicator" class="text-center text-sm text-gray-400 mt-2 flex items-center justify-center" style="display: none;">
-                    <img id="typing-loader" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqpD01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner"> 
-                    <span>AI is thinking...</span>
-                </div>
+                <!-- This area can remain for system error/status messages -->
                 <p id="chat-status" class="text-center text-sm text-red-400 mt-2"></p>
             </div>
         </main>
@@ -271,7 +266,6 @@
         const sendBtnEl = document.getElementById('send-btn');
         const chatMessagesEl = document.getElementById('chat-messages');
         const chatListEl = document.getElementById('chat-list');
-        const typingIndicatorEl = document.getElementById('typing-indicator');
         const chatStatusEl = document.getElementById('chat-status');
         const authStatusEl = document.getElementById('auth-status');
         const googleSignInBtn = document.getElementById('google-sign-in-btn');
@@ -284,6 +278,11 @@
         const menuToggleEl = document.getElementById('menu-toggle');
         const menuToggleMobileEl = document.getElementById('menu-toggle-mobile');
         const sidebarEl = document.getElementById('sidebar');
+
+        // NEW: Loader Elements
+        const fullScreenLoaderEl = document.getElementById('full-screen-loader');
+        const loaderStatusTextEl = document.getElementById('loader-status-text');
+
 
         // --- UTILITY FUNCTIONS ---
 
@@ -382,11 +381,11 @@
         }
 
         /**
-         * Toggles the typing indicator.
+         * Toggles the typing indicator (now full screen).
          * @param {boolean} show 
          */
         function showTypingIndicator(show) {
-            typingIndicatorEl.style.display = show ? 'flex' : 'none'; // Use flex for better alignment
+            fullScreenLoaderEl.style.display = show ? 'flex' : 'none';
             isSending = show;
             sendBtnEl.disabled = show || !currentChatId;
         }
@@ -885,6 +884,7 @@
                         break; // Success
                     } else if (response.status === 429) {
                         // Rate limit error - apply exponential backoff
+                        loaderStatusTextEl.textContent = 'API Rate Limit Reached. Retrying...';
                         const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                         retries++;
                         await new Promise(resolve => setTimeout(resolve, delay));
@@ -898,6 +898,7 @@
                     if (retries === maxRetries - 1) {
                         throw error; // Throw on final attempt
                     }
+                    loaderStatusTextEl.textContent = 'Network error. Retrying...';
                     const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                     retries++;
                     await new Promise(resolve => setTimeout(resolve, delay));
@@ -907,6 +908,8 @@
             if (!response || !response.ok) {
                 throw new Error("Failed to get a successful response after retries.");
             }
+            
+            loaderStatusTextEl.textContent = 'Processing response...';
 
             const result = await response.json();
             const candidate = result.candidates?.[0];
@@ -944,6 +947,7 @@
                 await saveMessage(currentChatId, userText, 'user');
 
                 // 2. Show typing indicator and fetch model response
+                loaderStatusTextEl.textContent = 'Connecting to model...';
                 showTypingIndicator(true);
 
                 const modelResponseText = await getGeminiResponse(userText);
