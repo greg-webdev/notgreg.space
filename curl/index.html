@@ -55,10 +55,25 @@
 
     <!-- Main Chat Container -->
     <div class="flex flex-col flex-grow w-full max-w-4xl mx-auto p-4 md:p-8">
-        <!-- Header -->
-        <header class="text-center pb-4 border-b border-gray-700 mb-4">
-            <h1 class="text-2xl font-bold text-sky-400">NG.S AI Assistant</h1>
-            <p id="auth-status" class="text-xs text-gray-400 mt-1">Initializing...</p>
+        
+        <!-- Header, now including the Sign-in Button for side-by-side layout on desktop -->
+        <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-4 border-b border-gray-700 mb-4">
+            
+            <!-- Title and Auth Status (Left side/Top) -->
+            <div class="mb-4 sm:mb-0 text-center sm:text-left">
+                <h1 class="text-2xl font-bold text-sky-400">NG.S AI Assistant</h1>
+                <p id="auth-status" class="text-xs text-gray-400 mt-1">Initializing...</p>
+            </div>
+
+            <!-- Google Sign-in Button (Right side/Bottom) -->
+            <div id="google-sign-in-container">
+                <button id="google-sign-in-btn"
+                        class="flex items-center space-x-2 px-4 py-2 bg-white text-gray-900 font-semibold rounded-lg shadow-md hover:bg-gray-100 transition duration-150 w-full justify-center sm:w-auto">
+                    <!-- Google Logo SVG -->
+                    <svg class="w-5 h-5" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg"><path d="M533.5 275.43c0-18.42-1.52-36.56-4.71-54.24H271.7v102.77h146.43c-6.38 34.6-26.69 63.95-55.88 83.39l-4.73 3.09 82.5 63.88 5.75.56c48.81-45.1 77.26-111.4 77.26-199.45z" fill="#4285F4"/><path d="M271.7 544.3c73.4 0 135.26-24.18 180.37-65.73l-88.25-68.31c-24.64 16.5-56.9 26.25-92.12 26.25-70.81 0-131.25-47.9-153.2-111.9l-5.46.33-85.25 66.02-1.2 5.56c47.1 92.74 150.3 151.78 265.13 151.78z" fill="#34A853"/><path d="M118.5 328.31c-11.23-34.62-11.23-71.69 0-106.31L33.24 135.91c-32.99 65.17-32.99 140.24 0 205.41l85.25-63.01z" fill="#FBBC04"/><path d="M271.7 108.33c40.42 0 76.51 13.91 105.15 41.21L450 78.58C402.9 33.34 342.3 0 271.7 0c-114.83 0-218.03 59.04-265.13 151.78l85.25 66.02c21.95-64 82.39-111.9 153.2-111.9z" fill="#EA4335"/></svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
         </header>
 
         <!-- Chat Display Area -->
@@ -93,7 +108,7 @@
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, orderBy, addDoc, onSnapshot, doc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables
@@ -145,6 +160,8 @@
         const sendBtnEl = document.getElementById('send-btn');
         const loadingEl = document.getElementById('loading');
         const authStatusEl = document.getElementById('auth-status');
+        const googleSignInBtn = document.getElementById('google-sign-in-btn'); // NEW
+        const googleSignInContainer = document.getElementById('google-sign-in-container'); // NEW
 
         // Internal chat history state (used to generate API prompt)
         let chatHistory = [];
@@ -219,6 +236,7 @@
             // Query: Get all messages
             const q = query(chatHistoryCollection);
 
+            // This ensures the listener is set up correctly after auth state changes
             onSnapshot(q, (snapshot) => {
                 clearMessages();
                 chatHistory = [];
@@ -366,6 +384,46 @@
                 userInputEl.focus();
             }
         }
+        
+        /**
+         * Initiates Google Sign-In using a popup.
+         */
+        async function signInWithGoogle() {
+            if (!auth) {
+                console.error("Auth service not initialized.");
+                return;
+            }
+
+            // Disable buttons during sign-in process
+            googleSignInBtn.disabled = true;
+            sendBtnEl.disabled = true;
+            userInputEl.disabled = true;
+            authStatusEl.textContent = 'Signing in with Google...';
+
+            try {
+                const provider = new GoogleAuthProvider();
+                // signInWithPopup handles the sign-in flow
+                await signInWithPopup(auth, provider);
+                // The onAuthStateChanged listener will handle UI update upon success
+                displayMessage('Successfully signed in with Google! Your chat history is now linked to your account.', 'model', new Date());
+
+            } catch (error) {
+                console.error("Google Sign-In Error:", error);
+                
+                let errorMessage = "Sign-in failed. Please try again.";
+                if (error.code === 'auth/popup-closed-by-user') {
+                    errorMessage = 'Sign-in cancelled.';
+                } else if (error.code === 'auth/cancelled-popup-request') {
+                    errorMessage = 'Sign-in window already open.';
+                }
+                displayMessage(`System Notification: ${errorMessage}`, 'model', new Date());
+
+            } finally {
+                // Re-enable the Google sign-in button
+                googleSignInBtn.disabled = false;
+            }
+        }
+
 
         // --- FIREBASE INITIALIZATION ---
 
@@ -401,7 +459,19 @@
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        authStatusEl.textContent = `User ID: ${userId.substring(0, 8)}... (Ready)`;
+                        
+                        // Determine the status text based on sign-in method
+                        let statusText;
+                        if (user.isAnonymous) {
+                            statusText = `Anonymous User: ${userId.substring(0, 8)}... (Ready)`;
+                            // Show Google button to encourage upgrade
+                            googleSignInContainer.classList.remove('hidden');
+                        } else {
+                            statusText = `Signed in as: ${user.email || userId.substring(0, 8) + '...'} (Ready)`;
+                            // Hide Google button if signed in with a persistent method
+                            googleSignInContainer.classList.add('hidden');
+                        }
+                        authStatusEl.textContent = statusText;
                         
                         // Authentication is complete: Start listening to Firestore
                         listenForHistory();
@@ -413,9 +483,10 @@
 
                     } else {
                         userId = null;
-                        authStatusEl.textContent = 'Not signed in. Please reload.';
+                        authStatusEl.textContent = 'Not signed in. Please reload or sign in.';
                         userInputEl.disabled = true;
                         sendBtnEl.disabled = true;
+                        googleSignInContainer.classList.remove('hidden');
                         console.error("Authentication failed or user signed out.");
                     }
                 }, (error) => {
@@ -437,6 +508,8 @@
             }
         });
         
+        googleSignInBtn.addEventListener('click', signInWithGoogle); // NEW listener
+
         // Initialize Firebase and Auth immediately
         setupFirebase(); 
 
