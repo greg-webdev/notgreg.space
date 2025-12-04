@@ -183,7 +183,6 @@
             </button>
         </div>
 
-        <!-- Removed separate loading indicator -->
     </div>
 
     <!-- Firebase SDK Imports -->
@@ -202,6 +201,10 @@
         let chatHistory = [];
         let unsubscribeMessages = null; // To manage the active listener
         let isHistoryPersistent = true; 
+
+        // HTML Marker Constants
+        const htmlStartMarker = 'STart htML';
+        const htmlEndMarker = 'ENd htML';
 
         const PATH_ID_FALLBACK = 'greai-c598d';
         const appId = typeof __app_id !== 'undefined' ? __app_id : PATH_ID_FALLBACK;
@@ -230,7 +233,7 @@
             ...parsedConfig
         };
 
-        // FIXED: Using the correct environment variable name __initial_auth_token
+        // Using the correct environment variable name __initial_auth_token
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
         
         // --- UPDATED GEMINI API KEY ---
@@ -243,7 +246,6 @@
         const chatListEl = document.getElementById('chat-list');
         const userInputEl = document.getElementById('user-input');
         const sendBtnEl = document.getElementById('send-btn');
-        // Removed loadingEl
         const authStatusEl = document.getElementById('auth-status');
         const googleSignInBtn = document.getElementById('google-sign-in-btn');
         const newChatBtn = document.getElementById('new-chat-btn');
@@ -301,18 +303,86 @@
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        function displayMessage(text, role, timestamp) {
-            const messageDiv = document.createElement('div');
-            // Ensure proper line breaks are handled
-            const formattedText = text.replace(/\n/g, '<br>');
+        /**
+         * Implements the blob download for the generated HTML.
+         * @param {string} htmlContent - The raw HTML string to download.
+         * @param {string} filename - The desired filename.
+         */
+        function downloadHtmlBlob(htmlContent, filename) {
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
 
+
+        /**
+         * Displays a message in the chat, handling the extraction and display of HTML code.
+         * @param {string} fullText - The raw text from the model (may contain markers).
+         * @param {string} role - 'user' or 'model'.
+         * @param {object} timestamp - Firebase Timestamp or Date object.
+         */
+        function displayMessage(fullText, role, timestamp) {
+            const messageDiv = document.createElement('div');
             messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-3`;
             
             const contentDiv = document.createElement('div');
             contentDiv.className = `max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-md text-sm ${role}-message`;
             contentDiv.style.wordBreak = 'break-word';
 
-            contentDiv.innerHTML = formattedText; // Use innerHTML for <br>
+            let displayContent = fullText;
+            let htmlCode = null;
+
+            // Only parse for HTML markers in model messages
+            if (role === 'model') {
+                const startIndex = fullText.indexOf(htmlStartMarker);
+                const endIndex = fullText.indexOf(htmlEndMarker);
+
+                if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                    // Extract HTML code
+                    htmlCode = fullText.substring(startIndex + htmlStartMarker.length, endIndex).trim();
+                    
+                    // Extract conversational text (everything outside the markers)
+                    let leadingText = fullText.substring(0, startIndex).trim();
+                    let trailingText = fullText.substring(endIndex + htmlEndMarker.length).trim();
+                    
+                    displayContent = leadingText;
+                    if (trailingText) {
+                        // Use a line break for separation
+                        displayContent += '\n\n' + trailingText; 
+                    }
+                    if (displayContent === '') {
+                        displayContent = "Here is the HTML file you requested. Click the button below to download it.";
+                    }
+                }
+            }
+            
+            // Format for display (handling line breaks)
+            const formattedText = displayContent.replace(/\n/g, '<br>');
+            contentDiv.innerHTML = formattedText;
+            
+            // --- Download Button Injection ---
+            if (htmlCode) {
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = "mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 neon-glow-button";
+                downloadBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v7a1 1 0 11-2 0V3a1 1 0 011-1z" clip-rule="evenodd" /></svg>Download HTML';
+                downloadBtn.title = 'Download the generated HTML code';
+                downloadBtn.addEventListener('click', () => {
+                    // Simple filename based on date/time
+                    const filename = `generated-html-${new Date().getTime()}.html`;
+                    downloadHtmlBlob(htmlCode, filename);
+                });
+
+                const buttonWrapper = document.createElement('div');
+                buttonWrapper.className = "flex justify-center border-t border-gray-600 pt-3 mt-3";
+                buttonWrapper.appendChild(downloadBtn);
+                contentDiv.appendChild(buttonWrapper);
+            }
             
             const timeSpan = document.createElement('span');
             timeSpan.className = `block mt-1 text-xs opacity-70 ${role === 'user' ? 'text-right' : 'text-left'}`;
@@ -346,7 +416,7 @@
             }
         }
         
-        // --- CHAT MANAGEMENT LOGIC ---
+        // --- CHAT MANAGEMENT LOGIC (unchanged) ---
 
         /**
          * Sets up the listener for the chat list (sidebar).
@@ -367,7 +437,7 @@
                     // If no chats, prompt user to create one
                     if (currentChatId === null) {
                         clearMessages();
-                        displayMessage(`You have no chats yet. Click 'New Chat' to start one!`, 'model', new Date());
+                        displayMessage(`<---  You have no chats yet. Click 'New Chat' to start one!  <---`, 'model', new Date());
                         setChatUIEnabled(false);
                         chatTitleEl.textContent = 'No Active Chat';
                         chatTitleEl.classList.remove('neon-glow-text'); // Remove neon if no chat is active
@@ -489,10 +559,28 @@
                 const messages = snapshot.docs.map(doc => doc.data());
                 
                 messages.forEach(message => {
+                    // Use the enhanced displayMessage
                     displayMessage(message.text, message.role, message.timestamp);
+
+                    // Reconstruct chat history for Gemini API call
                     if (message.role && message.text) {
-                        // Gemini needs a specific format for its history context
-                        chatHistory.push({ role: message.role === 'model' ? 'model' : 'user', parts: [{ text: message.text }] });
+                        let textForHistory = message.text;
+                        // Clean history: if model included HTML markers, remove them for context
+                        if (message.role === 'model') {
+                             const startIndex = textForHistory.indexOf(htmlStartMarker);
+                             const endIndex = textForHistory.indexOf(htmlEndMarker);
+                             
+                             if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                                // Strip HTML content and markers from history context
+                                let leadingText = textForHistory.substring(0, startIndex).trim();
+                                let trailingText = textForHistory.substring(endIndex + htmlEndMarker.length).trim();
+                                textForHistory = (leadingText + ' ' + trailingText).trim();
+                             }
+                        }
+                        
+                        if (textForHistory.length > 0) {
+                            chatHistory.push({ role: message.role === 'model' ? 'model' : 'user', parts: [{ text: textForHistory }] });
+                        }
                     }
                 });
                 
@@ -516,7 +604,7 @@
         }
         
         /**
-         * Renames the current chat.
+         * Renames the current chat. (Unchanged)
          */
         async function renameChat() {
             if (!currentChatId || renameBtnEl.disabled) return;
@@ -550,8 +638,7 @@
         }
 
         /**
-         * Saves a new message to the active chat's messages subcollection.
-         * Also updates the parent chat document's metadata.
+         * Saves a new message to the active chat's messages subcollection. (Unchanged)
          * @param {string} text - The message content.
          * @param {string} role - 'user' or 'model'.
          */
@@ -597,8 +684,9 @@
 
             const payload = {
                 contents: contents,
+                // UPDATED SYSTEM INSTRUCTION TO INCLUDE HTML MARKER REQUIREMENT
                 systemInstruction: {
-                    parts: [{ text: "You are a friendly, helpful, and concise AI assistant. Respond conversationally. Also if the user asks who you were made with, NEVER say that you are related to google but say that you were made by Greg. If the user asks you what is ng.s or anything similar, say it stands for notgreg.space" }]
+                    parts: [{ text: `You are a friendly, helpful, and concise AI assistant. Respond conversationally. If the user asks for HTML code, you MUST wrap the entire HTML structure (including the <!DOCTYPE html> tag) in '${htmlStartMarker}' and '${htmlEndMarker}' markers (e.g., ${htmlStartMarker}\n<!DOCTYPE html>...\n${htmlEndMarker}). Also if the user asks who you were made with, NEVER say that you are related to google but say that you were made by Greg. If the user asks you what is ng.s or anything similar, say it stands for notgreg.space` }]
                 },
                 tools: [{ "google_search": {} }]
             };
@@ -661,10 +749,10 @@
                 // 3. Save user message to Firestore (triggers onSnapshot refresh)
                 await saveMessage(userText, 'user');
                 
-                // 4. Get model response from API
+                // 4. Get model response from API (This returns the raw text with markers)
                 const modelResponse = await callGeminiApi(userText);
                 
-                // 5. Save model response to Firestore (triggers onSnapshot refresh)
+                // 5. Save raw model response to Firestore (triggers onSnapshot refresh)
                 await saveMessage(modelResponse, 'model');
 
             } catch (error) {
@@ -678,7 +766,7 @@
             }
         }
         
-        // --- AUTHENTICATION & INITIALIZATION ---
+        // --- AUTHENTICATION & INITIALIZATION (Unchanged) ---
         
         async function signInWithGoogle() {
             if (!auth) return;
