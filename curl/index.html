@@ -106,10 +106,18 @@
         // --- CONSTANTS FROM GLOBAL ENVIRONMENT ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
-        // Use the user-provided project ID as a fallback for initialization validation
-        const USER_FALLBACK_PROJECT_ID = 'greai-c598d'; 
+        // 1. Define the user's full, explicit Firebase configuration as a guaranteed base.
+        const EXPLICIT_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
+            authDomain: "greai-c598d.firebaseapp.com",
+            projectId: "greai-c598d",
+            storageBucket: "greai-c598d.firebasestorage.app",
+            messagingSenderId: "620495902794",
+            appId: "1:620495902794:web:fcf3570f455cf1f0e62eb3",
+            measurementId: "G-JMKT2M3RJD"
+        };
 
-        // Safer parsing for firebaseConfig to handle missing/invalid JSON
+        // 2. Safely parse the environment configuration.
         let parsedConfig = {};
         try {
             if (typeof __firebase_config === 'string' && __firebase_config.trim() !== '') {
@@ -118,15 +126,15 @@
         } catch (e) {
             console.error("Critical Error: Failed to parse __firebase_config JSON string.", e);
         }
-        
-        // Ensure projectId is present, either from the parsed config or the user's explicit value
+
+        // 3. Merge the explicit config with the environment config, prioritizing environment values if present.
         const firebaseConfig = {
-            ...parsedConfig,
-            projectId: parsedConfig.projectId || USER_FALLBACK_PROJECT_ID
-        }; 
-        
+            ...EXPLICIT_FIREBASE_CONFIG, // Start with the guaranteed values
+            ...parsedConfig // Overwrite with any values provided by the environment
+        };
+
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const apiKey = ""; // API Key is left empty for runtime provision
+        const apiKey = ""; // API Key is left empty for runtime provision (for Gemini API)
 
         // DOM elements
         const chatMessagesEl = document.getElementById('chat-messages');
@@ -365,8 +373,6 @@
             try {
                 // Check if config has basic requirements
                 if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
-                    // This error should now only occur if the user-provided ID is somehow missing too, 
-                    // as the logic above guarantees projectId exists.
                     throw new Error(`Invalid Firebase Configuration: Config is empty or missing 'projectId'. Config: ${JSON.stringify(firebaseConfig)}`);
                 }
 
