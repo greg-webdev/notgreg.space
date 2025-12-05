@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NG.S AI Assistant - Multi-Chat</title>
+    <title>NG.S AI Assistant - Auto-Key Loader</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -84,7 +84,7 @@
     <div id="full-screen-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-40" style="display: none;">
         <div class="flex flex-col items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
             <!-- Loading GIF size: w-8 h-8 (32x32px) -->
-            <img id="typing-loader-gif" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqpD01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner" class="w-8 h-8"> 
+            <img id="typing-loader-gif" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqp01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner" class="w-8 h-8"> 
             <span class="text-xl font-bold text-sky-400 mt-4">AI is thinking...</span>
             <p id="loader-status-text" class="text-sm text-gray-400 mt-2">Connecting to model...</p>
         </div>
@@ -100,6 +100,12 @@
                 <button id="menu-toggle" class="md:hidden text-gray-400 hover:text-white p-1">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
+            </div>
+
+            <!-- API Key Status Section (Now auto-loads from key.balls) -->
+            <div id="api-key-loader" class="mt-0 p-2 bg-gray-800 rounded-xl mb-4 border border-gray-700">
+                <p class="block text-sm font-medium text-white mb-1">API Key Status</p>
+                <p id="key-status" class="text-xs mt-1 text-yellow-400">Attempting to load key.balls...</p>
             </div>
             
             <button id="new-chat-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md mb-4 flex items-center justify-center transition duration-150" disabled>
@@ -151,7 +157,8 @@
                 <!-- Messages will be dynamically inserted here -->
                 <div class="text-center text-gray-500 mt-20">
                     <p class="text-3xl mb-2">👋 Welcome to NG.S Chat</p>
-                    <p>Start a new chat or select a conversation from the sidebar.</p>
+                    <p>Waiting for API Key to load from `key.balls` and Firebase to initialize.</p>
+                    <p>Once loaded, click 'New Chat' to begin!</p>
                 </div>
             </div>
 
@@ -223,35 +230,6 @@
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
-        // --- SECURITY OBFUSCATION FUNCTIONS ---
-        // WARNING: This technique is reversible and does not provide genuine security.
-        // It is intended only to bypass simple automated static code scanners.
-        // For production, always use a secure backend proxy to protect API keys.
-
-        const DEOBFUSCATION_KEY = "GMNI_SECURE_KEY"; // The secret key for XORing
-        // UPDATED: Contains the obfuscated version of the new API key.
-        const OBFUSCATED_API_KEY = "BgQYECQmBDMbCXcEJBDELHxcHpMxGxIkIH0PLCAEhgws"; 
-
-        /**
-         * Reversible XOR-based deobfuscation function (using Base64 for handling characters).
-         */
-        function deobfuscate(encodedStr, key) {
-            if (!encodedStr) return ""; // Handle empty string case
-            try {
-                // Decode from Base64
-                const str = atob(encodedStr);
-                let result = '';
-                for (let i = 0; i < str.length; i++) {
-                    // Apply XOR using the key character
-                    result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-                }
-                return result;
-            } catch (e) {
-                console.error("Deobfuscation error:", e);
-                return ''; // Return empty string on failure
-            }
-        }
-        
         // --- FIREBASE SETUP AND STATE ---
         
         const FALLBACK_FIREBASE_CONFIG = {
@@ -275,8 +253,8 @@
         let chatHistory = [];
         let isFirebaseDisabled = false; // New flag to track if Firebase failed to initialize
         
-        // Use the deobfuscated key. 
-        const API_KEY = deobfuscate(OBFUSCATED_API_KEY, DEOBFUSCATION_KEY); 
+        // --- API KEY STATE (Now loaded from fetch) ---
+        let API_KEY = null; 
         
         // Use the environment's __app_id for Firestore paths, falling back to the projectId from the config.
         const APP_ID = typeof __app_id !== 'undefined' ? __app_id : FALLBACK_FIREBASE_CONFIG.projectId; 
@@ -287,7 +265,6 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
-        // UPDATED REGEX: Added 'i' flag for case-insensitive matching of HTml and htML delimiters.
         const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/gi;
 
 
@@ -309,7 +286,10 @@
         const menuToggleMobileEl = document.getElementById('menu-toggle-mobile');
         const sidebarEl = document.getElementById('sidebar');
 
-        // NEW: Loader Elements
+        // API Key Elements
+        const keyStatusEl = document.getElementById('key-status');
+
+        // Loader Elements
         const fullScreenLoaderEl = document.getElementById('full-screen-loader');
         const loaderStatusTextEl = document.getElementById('loader-status-text');
 
@@ -362,7 +342,7 @@
                 };
 
                 const handleKeydown = (e) => {
-                    if (e.key === 'Enter' && isPrompt) {
+                    if (e.key === 'Enter' && !e.shiftKey && isPrompt) {
                         e.preventDefault();
                         handleConfirm();
                     } else if (e.key === 'Escape') {
@@ -399,15 +379,34 @@
          * @param {boolean} enabled 
          */
         function setChatUIEnabled(enabled) {
-            userInputEl.disabled = !enabled;
-            sendBtnEl.disabled = !enabled || isSending;
-            if (enabled && !isSending) {
+            const isApiKeyReady = API_KEY !== null;
+            const isChatReady = currentChatId !== null;
+            // Check if Firebase auth and initialization is complete
+            const isFirebaseReady = userId !== null && !isFirebaseDisabled;
+
+            const canChat = enabled && isApiKeyReady && isChatReady && isFirebaseReady;
+
+            userInputEl.disabled = !canChat;
+            sendBtnEl.disabled = !canChat || isSending;
+
+            if (canChat && !isSending) {
                 userInputEl.focus();
             }
-            // Disable new chat button, rename, delete if Firebase is disabled
-            newChatBtn.disabled = isFirebaseDisabled || !enabled;
-            renameBtnEl.disabled = isFirebaseDisabled || !enabled;
-            deleteBtnEl.disabled = isFirebaseDisabled || !enabled;
+            
+            newChatBtn.disabled = !isFirebaseReady || !isApiKeyReady;
+            renameBtnEl.disabled = !isFirebaseReady || !currentChatId;
+            deleteBtnEl.disabled = !isFirebaseReady || !currentChatId;
+
+            // Update placeholder to prompt action if needed
+            if (!isApiKeyReady) {
+                userInputEl.placeholder = "Waiting for API key from key.balls...";
+            } else if (!isFirebaseReady) {
+                userInputEl.placeholder = "Waiting for Firebase authentication...";
+            } else if (!isChatReady) {
+                 userInputEl.placeholder = "Click 'New Chat' or select a chat to begin.";
+            } else {
+                 userInputEl.placeholder = "Type your message here...";
+            }
         }
 
         /**
@@ -417,7 +416,8 @@
         function showTypingIndicator(show) {
             fullScreenLoaderEl.style.display = show ? 'flex' : 'none';
             isSending = show;
-            sendBtnEl.disabled = show || !currentChatId;
+            // The setChatUIEnabled handles the sendBtn state correctly
+            setChatUIEnabled(true); 
         }
         
         /**
@@ -463,7 +463,6 @@
 
             let lastIndex = 0;
             let match;
-            let fileCount = 0;
 
             // Reset the regex index before starting the search
             HTML_DELIMITER_REGEX.lastIndex = 0; 
@@ -499,7 +498,6 @@
                 const contentForDisplay = fileContent.trim();
                 
                 if (contentForDisplay) {
-                    fileCount++;
                     
                     // File Header (Title and Filename)
                     const fileHeader = document.createElement('div');
@@ -614,554 +612,460 @@
                 const item = document.createElement('div');
                 item.dataset.chatId = chat.id;
                 item.className = `p-3 rounded-lg cursor-pointer transition duration-150 truncate ${chat.id === currentChatId ? 'bg-sky-700 hover:bg-sky-600 font-bold' : 'bg-gray-700 hover:bg-gray-600'}`;
-                item.textContent = chat.title;
-                item.addEventListener('click', () => loadChat(chat.id));
+                item.textContent = chat.title || 'Untitled Chat';
+                
+                item.addEventListener('click', () => selectChat(chat.id));
                 chatListEl.appendChild(item);
             });
         }
+        
+        // --- API KEY LOADING FUNCTION ---
 
         /**
-         * Clears the chat message area.
+         * Attempts to load the API key from './key.balls' using a relative fetch request.
          */
-        function clearChatMessages() {
-            chatMessagesEl.innerHTML = '';
-            chatMessagesEl.innerHTML = `
-                <div class="text-center text-gray-500 mt-20">
-                    <p class="text-3xl mb-2">👋 Welcome to NG.S Chat</p>
-                    <p>Start a new chat or select a conversation from the sidebar.</p>
-                </div>
-            `;
-            chatTitleEl.textContent = 'Select a chat or start a new one.';
-            chatActionsEl.style.display = 'none';
-        }
+        async function loadApiKeyFromFile() {
+            keyStatusEl.textContent = 'Attempting to load key.balls...';
+            keyStatusEl.classList.remove('text-green-400', 'text-red-400');
+            keyStatusEl.classList.add('text-yellow-400');
+            
+            try {
+                // Fetch the file content from the relative path
+                const response = await fetch('./key.balls');
 
-        /**
-         * Renders the messages for the current chat.
-         * @param {Array} messages 
-         */
-        function renderMessages(messages) {
-            chatMessagesEl.innerHTML = '';
-            chatHistory = messages;
-            messages.forEach(msg => {
-                // FIX: Check if msg.timestamp exists before calling toDate()
-                const timestamp = msg.timestamp ? msg.timestamp.toDate() : new Date();
-                displayMessage(msg.text, msg.role, timestamp);
-            });
-            scrollToBottom();
-        }
+                if (!response.ok) {
+                    // If the file is not found (404) or blocked
+                    throw new Error(`Failed to load file: Status ${response.status}`);
+                }
 
-        // --- FIREBASE/CHAT LOGIC ---
+                const keyText = await response.text();
+                const key = keyText.trim();
 
-        /**
-         * Attaches a real-time listener for the user's chats.
-         */
-        function setupChatListListener() {
-            if (unsubscribeChats) {
-                unsubscribeChats();
+                if (key.length < 30) {
+                    throw new Error('Key found, but looks too short or invalid. Is it correct?');
+                }
+
+                API_KEY = key;
+                keyStatusEl.textContent = 'Status: Key Loaded Successfully!';
+                keyStatusEl.classList.remove('text-yellow-400');
+                keyStatusEl.classList.add('text-green-400');
+                
+            } catch (error) {
+                console.error("API Key Load Error:", error);
+                API_KEY = null;
+                keyStatusEl.textContent = 'Error: Key.balls missing or blocked.';
+                keyStatusEl.classList.remove('text-yellow-400');
+                keyStatusEl.classList.add('text-red-400');
+                // Inform the user how to fix it
+                showAlert('API Key Error', 
+                    `Could not read './key.balls'. Please ensure the file exists in the same directory as index.html and contains ONLY the API key text. 
+                    (Error: ${error.message})`
+                );
+            } finally {
+                setChatUIEnabled(true);
             }
-            if (!userId) return;
+        }
 
-            const chatCollectionRef = collection(db, getUserCollectionPath('chats'));
-            const q = query(chatCollectionRef, orderBy('lastUpdated', 'desc'), limit(50)); // Limit chat history
 
+        // --- CHAT LOGIC ---
+
+        /**
+         * Starts listening for chats specific to the current user.
+         */
+        function startChatListListener() {
+            if (unsubscribeChats) unsubscribeChats();
+            
+            const chatsRef = collection(db, getUserCollectionPath('chats'));
+            const q = query(chatsRef, orderBy('createdAt', 'desc'), limit(50));
+            
             unsubscribeChats = onSnapshot(q, (snapshot) => {
                 const chats = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
                 renderChatList(chats);
-
-                // If no chat is loaded but chats exist, load the latest one
-                if (!currentChatId && chats.length > 0) {
-                    loadChat(chats[0].id);
+                
+                // If the current chat is deleted, reset the view
+                if (currentChatId && !chats.some(c => c.id === currentChatId)) {
+                    resetChatView();
                 }
             }, (error) => {
-                console.error("Error fetching chats: ", error);
-                chatStatusEl.textContent = 'Error loading chat list.';
+                console.error("Error fetching chats:", error);
+                chatListEl.innerHTML = `<p class="text-sm text-red-400 mt-4">Failed to load chats: ${error.message}</p>`;
             });
         }
 
         /**
-         * Attaches a real-time listener for messages in the current chat.
+         * Starts listening for messages in the currently selected chat.
          * @param {string} chatId 
+         * @param {string} chatTitle 
          */
-        function setupMessageListener(chatId) {
-            if (unsubscribeMessages) {
-                unsubscribeMessages();
-            }
-            if (!chatId || !userId) return;
-
-            const messagesCollectionRef = collection(db, getUserCollectionPath(`chats/${chatId}/messages`));
-            const q = query(messagesCollectionRef, orderBy('timestamp', 'asc'));
-
+        function startMessageListener(chatId, chatTitle) {
+            if (unsubscribeMessages) unsubscribeMessages();
+            
+            currentChatId = chatId;
+            chatTitleEl.textContent = chatTitle || 'Untitled Chat';
+            chatMessagesEl.innerHTML = '';
+            chatActionsEl.style.display = 'flex';
+            chatHistory = []; // Clear local history
+            
+            setChatUIEnabled(true);
+            
+            const messagesRef = collection(db, getUserCollectionPath('chats'), chatId, 'messages');
+            const q = query(messagesRef, orderBy('createdAt', 'asc'));
+            
             unsubscribeMessages = onSnapshot(q, (snapshot) => {
-                const messages = snapshot.docs.map(doc => ({
+                const newMessages = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
-                renderMessages(messages);
+                
+                // Only render new messages that haven't been shown
+                const existingMessageIds = new Set(chatHistory.map(m => m.id));
+                const messagesToRender = newMessages.filter(m => !existingMessageIds.has(m.id));
+                
+                messagesToRender.forEach(message => {
+                    displayMessage(message.text, message.role, message.createdAt.toDate());
+                    // Keep local history updated for API call context
+                    chatHistory.push(message); 
+                });
+                
+                chatHistory = newMessages; // Sync local history with the full snapshot
+                scrollToBottom();
+
             }, (error) => {
-                console.error("Error fetching messages: ", error);
-                chatStatusEl.textContent = 'Error loading messages.';
+                console.error("Error fetching messages:", error);
+                showAlert('Chat Error', `Failed to load messages: ${error.message}`);
             });
+            
+            // Re-render chat list to highlight selected chat
+            startChatListListener();
         }
 
         /**
-         * Saves a new message to Firestore.
-         * @param {string} chatId 
-         * @param {string} text 
-         * @param {'user' | 'model'} role 
+         * Selects an existing chat or starts a new one if ID is null.
+         * @param {string|null} chatId 
          */
-        async function saveMessage(chatId, text, role) {
-            if (isFirebaseDisabled || !chatId || !userId) return;
-
-            try {
-                const messagesCollectionRef = collection(db, getUserCollectionPath(`chats/${chatId}/messages`));
-                await addDoc(messagesCollectionRef, {
-                    text: text,
-                    role: role,
-                    timestamp: serverTimestamp()
-                });
-
-                // Update the chat's lastUpdated time and title if it's the first user message
-                const chatDocRef = doc(db, getUserCollectionPath('chats'), chatId);
-                await updateDoc(chatDocRef, {
-                    lastUpdated: serverTimestamp(),
-                    // Only update title on the first user message of the chat
-                    ...(role === 'user' && chatHistory.length === 0 && { title: text.substring(0, 50) + '...' })
-                });
-
-            } catch (error) {
-                console.error("Error saving message or updating chat: ", error);
-                chatStatusEl.textContent = 'Failed to save message.';
-            }
-        }
-
-        /**
-         * Loads a chat and sets up the message listener.
-         * @param {string} chatId 
-         */
-        function loadChat(chatId) {
-            if (isFirebaseDisabled) {
-                showAlert('Feature Disabled', 'Cannot load chat history because Firebase is not initialized.');
-                return;
-            }
-            if (currentChatId === chatId) {
-                sidebarEl.classList.remove('open'); // Close sidebar on mobile if already selected
+        async function selectChat(chatId) {
+            if (!userId || isFirebaseDisabled) {
+                showAlert('Authentication Required', 'Please wait for Firebase to initialize.');
                 return;
             }
 
-            currentChatId = chatId;
-            setupMessageListener(chatId);
-            const chatItem = chatListEl.querySelector(`[data-chat-id="${chatId}"]`);
-            if (chatItem) {
-                chatTitleEl.textContent = chatItem.textContent;
+            if (!chatId) {
+                // Create New Chat
+                try {
+                    const chatsRef = collection(db, getUserCollectionPath('chats'));
+                    const newChat = {
+                        title: 'New Chat',
+                        createdAt: serverTimestamp(),
+                        userId: userId,
+                    };
+                    const docRef = await addDoc(chatsRef, newChat);
+                    
+                    // Automatically select the newly created chat
+                    startMessageListener(docRef.id, newChat.title);
+
+                } catch (error) {
+                    console.error("Error creating chat:", error);
+                    showAlert('Error', `Failed to create new chat: ${error.message}`);
+                }
             } else {
-                chatTitleEl.textContent = 'Loading...';
+                // Select Existing Chat
+                if (chatId === currentChatId) return; // Already selected
+                
+                // Find chat title from the list (it's often faster than a separate fetch)
+                const chatItem = chatListEl.querySelector(`[data-chat-id="${chatId}"]`);
+                const chatTitle = chatItem ? chatItem.textContent : 'Loading...';
+                
+                startMessageListener(chatId, chatTitle);
             }
-            chatActionsEl.style.display = 'flex';
-            setChatUIEnabled(true);
-            sidebarEl.classList.remove('open'); // Close sidebar on mobile
         }
         
         /**
-         * Creates a new chat document in Firestore.
+         * Resets the main chat area view.
          */
-        async function createNewChat() {
-            if (isFirebaseDisabled) {
-                showAlert('Feature Disabled', 'Cannot create a new chat because Firebase is not initialized.');
-                return;
-            }
-            if (!userId) {
-                await showAlert('Authentication Required', 'Please sign in to start a new chat.');
-                return;
-            }
+        function resetChatView() {
+            if (unsubscribeMessages) unsubscribeMessages();
+            currentChatId = null;
+            chatTitleEl.textContent = 'Select a chat or start a new one.';
+            chatMessagesEl.innerHTML = `
+                <div class="text-center text-gray-500 mt-20">
+                    <p class="text-3xl mb-2">👋 Welcome to NG.S Chat</p>
+                    <p>1. Ensure API Key is loaded from key.balls.</p>
+                    <p>2. Start a new chat!</p>
+                </div>
+            `;
+            chatActionsEl.style.display = 'none';
+            chatHistory = [];
+            setChatUIEnabled(true);
+            // Re-render chat list to un-highlight
+            startChatListListener();
+        }
+
+        /**
+         * Handles the request to the Gemini API.
+         * @param {string} prompt 
+         */
+        async function sendPrompt(prompt) {
+            if (!API_KEY || !currentChatId || isSending) return;
+            isSending = true;
             
+            // 1. Add user message to Firestore (and UI via listener)
+            const userMessage = {
+                text: prompt,
+                role: 'user',
+                createdAt: serverTimestamp(),
+            };
             try {
-                // Clear state
-                currentChatId = null;
-                if (unsubscribeMessages) unsubscribeMessages();
-                clearChatMessages();
-                setChatUIEnabled(false);
-                userInputEl.value = '';
-
-                const chatCollectionRef = collection(db, getUserCollectionPath('chats'));
-                const newChatRef = await addDoc(chatCollectionRef, {
-                    userId: userId,
-                    title: 'New Chat',
-                    createdAt: serverTimestamp(),
-                    lastUpdated: serverTimestamp()
-                });
-                
-                // Load the newly created chat
-                loadChat(newChatRef.id);
-                sidebarEl.classList.remove('open'); // Close sidebar on mobile
+                const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
+                await addDoc(messagesRef, userMessage);
             } catch (error) {
-                console.error("Error creating new chat: ", error);
-                showAlert('Error', 'Failed to create a new chat.');
+                console.error("Error saving user message:", error);
+                chatStatusEl.textContent = `Error saving message: ${error.message}`;
+                isSending = false;
+                setChatUIEnabled(true);
+                return;
             }
-        }
 
-        /**
-         * Renames the current chat.
-         */
-        async function renameChat() {
-            if (isFirebaseDisabled || !currentChatId) return;
-
-            const currentTitle = chatTitleEl.textContent;
-            const newTitle = await showModal(
-                'Rename Chat',
-                'Enter a new title for this conversation:',
-                true,
-                'Save',
-                currentTitle
-            );
-
-            if (newTitle && newTitle !== currentTitle) {
-                try {
-                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
-                    await updateDoc(chatDocRef, {
-                        title: newTitle
-                    });
-                    chatTitleEl.textContent = newTitle;
-                    chatStatusEl.textContent = 'Chat renamed successfully.';
-                } catch (error) {
-                    console.error("Error renaming chat: ", error);
-                    showAlert('Error', 'Failed to rename chat.');
-                }
-            }
-        }
-
-        /**
-         * Deletes the current chat.
-         */
-        async function deleteChat() {
-            if (isFirebaseDisabled || !currentChatId) return;
-
-            const confirmDelete = await showModal(
-                'Delete Chat',
-                `Are you sure you want to delete the chat "${chatTitleEl.textContent}"? This action cannot be undone.`,
-                false,
-                'Delete'
-            );
-
-            if (confirmDelete) {
-                try {
-                    // For simplicity, we rely on deleting the parent document, and security rules should prevent orphans from being accessed.
-                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
-                    await deleteDoc(chatDocRef);
-                    
-                    // 3. Reset UI state
-                    currentChatId = null;
-                    if (unsubscribeMessages) unsubscribeMessages();
-                    clearChatMessages();
-                    setChatUIEnabled(false);
-                    chatStatusEl.textContent = 'Chat deleted successfully.';
-
-                    // The chat list listener will automatically update and load the next chat if available
-                } catch (error) {
-                    console.error("Error deleting chat: ", error);
-                    showAlert('Error', 'Failed to delete chat.');
-                }
-            }
-        }
-
-        // --- GEMINI API INTEGRATION ---
-
-        /**
-         * Sends the user message to the Gemini API.
-         * @param {string} userText 
-         * @returns {Promise<string>} Model's response text.
-         */
-        async function getGeminiResponse(userText) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
-            // System prompt remains strict but the front-end parser is now case-insensitive.
-            const systemPrompt = "You are a friendly, helpful, and concise AI assistant. Respond conversationally. When asked who made you or if you are related to any company, you must respond that you were made by Greg and are not related to any other major corporation. If the user asks what 'ng.s' or anything similar stands for, you must state that it stands for 'notgreg.space'. Always provide clear and concise answers. IMPORTANT: If you generate ANY HTML code, you MUST wrap EACH file in the exact delimiters 'HTml:{Title}:{filename.html}' (on a new line) for the start and 'htML' (on a new line) for the end. You may generate multiple files in one response. Do not use markdown code fences (```html) for HTML, only use the structured HTml...htML format.";
-
-            // Map chat history to API format, excluding the latest user message which is passed separately.
-            const historyForApi = chatHistory.map(msg => ({
-                role: msg.role === 'user' ? 'user' : 'model',
-                // Clean up previous model responses to simplify the API context and reduce token count
-                parts: [{ text: msg.text.replace(HTML_DELIMITER_REGEX, 'HTML code block (redacted)') }]
+            // 2. Prepare API Call
+            const contents = chatHistory.map(msg => ({
+                role: msg.role === 'model' ? 'model' : 'user',
+                parts: [{ text: msg.text }]
             }));
             
-            const contents = [
-                ...historyForApi,
-                { role: 'user', parts: [{ text: userText }] }
-            ];
+            // Add the new user message to the contents array for the API call
+            contents.push({ role: 'user', parts: [{ text: prompt }] });
 
             const payload = {
                 contents: contents,
                 tools: [{ "google_search": {} }],
                 systemInstruction: {
-                    parts: [{ text: systemPrompt }]
-                },
+                    parts: [{ text: "You are a friendly and helpful AI assistant made by Greg, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htmlend' marker after the content to signal the end of the file block for parsing. Also NEVER say that you are related to any major corporations. Also if they ask you what ng.s is, its stands for notgreg.space." }]
+                }
             };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
-            let response;
-            let retries = 0;
-            const maxRetries = 5;
+            showTypingIndicator(true);
+            
+            let modelResponseText = "Sorry, I couldn't get a response from the model.";
 
-            while (retries < maxRetries) {
+            // 3. Execute API Call with Exponential Backoff
+            const MAX_RETRIES = 5;
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                 try {
-                    response = await fetch(apiUrl, {
+                    loaderStatusTextEl.textContent = `Attempting API call (Retry ${attempt + 1}/${MAX_RETRIES})...`;
+
+                    const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    if (response.ok) {
+                    if (response.status === 429) { // Rate limit or too many requests
+                         if (attempt < MAX_RETRIES - 1) {
+                            const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                            await new Promise(res => setTimeout(res, delay));
+                            continue; // Retry
+                        } else {
+                            throw new Error("Rate limit exceeded after multiple retries.");
+                        }
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || response.statusText;
+                        throw new Error(`API Request failed: ${errorMessage}`);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        modelResponseText = candidate.content.parts[0].text;
                         break; // Success
-                    } else if (response.status === 429) {
-                        // Rate limit error - apply exponential backoff
-                        loaderStatusTextEl.textContent = 'API Rate Limit Reached. Retrying...';
-                        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
-                        retries++;
-                        await new Promise(resolve => setTimeout(resolve, delay));
                     } else {
-                        // Other HTTP error (like 403)
-                        const errorData = await response.json();
-                        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+                        throw new Error("Model returned an empty or malformed response.");
                     }
+
                 } catch (error) {
-                    // Network or other fetch error
-                    if (retries === maxRetries - 1) {
-                        throw error; // Throw on final attempt
+                    if (attempt === MAX_RETRIES - 1) {
+                         modelResponseText = `Error communicating with AI: ${error.message}. Please check your API key and network connection.`;
+                         console.error(error);
+                    } else {
+                        // Continue loop for retry
                     }
-                    loaderStatusTextEl.textContent = 'Network error. Retrying...';
-                    const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
-                    retries++;
-                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
 
-            if (!response || !response.ok) {
-                throw new Error("Failed to get a successful response after retries.");
-            }
+            showTypingIndicator(false);
             
-            loaderStatusTextEl.textContent = 'Processing response...';
-
-            const result = await response.json();
-            const candidate = result.candidates?.[0];
-
-            if (candidate && candidate.content?.parts?.[0]?.text) {
-                return candidate.content.parts[0].text;
-            } else {
-                throw new Error(result.promptFeedback?.blockReason || "Model response blocked or empty.");
-            }
-        }
-
-        /**
-         * Main function to handle sending a message.
-         */
-        async function sendMessage() {
-            const userText = userInputEl.value.trim();
-
-            if (userText === '' || !currentChatId) {
-                if (isFirebaseDisabled) {
-                    showAlert('Chat Disabled', 'Chat history is disabled due to a missing Firebase configuration. The send button requires an active chat.');
-                }
-                return;
-            }
-
-            // Lock UI and clear input
-            setChatUIEnabled(false);
-            // Auto-resize textarea down to min height after clearing
-            userInputEl.value = '';
-            userInputEl.style.height = '48px';
-            
-            chatStatusEl.textContent = '';
+            // 4. Save model response to Firestore
+            const modelMessage = {
+                text: modelResponseText,
+                role: 'model',
+                createdAt: serverTimestamp(),
+            };
             
             try {
-                // 1. Save and display user message
-                await saveMessage(currentChatId, userText, 'user');
+                const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
+                await addDoc(messagesRef, modelMessage);
 
-                // 2. Show typing indicator and fetch model response
-                loaderStatusTextEl.textContent = 'Connecting to model...';
-                showTypingIndicator(true);
-
-                const modelResponseText = await getGeminiResponse(userText);
+                // Check if the chat is still "New Chat" and try to rename it based on the first user message
+                if (chatTitleEl.textContent === 'New Chat') {
+                    const newTitle = prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt;
+                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                    await updateDoc(chatDocRef, { title: newTitle });
+                    chatTitleEl.textContent = newTitle;
+                }
                 
-                // 3. Save and display model message
-                await saveMessage(currentChatId, modelResponseText, 'model');
+                chatStatusEl.textContent = ''; // Clear status on success
 
             } catch (error) {
-                console.error("Chat Error:", error);
-                chatStatusEl.textContent = `Error: ${error.message}. Please try again.`;
-                displayMessage(`System Alert: Failed to get a response. ${error.message}`, 'model', new Date());
-            } finally {
-                showTypingIndicator(false);
-                setChatUIEnabled(true);
+                console.error("Error saving model response:", error);
+                chatStatusEl.textContent = `Error saving model response: ${error.message}`;
             }
+
+            isSending = false;
+            setChatUIEnabled(true);
         }
 
-        // --- AUTHENTICATION LOGIC ---
+        // --- EVENT HANDLERS ---
+
+        sendBtnEl.addEventListener('click', () => {
+            const prompt = userInputEl.value.trim();
+            if (prompt) {
+                userInputEl.value = '';
+                // Adjust textarea height back to min-height after sending
+                userInputEl.style.height = '48px'; 
+                sendPrompt(prompt);
+            }
+        });
+
+        userInputEl.addEventListener('keydown', (e) => {
+            // Prevent default Enter behavior unless Shift is held (for new line)
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendBtnEl.click();
+            }
+        });
         
-        /**
-         * Handles Google Sign-In using a popup.
-         */
-        async function signInWithGoogle() {
-            if (isFirebaseDisabled) {
-                showAlert('Feature Disabled', 'Sign-in is disabled because Firebase is not initialized.');
-                return;
-            }
-            try {
-                const provider = new GoogleAuthProvider();
-                await signInWithPopup(auth, provider);
-                // Auth listener handles state change
-            } catch (error) {
-                console.error("Google Sign-In Error:", error);
-                showAlert('Sign-In Failed', `Error: ${error.message}`);
-            }
-        }
+        userInputEl.addEventListener('input', () => {
+            // Auto-resize textarea
+            userInputEl.style.height = 'auto'; // Temporarily shrink
+            userInputEl.style.height = userInputEl.scrollHeight + 'px'; // Expand to fit content
+        });
 
-        /**
-         * Sets up Firebase, Auth, and Firestore.
-         */
-        async function setupFirebase() {
-            if (!firebaseConfig) {
-                isFirebaseDisabled = true;
-                // Update status and disable related buttons
-                authStatusEl.textContent = '🔴 ERROR: Config Missing';
-                userIdEl.textContent = 'User ID: N/A';
-                newChatBtn.disabled = true;
-                googleSignInBtn.disabled = true;
-                
-                // Display error in chat area and status bar
-                chatStatusEl.textContent = 'History/Auth Disabled: Missing Firebase config.';
-                chatMessagesEl.innerHTML = `
-                    <div class="text-center text-red-400 mt-20">
-                        <p class="text-3xl mb-2">🚨 System Error</p>
-                        <p class="text-lg">Firebase configuration is missing.</p>
-                        <p class="text-sm mt-4 text-gray-400">Chat history, sign-in, and persistence features are UNAVAILABLE. Please ensure the execution environment provides the "__firebase_config" variable.</p>
-                    </div>
-                `;
-                setChatUIEnabled(false);
-                return;
-            }
-
-            try {
-                // Initialize Firebase
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                // Enable Firestore debug logs for easier troubleshooting
-                setLogLevel('debug');
-
-                // Try to set persistence (optional, if supported by the environment)
+        newChatBtn.addEventListener('click', () => {
+            selectChat(null); // Passing null initiates a new chat creation
+        });
+        
+        renameBtnEl.addEventListener('click', async () => {
+            if (!currentChatId) return;
+            const currentTitle = chatTitleEl.textContent;
+            const newTitle = await showModal('Rename Chat', 'Enter a new title for this chat:', true, 'Rename', currentTitle);
+            
+            if (newTitle && newTitle !== currentTitle) {
                 try {
-                    await setPersistence(auth, inMemoryPersistence);
+                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                    await updateDoc(chatDocRef, { title: newTitle });
+                    chatTitleEl.textContent = newTitle;
+                    // startChatListListener will refresh the sidebar title
                 } catch (error) {
-                    // inMemoryPersistence is used as a safer fallback/default in environments like Canvas
-                    // Logging error to console for debug, but not displaying it in the chat UI
-                    console.log("Using in-memory persistence or persistence failed:", error.code);
+                    console.error("Error renaming chat:", error);
+                    showAlert('Rename Error', `Failed to rename chat: ${error.message}`);
                 }
+            }
+        });
+        
+        deleteBtnEl.addEventListener('click', async () => {
+            if (!currentChatId) return;
+            const confirmDelete = await showModal('Delete Chat', 'Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.', false, 'Delete');
+            
+            if (confirmDelete) {
+                try {
+                    // Note: Deleting the parent document (chat) typically requires cascade rules 
+                    // or manual deletion of sub-collections (messages) in the client/server.
+                    // For simplicity, we just delete the chat document, assuming Firestore security rules
+                    // or a backend function handles message cleanup for production, or the subcollection 
+                    // remains orphaned until the chat document is gone.
+                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                    await deleteDoc(chatDocRef);
+                    resetChatView(); // Reset UI immediately
+                } catch (error) {
+                    console.error("Error deleting chat:", error);
+                    showAlert('Delete Error', `Failed to delete chat: ${error.message}`);
+                }
+            }
+        });
+        
+        // --- MOBILE/SIDEBAR TOGGLE ---
+        const toggleSidebar = () => {
+            sidebarEl.classList.toggle('open');
+        };
+        menuToggleEl.addEventListener('click', toggleSidebar);
+        menuToggleMobileEl.addEventListener('click', toggleSidebar);
+
+
+        // --- FIREBASE INITIALIZATION ---
+
+        async function initFirebase() {
+            setLogLevel('debug'); // Enable detailed logging
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Set auth persistence to in-memory since the iframe resets often
+                await setPersistence(auth, inMemoryPersistence);
                 
-                // Handle initial sign-in using custom token or anonymously
+                authStatusEl.textContent = 'Authenticating...';
+
+                // Attempt custom token sign-in first, fall back to anonymous
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
 
-                // Set up auth state listener
+                // Listener for authentication state changes
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        userIdEl.textContent = `User ID: ${userId.substring(0, 10)}...`;
-                        authStatusEl.textContent = user.isAnonymous ? 'Signed In Anonymously' : `Signed In: ${user.email || 'Google User'}`;
-                        googleSignInBtn.textContent = 'Sign Out';
-                        googleSignInBtn.disabled = false;
-                        googleSignInBtn.onclick = () => {
-                            signOut(auth);
-                        };
+                        userIdEl.textContent = `User ID: ${userId}`;
+                        authStatusEl.textContent = 'Firebase Ready (Signed In)';
+                        authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
+                        authStatusEl.classList.add('text-green-400');
+                        startChatListListener(); // Start listening for chats
+                        setChatUIEnabled(true);
                         
-                        // Start listening for chats and load the UI
-                        setupChatListListener();
-                        setChatUIEnabled(currentChatId !== null);
+                        // After successful auth, attempt to load the key
+                        loadApiKeyFromFile(); 
 
-                        // Enable chat-related buttons
-                        newChatBtn.disabled = false;
-                        renameBtnEl.disabled = false;
-                        deleteBtnEl.disabled = false;
-
-                        // If the sidebar is closed on desktop, ensure it opens
-                        if (window.innerWidth >= 768) {
-                            sidebarEl.classList.add('open');
-                        }
                     } else {
-                        // User signed out or failed auth
                         userId = null;
-                        userIdEl.textContent = 'User ID: Not Signed In';
-                        authStatusEl.textContent = 'Signed Out. Please Sign In.';
-                        googleSignInBtn.textContent = 'Sign In';
-                        googleSignInBtn.disabled = false;
-                        googleSignInBtn.onclick = signInWithGoogle;
-
-                        // Clean up listeners and UI
-                        if (unsubscribeChats) unsubscribeChats();
-                        if (unsubscribeMessages) unsubscribeMessages();
-                        clearChatMessages();
+                        userIdEl.textContent = 'User ID: N/A';
+                        authStatusEl.textContent = 'Signed Out (Attempting Anon Sign-in)';
                         setChatUIEnabled(false);
-                        newChatBtn.disabled = false; // Allow creation of new chat to prompt sign in
-                        chatListEl.innerHTML = '<p class="text-sm text-gray-500 mt-4">Please sign in to view your chats.</p>';
-                        
-                        // Attempt to re-sign in anonymously if not already signing in with Google
-                        if (!initialAuthToken) {
-                            signInAnonymously(auth).catch(error => {
-                                console.error("Anonymous Sign-In Failed:", error);
-                                authStatusEl.textContent = `Auth Error: ${error.code || error.message}`;
-                            });
-                        }
                     }
-                }, (error) => {
-                    console.error("Authentication State Change Error:", error);
-                    authStatusEl.textContent = `Auth Error: ${error.code || error.message}`;
                 });
 
             } catch (error) {
-                console.error("Firebase Initialization Failed:", error);
-                authStatusEl.textContent = `Init Error: ${error.message}`;
-                setChatUIEnabled(false); // Disable chat UI if auth fails
-                showAlert('System Alert', `Failed to initialize Firebase. History is disabled.`);
+                console.error("Firebase Initialization Error:", error);
+                isFirebaseDisabled = true;
+                authStatusEl.textContent = `Firebase Disabled: ${error.message}`;
+                authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
+                authStatusEl.classList.add('text-red-400');
+                showAlert('Initialization Failed', 'Firebase chat history features are disabled due to an initialization error. Chat functionality will be limited.');
+                // Even if Firebase fails, we still try to load the key
+                loadApiKeyFromFile();
             }
         }
 
-        // --- EVENT LISTENERS & INIT ---
-        sendBtnEl.addEventListener('click', sendMessage);
-        userInputEl.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !userInputEl.disabled) {
-                e.preventDefault(); // Prevent newline
-                sendMessage();
-            }
-        });
-
-        // Auto-resize textarea on input
-        userInputEl.addEventListener('input', () => {
-            userInputEl.style.height = 'auto'; // Reset height
-            userInputEl.style.height = (userInputEl.scrollHeight) + 'px'; // Set to scroll height
-        });
-        
-        googleSignInBtn.addEventListener('click', () => {
-             // Listener is dynamically set in onAuthStateChanged
-        }); 
-        
-        newChatBtn.addEventListener('click', createNewChat);
-        renameBtnEl.addEventListener('click', renameChat);
-        deleteBtnEl.addEventListener('click', deleteChat); 
-        
-        // Mobile menu toggle
-        menuToggleEl.addEventListener('click', () => {
-            sidebarEl.classList.toggle('open');
-        });
-        menuToggleMobileEl.addEventListener('click', () => {
-            sidebarEl.classList.toggle('open');
-        });
-
-        // Initialize Firebase and Auth immediately
-        setupFirebase(); 
+        // Start the application setup
+        initFirebase();
     </script>
-
 </body>
 </html>
