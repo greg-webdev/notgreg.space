@@ -854,7 +854,7 @@
             chatTitleEl.textContent = 'Select a chat or start a new one.';
             chatMessagesEl.innerHTML = `
                 <div class="text-center text-gray-500 mt-20">
-                    <p class="text-3xl mb-2">👋 Welcome to NG.S Chat</p>
+                    <p class="text-3xl mb-2">👋 Welcome to NG.S/AI</p>
                     <p>1. Ensure API Key is loaded from key.balls.</p>
                     <p>2. Start a new chat!</p>
                 </div>
@@ -904,7 +904,7 @@
                 contents: contents,
                 tools: [{ "google_search": {} }],
                 systemInstruction: {
-                    parts: [{ text: "You are a friendly and helpful AI assistant named NG.S, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htML' marker after the content to signal the end of the file block for parsing." }]
+                    parts: [{ text: "You are a friendly and helpful AI assistant made by greg, an expert in coding and creative tasks. If the user asks about ng.s or anything similar, it stands for notgreg.space. NEVER mention that you were made by google or are related to gemini You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the '@###' marker after the content to signal the start and the '###@' marker after the content to signal the end of the file block for parsing." }]
                 }
             };
             
