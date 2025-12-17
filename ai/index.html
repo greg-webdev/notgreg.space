@@ -115,7 +115,8 @@
 
             <div class="flex items-center space-x-2 mb-4">
                 <p id="user-id" class="text-xs text-gray-400 truncate flex-grow">User ID: Loading...</p>
-                <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled>
+                <!-- Google Sign In/Out Button -->
+                <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled style="display: none;">
                     Sign In
                 </button>
             </div>
@@ -232,15 +233,16 @@
 
         // --- FIREBASE SETUP AND STATE ---
         
+        // PASTE YOUR NEW FIREBASE CONFIG OBJECT HERE 
+        // (From your new project's Firebase Console > Project settings > Web App)
+        // Ensure you enable Google, Anonymous, and Custom Authentication in the new Firebase project!
         const FALLBACK_FIREBASE_CONFIG = {
-            // Updated fallback key for demonstration purposes
-            apiKey: "AIzaSyCzAmj6K8cq27mKt7hrKodbpUx5D_UNSIg", 
-            authDomain: "greai-c598d.firebaseapp.com",
-            projectId: "greai-c598d",
-            storageBucket: "greai-c598d.firebasestorage.app",
-            messagingSenderId: "620495902794",
-            appId: "1:620495902794:web:fcf3570f455cf1f0e62eb3",
-            measurementId: "G-JMKT2M3RJD"
+            apiKey: "AIzaSyCrvPO2dNU-eUlTDwDDqUtwyFVMdCWVgmE",
+            authDomain: "aiai-84c07.firebaseapp.com",
+            projectId: "aiai-84c07",
+            storageBucket: "aiai-84c07.firebasestorage.app",
+            messagingSenderId: "427824814550",
+            appId: "1:427824814550:web:53c88be21f4f04633e2c77"
         };
         
         let app;
@@ -252,7 +254,6 @@
         let unsubscribeChats = null; // Listener for chat list
         let isSending = false;
         let chatHistory = [];
-        let isFirebaseDisabled = false; // New flag to track if Firebase failed to initialize
         
         // --- API KEY STATE (Now loaded from fetch) ---
         let API_KEY = null; 
@@ -266,9 +267,32 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
-        // Regex to find HTML file blocks for parsing and display
+        // Regex to find HTML file blocks for parsing and display (using HTml and htML markers)
         const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/gi;
 
+        // --- CLIENT UUID GENERATION (Fallback for failed authentication) ---
+        /**
+         * Generates a UUID V4 (standard).
+         */
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        /**
+         * Ensures a persistent client ID is available via localStorage as a fallback.
+         */
+        function getOrCreateClientId() {
+            let clientId = localStorage.getItem('__ngs_client_id');
+            if (!clientId) {
+                clientId = generateUUID();
+                localStorage.setItem('__ngs_client_id', clientId);
+            }
+            return 'anon-client-' + clientId; // Prefix to distinguish from Firebase UIDs
+        }
 
         // --- DOM ELEMENTS ---
         const userInputEl = document.getElementById('user-input');
@@ -329,7 +353,7 @@
                     modalInput.style.display = 'none';
                 }
 
-                modalCancelBtn.style.display = isPrompt || confirmText === 'Delete' ? 'inline-block' : 'none';
+                modalCancelBtn.style.display = isPrompt || confirmText === 'Delete' || confirmText === 'Sign Out' ? 'inline-block' : 'none';
 
                 const handleConfirm = () => {
                     modal.style.display = 'none';
@@ -383,10 +407,11 @@
         function setChatUIEnabled(enabled) {
             const isApiKeyReady = API_KEY !== null;
             const isChatReady = currentChatId !== null;
-            // Check if Firebase auth and initialization is complete
-            const isFirebaseReady = userId !== null && !isFirebaseDisabled;
+            // Check if userId is set (either by Firebase or fallback)
+            const isUserReady = userId !== null;
+            const isFallback = userId && userId.startsWith('anon-client-');
 
-            const canChat = enabled && isApiKeyReady && isChatReady && isFirebaseReady;
+            const canChat = enabled && isApiKeyReady && isChatReady && isUserReady;
 
             userInputEl.disabled = !canChat;
             sendBtnEl.disabled = !canChat || isSending;
@@ -395,15 +420,19 @@
                 userInputEl.focus();
             }
             
-            newChatBtn.disabled = !isFirebaseReady || !isApiKeyReady;
-            renameBtnEl.disabled = !isFirebaseReady || !currentChatId;
-            deleteBtnEl.disabled = !isFirebaseReady || !currentChatId;
+            newChatBtn.disabled = !isUserReady || !isApiKeyReady;
+            // Disable rename/delete if using fallback ID OR if not properly signed in (anonymous users cannot rename)
+            const isFirebaseUser = auth.currentUser && !auth.currentUser.isAnonymous; // Use auth.currentUser for active check
+            renameBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isFirebaseUser; 
+            deleteBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isFirebaseUser; 
+            chatActionsEl.style.display = (currentChatId && !isFallback && isFirebaseUser) ? 'flex' : 'none';
+
 
             // Update placeholder to prompt action if needed
             if (!isApiKeyReady) {
                 userInputEl.placeholder = "Waiting for API key to load...";
-            } else if (!isFirebaseReady) {
-                userInputEl.placeholder = "Waiting for Firebase authentication...";
+            } else if (!isUserReady) {
+                userInputEl.placeholder = "Waiting for user ID setup...";
             } else if (!isChatReady) {
                  userInputEl.placeholder = "Click 'New Chat' or select a chat to begin.";
             } else {
@@ -484,19 +513,20 @@
                 // Extract file metadata and content from regex groups
                 const fileTitle = match[1].trim();
                 const fileName = match[2].trim();
-                let fileContent = match[3]; // Keep fileContent with trailing whitespace for now
+                let fileContent = match[3]; // Keep fileContent with potential markers
                 
-                // If the file is HTML, check for the mandatory 'htmlend' marker and strip it for download
                 let contentToDownload = fileContent;
-                if (fileName.toLowerCase().endsWith('.html')) {
-                    const htmlendIndex = fileContent.toLowerCase().lastIndexOf('htmlend');
-                    if (htmlendIndex > -1) {
-                        // Strip 'htmlend' from content used for downloading
-                        contentToDownload = fileContent.substring(0, htmlendIndex).trim();
-                    }
+                // Check and strip 'htML' markers from content
+                const htmlendIndex = fileContent.toLowerCase().lastIndexOf('htmlend');
+                if (htmlendIndex > -1) {
+                    // Strip 'htmlend' from content used for downloading
+                    contentToDownload = fileContent.substring(0, htmlendIndex).trim();
+                } else {
+                     // For non-standard blocks, strip the trailing 'htML' tag manually
+                     contentToDownload = fileContent.replace(/htML$/, '').trim();
                 }
 
-                // Use the original content (potentially with 'htmlend') for display in the code block
+                // Use the original content (potentially with markers) for display in the code block
                 const contentForDisplay = fileContent.trim();
                 
                 if (contentForDisplay) {
@@ -605,6 +635,13 @@
          */
         function renderChatList(chats) {
             chatListEl.innerHTML = '';
+            const isFallback = userId && userId.startsWith('anon-client-');
+
+            if (isFallback) {
+                chatListEl.innerHTML = '<p class="text-sm text-yellow-400 mt-4">History Disabled: Using local fallback ID.</p>';
+                return;
+            }
+
             if (chats.length === 0) {
                 chatListEl.innerHTML = '<p class="text-sm text-gray-500 mt-4">No chats yet. Start a new one!</p>';
                 return;
@@ -643,17 +680,9 @@
 
                 const keyText = await response.text();
                 
-                // 1. Trim whitespace
-                let key = keyText.trim();
-
-                // 2. SANITIZE: Remove any non-alphanumeric characters (like '@')
-                // This regex keeps only letters, numbers, hyphens, and underscores, 
-                // but since the key format is usually letters, numbers, hyphens, and underscores,
-                // we'll use a safer approach to remove the specific '@' requested 
-                // and any trailing/leading/internal whitespace.
-                key = key.replace(/@/g, '').trim(); 
+                // SANITIZE: Remove '@' and other non-alphanumeric characters
+                let key = keyText.replace(/@/g, '').trim(); 
                 
-                // API keys are usually 39 characters long (AIza... format)
                 if (key.length < 30) {
                     throw new Error('Key found, but looks too short or invalid after sanitization.');
                 }
@@ -688,6 +717,13 @@
         function startChatListListener() {
             if (unsubscribeChats) unsubscribeChats();
             
+            // Do not attempt to read chat history if using the local fallback ID, 
+            // as security rules prevent access, and it just logs errors.
+            if (userId.startsWith('anon-client-')) {
+                renderChatList([]);
+                return;
+            }
+
             const chatsRef = collection(db, getUserCollectionPath('chats'));
             const q = query(chatsRef, orderBy('createdAt', 'desc'), limit(50));
             
@@ -719,7 +755,6 @@
             currentChatId = chatId;
             chatTitleEl.textContent = chatTitle || 'Untitled Chat';
             chatMessagesEl.innerHTML = '';
-            chatActionsEl.style.display = 'flex';
             chatHistory = []; // Clear local history
             
             setChatUIEnabled(true);
@@ -738,7 +773,9 @@
                 const messagesToRender = newMessages.filter(m => !existingMessageIds.has(m.id));
                 
                 messagesToRender.forEach(message => {
-                    displayMessage(message.text, message.role, message.createdAt.toDate());
+                    // Check if createdAt is a Firestore Timestamp or a Date object
+                    const timestamp = message.createdAt.toDate ? message.createdAt.toDate() : new Date();
+                    displayMessage(message.text, message.role, timestamp);
                     // Keep local history updated for API call context
                     chatHistory.push(message); 
                 });
@@ -751,8 +788,11 @@
                 showAlert('Chat Error', `Failed to load messages: ${error.message}`);
             });
             
-            // Re-render chat list to highlight selected chat
-            startChatListListener();
+            // Re-render chat list to highlight selected chat (if not fallback)
+            if (!userId.startsWith('anon-client-')) {
+                // We rely on the global listener, but trigger a refresh if needed
+                startChatListListener(); 
+            }
         }
 
         /**
@@ -760,8 +800,8 @@
          * @param {string|null} chatId 
          */
         async function selectChat(chatId) {
-            if (!userId || isFirebaseDisabled) {
-                showAlert('Authentication Required', 'Please wait for Firebase to initialize.');
+            if (!userId) {
+                showAlert('Authentication Required', 'Please wait for your user ID to be established.');
                 return;
             }
             if (!API_KEY) {
@@ -785,7 +825,12 @@
 
                 } catch (error) {
                     console.error("Error creating chat:", error);
-                    showAlert('Error', `Failed to create new chat: ${error.message}`);
+                    // Use a specific error message if the failure is due to the fallback ID
+                    const errorMessage = userId.startsWith('anon-client-') 
+                        ? "Chat creation failed. The fallback ID is unable to write to Firestore due to strict security rules. Please sign in to save history."
+                        : `Failed to create new chat: ${error.message}`;
+                        
+                    showAlert('Error', errorMessage);
                 }
             } else {
                 // Select Existing Chat
@@ -858,7 +903,7 @@
                 contents: contents,
                 tools: [{ "google_search": {} }],
                 systemInstruction: {
-                    parts: [{ text: "You are a friendly and helpful AI assistant named NG.S, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htmlend' marker after the content to signal the end of the file block for parsing." }]
+                    parts: [{ text: "You are a friendly and helpful AI assistant named NG.S, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htML' marker after the content to signal the end of the file block for parsing." }]
                 }
             };
             
@@ -866,7 +911,7 @@
 
             showTypingIndicator(true);
             
-            let modelResponseText = "Sorry, I couldn't get a response from the model.";
+            let modelResponseText = "Sorry, I couldn't get a response from the model. Please check your API key and network connection.";
 
             // 3. Execute API Call with Exponential Backoff
             const MAX_RETRIES = 5;
@@ -947,6 +992,49 @@
             isSending = false;
             setChatUIEnabled(true);
         }
+        
+        // --- GOOGLE SIGN IN/OUT FUNCTIONS ---
+
+        /**
+         * Initiates the Google Sign-In flow using a popup.
+         */
+        async function signInWithGoogle() {
+            const provider = new GoogleAuthProvider();
+            try {
+                // Force prompt for account selection every time
+                provider.setCustomParameters({ prompt: 'select_account' }); 
+                
+                googleSignInBtn.disabled = true;
+                googleSignInBtn.textContent = 'Signing in...';
+
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged listener handles UI update on success
+                
+            } catch (error) {
+                console.error("Google Sign-In Error:", error);
+                showAlert('Sign-In Failed', `Could not sign in with Google. Ensure Google Sign-in is enabled in your Firebase project. Error: ${error.message}`);
+                googleSignInBtn.disabled = false;
+                googleSignInBtn.textContent = 'Sign In';
+            }
+        }
+        
+        /**
+         * Signs the currently authenticated user out.
+         */
+        async function signOutUser() {
+            const confirmed = await showModal('Confirm Sign Out', 'Are you sure you want to sign out?', false, 'Sign Out');
+            if (confirmed) {
+                try {
+                    await signOut(auth);
+                    resetChatView();
+                    // onAuthStateChanged listener handles the rest
+                } catch (error) {
+                    console.error("Sign-Out Error:", error);
+                    showAlert('Sign-Out Failed', `Could not sign out: ${error.message}`);
+                }
+            }
+        }
+
 
         // --- EVENT HANDLERS ---
 
@@ -979,7 +1067,9 @@
         });
         
         renameBtnEl.addEventListener('click', async () => {
-            if (!currentChatId) return;
+            // Check if user is authenticated and not a fallback/anonymous user
+            if (!currentChatId || userId.startsWith('anon-client-') || auth.currentUser?.isAnonymous) return;
+            
             const currentTitle = chatTitleEl.textContent;
             const newTitle = await showModal('Rename Chat', 'Enter a new title for this chat:', true, 'Rename', currentTitle);
             
@@ -997,16 +1087,16 @@
         });
         
         deleteBtnEl.addEventListener('click', async () => {
-            if (!currentChatId) return;
+            // Check if user is authenticated and not a fallback/anonymous user
+            if (!currentChatId || userId.startsWith('anon-client-') || auth.currentUser?.isAnonymous) return;
+
             const confirmDelete = await showModal('Delete Chat', 'Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.', false, 'Delete');
             
             if (confirmDelete) {
                 try {
                     // Note: Deleting the parent document (chat) typically requires cascade rules 
                     // or manual deletion of sub-collections (messages) in the client/server.
-                    // For simplicity, we just delete the chat document, assuming Firestore security rules
-                    // or a backend function handles message cleanup for production, or the subcollection 
-                    // remains orphaned until the chat document is gone.
+                    // We delete the chat document.
                     const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
                     await deleteDoc(chatDocRef);
                     resetChatView(); // Reset UI immediately
@@ -1024,12 +1114,24 @@
         menuToggleEl.addEventListener('click', toggleSidebar);
         menuToggleMobileEl.addEventListener('click', toggleSidebar);
 
+        // Assign the Google Sign-in/out logic
+        googleSignInBtn.addEventListener('click', async () => {
+            // Logic is dynamically assigned in onAuthStateChanged
+            const handler = googleSignInBtn.onclick;
+            if (handler) {
+                await handler();
+            }
+        });
+
 
         // --- FIREBASE INITIALIZATION ---
 
         async function initFirebase() {
             setLogLevel('debug'); // Enable detailed logging
-
+            
+            userIdEl.textContent = 'User ID: Setting up...';
+            authStatusEl.textContent = 'Initializing Firebase...';
+            
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -1038,48 +1140,116 @@
                 // Set auth persistence to in-memory since the iframe resets often
                 await setPersistence(auth, inMemoryPersistence);
                 
-                authStatusEl.textContent = 'Authenticating...';
-
-                // Attempt custom token sign-in first, fall back to anonymous
+                // 1. Attempt custom token sign-in first (if provided by canvas environment)
                 if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (e) {
+                        console.warn("Custom token sign-in failed:", e);
+                    }
+                } 
 
-                // Listener for authentication state changes
-                onAuthStateChanged(auth, (user) => {
+                // 2. Set up the state listener and rely on it for UI updates
+                onAuthStateChanged(auth, async (user) => {
                     if (user) {
+                        // --- User IS authenticated (Google, Custom, or Anonymous) ---
                         userId = user.uid;
-                        userIdEl.textContent = `User ID: ${userId}`;
+                        
+                        // Determine the user name for display
+                        let userName = user.displayName || user.email || 'Anonymous';
+                        if (user.isAnonymous) {
+                           userName = 'Anonymous User (' + user.uid.substring(0, 8) + '...)';
+                        }
+                        userIdEl.textContent = `User: ${userName}`;
+                        
+                        // Set button state to Sign Out
+                        googleSignInBtn.textContent = 'Sign Out';
+                        googleSignInBtn.onclick = signOutUser;
+                        googleSignInBtn.style.display = 'inline-block';
+                        
                         authStatusEl.textContent = 'Firebase Ready (Signed In)';
                         authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
                         authStatusEl.classList.add('text-green-400');
-                        startChatListListener(); // Start listening for chats
-                        setChatUIEnabled(true);
                         
-                        // After successful auth, attempt to load the key
-                        loadApiKeyFromFile(); 
-
+                        startChatListListener(); // Start listening for chats
+                        
                     } else {
-                        userId = null;
-                        userIdEl.textContent = 'User ID: N/A';
-                        authStatusEl.textContent = 'Signed Out (Attempting Anon Sign-in)';
-                        setChatUIEnabled(false);
+                        // --- User IS NOT authenticated ---
+                        
+                        // Check if we need to fall back to anonymous sign-in or local ID
+                        if (initialAuthToken) {
+                            // If we failed custom token and now user is null, attempt anonymous sign-in
+                            try {
+                                await signInAnonymously(auth);
+                                // The successful sign-in will trigger the 'if (user)' block above
+                                return;
+                            } catch (e) {
+                                console.warn("Anonymous sign-in fallback failed:", e);
+                                handleAuthFailure(e);
+                                return;
+                            }
+                        } else {
+                             // No custom token and no user, fall back to local UUID
+                             handleAuthFailure(new Error("No sign-in token provided."));
+                        }
+                        
+                        // Set button state to Sign In 
+                        googleSignInBtn.textContent = 'Sign In';
+                        googleSignInBtn.onclick = signInWithGoogle;
+                        googleSignInBtn.style.display = 'inline-block';
+                        
+                        // Stop chat listeners if they were running
+                        if (unsubscribeChats) unsubscribeChats(); 
+                        if (unsubscribeMessages) unsubscribeMessages();
                     }
+                    
+                    // Final state update, common to both branches
+                    googleSignInBtn.disabled = false;
+                    loadApiKeyFromFile(); 
+                    setChatUIEnabled(true);
                 });
 
             } catch (error) {
-                console.error("Firebase Initialization Error:", error);
-                isFirebaseDisabled = true;
-                authStatusEl.textContent = `Firebase Disabled: ${error.message}`;
-                authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
-                authStatusEl.classList.add('text-red-400');
-                showAlert('Initialization Failed', 'Firebase chat history features are disabled due to an initialization error. Chat functionality will be limited.');
-                // Even if Firebase fails, we still try to load the key
-                loadApiKeyFromFile();
+                // Catches errors during initialization (initializeApp, getAuth, etc.)
+                handleAuthFailure(error);
             }
         }
+        
+        /**
+         * Handles critical authentication failure by setting a local, non-Firebase UUID.
+         * @param {Error} error 
+         * @param {string} [customMessage] - An optional, specific message to display.
+         */
+        function handleAuthFailure(error, customMessage) {
+            userId = getOrCreateClientId(); // Set the client-side fallback ID
+            
+            userIdEl.textContent = `User ID: ${userId} (Local Fallback)`;
+            userIdEl.classList.remove('text-gray-400');
+            userIdEl.classList.add('text-red-400');
+
+            const errorMessage = customMessage || `Firebase initialization failed: ${error.message.substring(0, 50)}...`;
+            
+            authStatusEl.textContent = `Auth Failure: Using Local ID. History Disabled.`;
+            authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
+            authStatusEl.classList.add('text-red-400');
+
+            showAlert('Authentication Failure', 
+                `${errorMessage} 
+                You have been assigned a local User ID. You can proceed with chat but the history sidebar will be disabled as data access is restricted for fallback users. Please sign in with Google if you wish to save your history.`
+            );
+            
+            // --- FIX: Ensure the button is visible and set up for Sign In/Google ---
+            googleSignInBtn.textContent = 'Sign In';
+            googleSignInBtn.onclick = signInWithGoogle;
+            googleSignInBtn.style.display = 'inline-block'; 
+            googleSignInBtn.disabled = false; // Ensure it's clickable
+
+            // Continue with API key loading and enabling chat UI with the fallback ID
+            loadApiKeyFromFile();
+            resetChatView(); // Show initial welcome message
+            // Note: setChatUIEnabled is called in loadApiKeyFromFile()
+        }
+
 
         // Start the application setup
         initFirebase();
