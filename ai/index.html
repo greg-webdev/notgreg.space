@@ -114,7 +114,7 @@
             </button>
 
             <div class="flex items-center space-x-2 mb-4">
-                <p id="user-id" class="text-xs text-gray-400 truncate flex-grow">User ID: Loading...</p>
+                <p id="user-id" class="text-xs text-gray-400 truncate flex-grow">.</p>
                 <!-- Google Sign In/Out Button -->
                 <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled style="display: none;">
                     Sign In
@@ -397,7 +397,7 @@
          * @param {string} message 
          */
         async function showAlert(title, message) {
-            await showModal(title, message, false, 'Close');
+            await showModal(title, message, false, 'Ok');
         }
 
         /**
@@ -639,7 +639,7 @@
             const isFallback = userId && userId.startsWith('anon-client-');
 
             if (isFallback) {
-                chatListEl.innerHTML = '<p class="text-sm text-yellow-400 mt-4">History Disabled: Using local fallback ID.</p>';
+                chatListEl.innerHTML = '<p class="text-sm text-yellow-400 mt-4">SIGN IN OR IT WONT WORK.</p>';
                 return;
             }
 
@@ -828,7 +828,7 @@
                     console.error("Error creating chat:", error);
                     // Use a specific error message if the failure is due to the fallback ID
                     const errorMessage = userId.startsWith('anon-client-') 
-                        ? "Chat creation failed. The fallback ID is unable to write to Firestore due to strict security rules. Please sign in to save history."
+                        ? "it wont work you have to sign in"
                         : `Failed to create new chat: ${error.message}`;
                         
                     showAlert('Error', errorMessage);
@@ -1132,8 +1132,8 @@
         async function initFirebase() {
             setLogLevel('debug'); // Enable detailed logging
             
-            userIdEl.textContent = 'User ID: Setting up...';
-            authStatusEl.textContent = 'Initializing Firebase...';
+            userIdEl.textContent = 'Sign  In  ━━━━━━>';
+            authStatusEl.textContent = ' ';
             
             try {
                 app = initializeApp(firebaseConfig);
@@ -1228,19 +1228,18 @@
         function handleAuthFailure(error, customMessage) {
             userId = getOrCreateClientId(); // Set the client-side fallback ID
             
-            userIdEl.textContent = `User ID: ${userId} (Local Fallback)`;
             userIdEl.classList.remove('text-gray-400', 'text-green-400');
             userIdEl.classList.add('text-red-400');
 
-            const errorMessage = customMessage || `Firebase initialization failed: ${error.message.substring(0, 50)}...`;
+            const errorMessage = customMessage || `You have to sign in to use this AI `;
             
-            authStatusEl.textContent = `Auth Failure: Using Local ID. History Disabled.`;
+            authStatusEl.textContent = `Working, probably.`;
             authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
-            authStatusEl.classList.add('text-red-400');
+            authStatusEl.classList.add('text-green-400');
 
             showAlert('Authentication Failure', 
                 `${errorMessage} 
-                You have been assigned a local User ID. You can proceed with chat but the history sidebar will be disabled as data access is restricted for fallback users. Please sign in with Google if you wish to save your history.`
+                and it is still in development so it might not be de best.`
             );
             
             // --- FIX: Ensure the button is visible and set up for Sign In/Google ---

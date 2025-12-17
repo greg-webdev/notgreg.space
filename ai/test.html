@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NG.S AI Assistant - Auto-Key Loader</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Dark background */
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent body scroll */
+        }
+
+        /* --- Scrollbar Styling --- */
+        .chat-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #38bdf8 #1f2937;
+        }
+
+        .chat-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-scroll::-webkit-scrollbar-track {
+            background: #1f2937;
+            border-radius: 10px;
+        }
+
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: #38bdf8;
+            border-radius: 10px;
+            border: 2px solid #1f2937;
+        }
+
+        /* Style for the custom modal */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #374151; /* Darker card background */
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #4b5563;
+            width: 80%;
+            max-width: 400px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            color: #f3f4f6;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message-bg {
+            background-color: #374151; /* Slightly lighter for user bubble */
+        }
+
+        .model-message-bg {
+            background-color: #1f2937; /* Default dark background for model bubble */
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-gray-100 flex flex-col h-screen antialiased">
+
+    <!-- Custom Alert Modal -->
+    <div id="customAlertModal" class="modal">
+        <div class="modal-content">
+            <div id="alertTitle" class="text-xl font-bold mb-3 text-cyan-400">Alert</div>
+            <div id="alertMessage" class="text-sm whitespace-pre-wrap">Message</div>
+            <button id="alertCloseButton" class="mt-4 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-200">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex flex-1 w-full max-w-7xl mx-auto overflow-hidden">
+
+        <!-- History Sidebar (Initially hidden on mobile, show on md and up) -->
+        <div id="history-sidebar" class="hidden md:flex flex-col w-64 bg-gray-900 border-r border-gray-700 p-4 transition-all duration-300 ease-in-out">
+            <h2 class="text-lg font-bold mb-4 text-cyan-400">Chat History</h2>
+            <div id="history-list" class="flex-1 overflow-y-auto chat-scroll space-y-3">
+                <!-- History items will be injected here -->
+                <p class="text-gray-500 text-sm italic">No history yet. Start a conversation!</p>
+            </div>
+            <div class="mt-4 border-t border-gray-700 pt-4">
+                <button id="clear-history-btn" class="w-full px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition duration-200 disabled:opacity-50">
+                    Clear History
+                </button>
+            </div>
+        </div>
+        
+        <!-- Chat Area -->
+        <div class="flex flex-col flex-1">
+            <!-- Header (for status info) -->
+            <header class="p-4 bg-gray-700 shadow-lg flex justify-between items-center flex-wrap gap-2">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <h1 class="text-xl font-bold text-white">NG.S Chat</h1>
+                    <span id="authStatus" class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-900 text-yellow-400">Loading Auth...</span>
+                    <span id="userIdDisplay" class="px-3 py-1 text-xs rounded-full bg-gray-900 text-gray-400 overflow-hidden whitespace-nowrap overflow-ellipsis max-w-xs">ID: initializing...</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="googleSignInBtn" class="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition duration-200 disabled:opacity-50" style="display: none;">Sign In</button>
+                    <button id="toggle-history-btn" class="md:hidden p-2 rounded-full bg-gray-600 hover:bg-gray-500 text-white transition duration-200" title="Toggle History">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Messages Container -->
+            <main id="chat-container" class="flex-1 p-4 overflow-y-auto chat-scroll space-y-6">
+                <!-- Chat messages will be dynamically added here -->
+            </main>
+
+            <!-- Input Area -->
+            <footer class="p-4 bg-gray-700 shadow-inner">
+                <div class="flex items-center gap-3">
+                    <input type="text" id="chat-input" placeholder="Ask me anything..."
+                        class="flex-1 px-4 py-3 rounded-xl bg-gray-800 border border-gray-600 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-white transition duration-200"
+                        autocomplete="off"
+                        disabled>
+                    <button id="send-button"
+                        class="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl transition duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        Send
+                    </button>
+                </div>
+                <p id="status-message" class="text-sm mt-2 text-gray-400 italic">Waiting for authentication and API key...</p>
+            </footer>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, collection, query, where, getDocs, onSnapshot, orderBy, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // setLogLevel('Debug'); // Enable debug logging for Firestore
+
+        // --- Global Variables ---
+        let app = null;
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let chatHistory = [];
+        let isChatEnabled = false;
+        let currentChatId = null; // ID of the current conversation
+        let historySnapshotUnsubscribe = null; // Function to unsubscribe from history listener
+
+        const API_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const apiUrlBase = `https://generativelanguage.googleapis.com/v1beta/models/${API_MODEL}:generateContent?key=`;
+        let apiKey = ""; // Will be loaded from the environment
+
+        // --- DOM Elements ---
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const chatContainer = document.getElementById('chat-container');
+        const statusMessage = document.getElementById('status-message');
+        const historyListEl = document.getElementById('history-list');
+        const userIdEl = document.getElementById('userIdDisplay');
+        const authStatusEl = document.getElementById('authStatus');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+        const googleSignInBtn = document.getElementById('googleSignInBtn');
+        const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+        const historySidebar = document.getElementById('history-sidebar');
+
+        // --- Custom Alert Modal Logic ---
+        const customAlertModal = document.getElementById('customAlertModal');
+        const alertTitle = document.getElementById('alertTitle');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertCloseButton = document.getElementById('alertCloseButton');
+
+        alertCloseButton.onclick = function() {
+            customAlertModal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target === customAlertModal) {
+                customAlertModal.style.display = 'none';
+            }
+        }
+
+        function showAlert(title, message) {
+            alertTitle.textContent = title;
+            alertMessage.textContent = message;
+            customAlertModal.style.display = 'block';
+        }
+
+        // --- Utility Functions ---
+
+        /**
+         * Simulates an exponential backoff retry mechanism for API calls.
+         * @param {Function} fn The function to execute (the API call).
+         * @param {number} maxRetries The maximum number of times to retry.
+         * @returns {Promise<Response>} The final successful response.
+         */
+        async function fetchWithBackoff(fn, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fn();
+                    if (response.ok) {
+                        return response;
+                    }
+                    // Handle rate limiting (429) or other retryable errors
+                    if (response.status === 429 || response.status >= 500) {
+                        throw new Error(`Retryable error: ${response.status}`);
+                    }
+                    // For non-retryable errors (e.g., 400, 401), we break and handle below
+                    return response;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        // Throw error if it's the last retry
+                        throw error;
+                    }
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                    // console.warn(`Request failed. Retrying in ${delay / 1000}s... (Attempt ${i + 1})`, error.message || error);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        function setChatUIEnabled(enabled) {
+            isChatEnabled = enabled;
+            chatInput.disabled = !enabled;
+            sendButton.disabled = !enabled;
+            statusMessage.textContent = enabled 
+                ? "Ready! Type your message and press Send or Enter."
+                : "Initializing or waiting for API key...";
+            if (enabled) {
+                chatInput.focus();
+            }
+        }
+
+        function formatUserId(uid) {
+             // For display, use the full ID since it's needed for other users to find them.
+            return `ID: ${uid}`;
+        }
+
+        function createMessageElement(text, role, isPending = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('flex', 'gap-3', 'p-4', 'rounded-xl', 'shadow-lg', 'transition', 'duration-300');
+
+            let icon, bgColorClass, textColorClass;
+
+            if (role === 'user') {
+                icon = '👤';
+                bgColorClass = 'user-message-bg';
+                textColorClass = 'text-gray-100';
+                messageDiv.classList.add('justify-end');
+            } else {
+                icon = '🤖';
+                bgColorClass = 'model-message-bg';
+                textColorClass = 'text-cyan-200';
+                messageDiv.classList.add('justify-start');
+            }
+
+            // Create the icon/avatar element
+            const iconEl = document.createElement('div');
+            iconEl.textContent = icon;
+            iconEl.classList.add('flex-shrink-0', 'text-2xl');
+
+            // Create the content bubble
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('max-w-4xl', 'break-words', 'whitespace-pre-wrap', 'p-3', 'rounded-lg', textColorClass, bgColorClass);
+            
+            if (isPending) {
+                // For pending message, show a loading spinner/dots
+                contentDiv.innerHTML = `<span class="loading-dots">...</span>`;
+                contentDiv.classList.add('italic', 'text-gray-400');
+            } else {
+                // Use innerHTML to handle Markdown formatting (like lists, bold, etc.)
+                // NOTE: A proper markdown library should be used for production, but simple formatting is often acceptable.
+                // For this template, we will just display the text directly for simplicity.
+                contentDiv.textContent = text; 
+                contentDiv.classList.remove('italic', 'text-gray-400');
+            }
+
+            if (role === 'user') {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(iconEl);
+            } else {
+                messageDiv.appendChild(iconEl);
+                messageDiv.appendChild(contentDiv);
+            }
+
+            // Add the pending indicator to the element itself for easy reference
+            if (isPending) {
+                messageDiv.setAttribute('data-pending', 'true');
+            }
+            
+            return messageDiv;
+        }
+
+        function resetChatView() {
+            chatContainer.innerHTML = '';
+            chatHistory = [];
+            currentChatId = null;
+
+            // Add a welcome message
+            const welcomeMsg = createMessageElement("Hello! I am a Gemini-powered AI Assistant. Ask me anything to start a conversation.", 'model');
+            chatContainer.appendChild(welcomeMsg);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // --- Chat Interaction Logic ---
+
+        async function sendMessage() {
+            if (!isChatEnabled) {
+                showAlert('Not Ready', 'The chat is still initializing. Please wait a moment.');
+                return;
+            }
+
+            const prompt = chatInput.value.trim();
+            if (!prompt) return;
+
+            // 1. Disable UI and clear input
+            setChatUIEnabled(false);
+            chatInput.value = '';
+
+            // 2. Add User Message to UI and history
+            const userMessage = { role: "user", parts: [{ text: prompt }] };
+            chatHistory.push(userMessage);
+            chatContainer.appendChild(createMessageElement(prompt, 'user'));
+            scrollToBottom();
+
+            // 3. Add Pending Model Message
+            const pendingMessageElement = createMessageElement('', 'model', true);
+            chatContainer.appendChild(pendingMessageElement);
+            scrollToBottom();
+
+            try {
+                // 4. API Request Setup
+                const fullApiUrl = apiUrlBase + apiKey;
+
+                const payload = {
+                    // Use the entire chat history for conversational context
+                    contents: chatHistory, 
+                    // Optional: System instruction to guide the model's behavior
+                    systemInstruction: {
+                        parts: [{ text: "You are a helpful and concise AI assistant. Keep your answers factual and professional." }]
+                    },
+                    // We will use Google Search grounding for up-to-date information
+                    tools: [{ "google_search": {} }],
+                };
+
+                const response = await fetchWithBackoff(() => fetch(fullApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }));
+                
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (!candidate || !candidate.content?.parts?.[0]?.text) {
+                    throw new Error("Invalid or empty response from the API.");
+                }
+
+                // 5. Extract Data
+                const modelText = candidate.content.parts[0].text;
+                const modelMessage = { role: "model", parts: [{ text: modelText }] };
+                
+                // Extract grounding sources
+                let sources = [];
+                const groundingMetadata = candidate.groundingMetadata;
+                if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                    sources = groundingMetadata.groundingAttributions
+                        .map(attribution => ({
+                            uri: attribution.web?.uri,
+                            title: attribution.web?.title,
+                        }))
+                        .filter(source => source.uri && source.title);
+                }
+
+                // Append model message to chat history
+                chatHistory.push(modelMessage);
+
+                // 6. Update UI with final response
+                pendingMessageElement.textContent = modelText;
+                pendingMessageElement.removeAttribute('data-pending');
+                pendingMessageElement.lastElementChild.classList.remove('italic', 'text-gray-400');
+                
+                // Display sources if available
+                if (sources.length > 0) {
+                    const sourcesDiv = document.createElement('div');
+                    sourcesDiv.classList.add('mt-2', 'text-xs', 'text-gray-400', 'border-t', 'border-gray-600', 'pt-2');
+                    sourcesDiv.innerHTML = '<strong>Sources:</strong> ' + sources.map(s => 
+                        `<a href="${s.uri}" target="_blank" class="text-blue-400 hover:text-blue-300 underline">${s.title.substring(0, 30)}...</a>`
+                    ).join(', ');
+                    pendingMessageElement.querySelector('div:last-child').appendChild(sourcesDiv);
+                }
+
+
+                // 7. Save or Update Firestore
+                if (userId && currentChatId) {
+                    // Update existing chat
+                    await updateChatInFirestore(currentChatId, chatHistory);
+                } else if (userId && !currentChatId) {
+                    // Create new chat
+                    const newChatId = await saveNewChatToFirestore(chatHistory, prompt);
+                    currentChatId = newChatId;
+                    // Force refresh history sidebar to show the new chat
+                    refreshHistoryList(); 
+                }
+                
+            } catch (error) {
+                // 8. Handle Errors
+                console.error("Chat failed:", error);
+                
+                // Update pending message with error
+                pendingMessageElement.textContent = `Error: ${error.message || "An unknown error occurred."}`;
+                pendingMessageElement.classList.add('text-red-400');
+                
+                // Remove the last two messages (user and failed model response) from history
+                chatHistory.pop(); 
+                chatHistory.pop(); 
+                
+                showAlert('API Error', `Could not get a response from the model. Please try again. Error: ${error.message}`);
+
+            } finally {
+                // 9. Re-enable UI
+                setChatUIEnabled(true);
+                scrollToBottom();
+            }
+        }
+
+        // --- Event Listeners ---
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        toggleHistoryBtn.addEventListener('click', () => {
+            historySidebar.classList.toggle('hidden');
+            historySidebar.classList.toggle('flex');
+        });
+
+        // --- Firebase/Auth Setup ---
+
+        function getCollectionPath() {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Private data path: /artifacts/{appId}/users/{userId}/{your_collection_name}
+            return `artifacts/${appId}/users/${userId}/chats`;
+        }
+        
+        // Function to create a chat item in the history sidebar
+        function createHistoryItem(chatId, title, isActive = false) {
+            const item = document.createElement('div');
+            item.className = `p-3 text-sm rounded-lg cursor-pointer transition-colors duration-200 ${isActive ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-gray-800 hover:bg-gray-700'}`;
+            item.textContent = title;
+            item.dataset.chatId = chatId;
+            item.onclick = () => loadChat(chatId);
+            return item;
+        }
+
+        // Load an existing chat from Firestore
+        async function loadChat(chatId) {
+            if (currentChatId === chatId) return; // Already loaded
+
+            try {
+                const docRef = doc(db, getCollectionPath(), chatId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const chatData = docSnap.data();
+                    
+                    // Update UI state
+                    currentChatId = chatId;
+                    chatHistory = chatData.history || [];
+
+                    // Render chat messages
+                    chatContainer.innerHTML = '';
+                    chatHistory.forEach(msg => {
+                        // Only display valid user/model messages
+                        if (msg.role && msg.parts && msg.parts[0]?.text) {
+                            chatContainer.appendChild(createMessageElement(msg.parts[0].text, msg.role));
+                        }
+                    });
+                    scrollToBottom();
+                    
+                    // Visually update the sidebar
+                    refreshHistoryList(); 
+                    
+                } else {
+                    showAlert('Error', 'Chat document not found.');
+                    console.error("No such document!");
+                }
+            } catch (error) {
+                showAlert('Error', `Failed to load chat: ${error.message}`);
+                console.error("Error loading chat:", error);
+            }
+        }
+
+        // Saves a brand new chat conversation to Firestore
+        async function saveNewChatToFirestore(history, initialPrompt) {
+            try {
+                if (!db || !userId) throw new Error("Database or User ID not initialized.");
+                
+                const initialTitle = initialPrompt.substring(0, 40) + '...';
+
+                const chatDoc = {
+                    userId: userId,
+                    title: initialTitle,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    history: history
+                };
+
+                const docRef = await addDoc(collection(db, getCollectionPath()), chatDoc);
+                console.log("New Chat saved with ID:", docRef.id);
+                return docRef.id;
+
+            } catch (error) {
+                console.error("Error saving new chat to Firestore:", error);
+                showAlert('Save Error', `Could not save new chat history: ${error.message}.`);
+                return null;
+            }
+        }
+
+        // Updates an existing chat conversation in Firestore
+        async function updateChatInFirestore(chatId, history) {
+            try {
+                if (!db || !userId || !chatId) throw new Error("Database, User ID, or Chat ID missing.");
+
+                const docRef = doc(db, getCollectionPath(), chatId);
+                await updateDoc(docRef, {
+                    updatedAt: new Date(),
+                    history: history
+                });
+                // console.log("Chat updated successfully:", chatId);
+            } catch (error) {
+                console.error("Error updating chat in Firestore:", error);
+                // Note: No alert here, as failed updates shouldn't block the chat flow.
+            }
+        }
+        
+        // Deletes all chats for the current user
+        async function clearAllChats() {
+            try {
+                if (!db || !userId) throw new Error("Database or User ID not initialized.");
+                
+                // Show confirmation modal instead of standard confirm()
+                if (!await showConfirmation('Clear All History', 'Are you sure you want to delete ALL your chat history? This cannot be undone.')) {
+                    return;
+                }
+
+                const chatsQuery = query(collection(db, getCollectionPath()));
+                const querySnapshot = await getDocs(chatsQuery);
+                
+                const deletePromises = [];
+                querySnapshot.forEach((doc) => {
+                    deletePromises.push(deleteDoc(doc.ref));
+                });
+
+                await Promise.all(deletePromises);
+                
+                showAlert('Success', 'All chat history cleared!');
+                resetChatView(); // Reset current chat view
+                // The onSnapshot listener will automatically update the history list
+
+            } catch (error) {
+                console.error("Error clearing all chats:", error);
+                showAlert('Error', `Failed to clear chat history: ${error.message}`);
+            }
+        }
+
+        clearHistoryBtn.addEventListener('click', clearAllChats);
+        
+        // Simple confirmation dialog using the custom modal (since standard confirm is blocked)
+        function showConfirmation(title, message) {
+            return new Promise((resolve) => {
+                const confirmModal = document.getElementById('customAlertModal');
+                const confirmTitle = document.getElementById('alertTitle');
+                const confirmMessage = document.getElementById('alertMessage');
+                const okButton = document.getElementById('alertCloseButton');
+
+                // Create a cancel button for confirmation
+                let cancelButton = document.getElementById('alertCancelButton');
+                if (!cancelButton) {
+                    cancelButton = document.createElement('button');
+                    cancelButton.id = 'alertCancelButton';
+                    cancelButton.className = 'mt-4 w-1/2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition duration-200 mr-2';
+                    cancelButton.textContent = 'Cancel';
+                    okButton.parentNode.insertBefore(cancelButton, okButton);
+                    
+                    okButton.classList.remove('w-full');
+                    okButton.classList.add('w-1/2');
+                }
+                
+                confirmTitle.textContent = title;
+                confirmMessage.textContent = message;
+                okButton.textContent = 'Yes, Delete';
+                okButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                okButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                
+                confirmModal.style.display = 'block';
+
+                const handleOk = () => {
+                    cleanup();
+                    resolve(true);
+                };
+
+                const handleCancel = () => {
+                    cleanup();
+                    resolve(false);
+                };
+
+                const cleanup = () => {
+                    okButton.removeEventListener('click', handleOk);
+                    cancelButton.removeEventListener('click', handleCancel);
+                    confirmModal.style.display = 'none';
+
+                    // Restore the OK button to its default state
+                    okButton.textContent = 'OK';
+                    okButton.classList.remove('w-1/2', 'bg-red-600', 'hover:bg-red-700');
+                    okButton.classList.add('w-full', 'bg-blue-600', 'hover:bg-blue-700');
+                    okButton.addEventListener('click', function handler() {
+                         confirmModal.style.display = 'none';
+                         okButton.removeEventListener('click', handler);
+                    });
+                    
+                    // Hide the cancel button
+                    cancelButton.style.display = 'none';
+                    
+                };
+
+                okButton.addEventListener('click', handleOk);
+                cancelButton.addEventListener('click', handleCancel);
+                cancelButton.style.display = 'inline-block';
+            });
+        }
+
+
+        // Listens to Firestore for real-time history updates
+        function setupHistoryListener() {
+            // Check if user is authenticated and listener isn't already running
+            if (!db || !userId || historySnapshotUnsubscribe) {
+                // If listener exists, this means the user state has changed (e.g., sign out/in)
+                // We should unsubscribe before setting up a new one if auth state changes
+                if (historySnapshotUnsubscribe) {
+                    historySnapshotUnsubscribe();
+                    historySnapshotUnsubscribe = null;
+                }
+                if (!db || !userId) return; // Exit if not ready
+            }
+
+            try {
+                const historyCollectionRef = collection(db, getCollectionPath());
+                // Query: Filter by userId (implicit in path) and order by last update time
+                const q = query(historyCollectionRef, orderBy("updatedAt", "desc"));
+
+                historySnapshotUnsubscribe = onSnapshot(q, (snapshot) => {
+                    historyListEl.innerHTML = ''; // Clear existing list
+                    if (snapshot.empty) {
+                        historyListEl.innerHTML = '<p class="text-gray-500 text-sm italic">No history yet. Start a conversation!</p>';
+                    } else {
+                        snapshot.forEach((doc) => {
+                            const data = doc.data();
+                            const isActive = doc.id === currentChatId;
+                            const item = createHistoryItem(doc.id, data.title, isActive);
+                            historyListEl.appendChild(item);
+                        });
+                    }
+                }, (error) => {
+                    console.error("History snapshot listener failed:", error);
+                    historyListEl.innerHTML = '<p class="text-red-400 text-sm italic">Failed to load history.</p>';
+                });
+                
+                clearHistoryBtn.disabled = false;
+                
+            } catch (error) {
+                console.error("Failed to set up history listener:", error);
+                // History is only disabled if there's a serious auth issue (e.g., fallback ID)
+            }
+        }
+        
+        // This function forces the visual update of the history list items (e.g., after loading a new chat)
+        function refreshHistoryList() {
+             // If history listener is active, it handles the refresh automatically.
+             // If history is disabled, this does nothing.
+             if (historySnapshotUnsubscribe) {
+                 // The listener is active, so we just need to manually iterate and update active state
+                 Array.from(historyListEl.children).forEach(item => {
+                     const chatId = item.dataset.chatId;
+                     const isActive = chatId === currentChatId;
+                     
+                     item.classList.remove('bg-cyan-600', 'hover:bg-cyan-500', 'bg-gray-800', 'hover:bg-gray-700');
+                     
+                     if (isActive) {
+                        item.classList.add('bg-cyan-600', 'hover:bg-cyan-500');
+                     } else {
+                        item.classList.add('bg-gray-800', 'hover:bg-gray-700');
+                     }
+                 });
+             }
+        }
+        
+        // Signs in with Google Pop-up
+        async function signInWithGoogle() {
+            try {
+                if (!auth) throw new Error("Auth service not initialized.");
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged listener handles the rest
+            } catch (error) {
+                console.error("Google Sign In failed:", error);
+                showAlert('Sign In Failed', `Could not sign in with Google: ${error.message}`);
+                // Revert to anonymous/fallback if sign-in failed
+                handleAuthFailure(error, "Google sign-in was interrupted or failed.");
+            }
+        }
+        
+        // Signs out the current user
+        async function signOutUser() {
+            try {
+                if (!auth) throw new Error("Auth service not initialized.");
+                await signOut(auth);
+                // onAuthStateChanged listener handles the cleanup/reset
+            } catch (error) {
+                console.error("Sign Out failed:", error);
+                showAlert('Sign Out Failed', `Could not sign out: ${error.message}`);
+            }
+        }
+
+        // Handles the global authentication state change
+        function onAuthSuccess(user) {
+            userId = user.uid;
+            
+            // 1. Update UI status
+            userIdEl.textContent = formatUserId(userId);
+            userIdEl.classList.remove('text-red-400');
+            userIdEl.classList.add('text-green-400');
+            
+            authStatusEl.textContent = `Auth Success: ${user.isAnonymous ? 'Anonymous' : 'Authenticated'}`;
+            authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
+            authStatusEl.classList.add('text-green-400');
+            
+            // 2. Setup Sign Out button if authenticated, or Sign In if anonymous
+            if (user.isAnonymous) {
+                 googleSignInBtn.textContent = 'Sign In';
+                 googleSignInBtn.onclick = signInWithGoogle;
+            } else {
+                 googleSignInBtn.textContent = 'Sign Out';
+                 googleSignInBtn.onclick = signOutUser;
+            }
+            googleSignInBtn.style.display = 'inline-block';
+            googleSignInBtn.disabled = false;
+
+            // 3. Reset chat view and setup history listener
+            resetChatView(); 
+            setupHistoryListener(); // Start listening for history changes
+        }
+
+        // Handles cleanup on sign out
+        function onAuthSignOut() {
+            userId = null;
+            currentChatId = null;
+            
+            // 1. Update UI status
+            userIdEl.textContent = 'ID: Not signed in';
+            userIdEl.classList.remove('text-green-400');
+            userIdEl.classList.add('text-yellow-400');
+            
+            authStatusEl.textContent = 'Signed Out';
+            authStatusEl.classList.remove('text-green-400', 'text-red-400');
+            authStatusEl.classList.add('text-yellow-400');
+            
+            // 2. Update Sign In button
+            googleSignInBtn.textContent = 'Sign In';
+            googleSignInBtn.onclick = signInWithGoogle;
+            googleSignInBtn.style.display = 'inline-block';
+            googleSignInBtn.disabled = false;
+
+            // 3. Clear chat view and history
+            resetChatView(); 
+            if (historySnapshotUnsubscribe) {
+                historySnapshotUnsubscribe();
+                historySnapshotUnsubscribe = null;
+            }
+            historyListEl.innerHTML = '<p class="text-gray-500 text-sm italic">Sign in to view history.</p>';
+            clearHistoryBtn.disabled = true;
+            
+            // 4. Try to re-authenticate anonymously to keep the app functional
+            signInAnonymously(auth).catch(err => {
+                console.error("Failed to re-authenticate anonymously:", err);
+                handleAuthFailure(err, "Failed to re-authenticate anonymously after sign out.");
+            });
+        }
+
+        function initFirebase() {
+            try {
+                // Global variables are provided by the canvas environment
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                if (Object.keys(firebaseConfig).length === 0) {
+                    throw new Error("Firebase configuration is missing.");
+                }
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 1. Set up Auth State Listener
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        onAuthSuccess(user);
+                    } else {
+                        // User is signed out or initial state check failed
+                        onAuthSignOut();
+                    }
+                });
+
+                // 2. Perform initial authentication (using custom token or anonymous fallback)
+                // This ensures the listener is triggered with the correct user state
+                if (initialAuthToken) {
+                    // console.log("Attempting sign in with custom token...");
+                    signInWithCustomToken(auth, initialAuthToken).catch(error => {
+                        console.error("Custom token sign in failed:", error);
+                        // Fallback to anonymous if custom token fails
+                        signInAnonymously(auth).catch(err => {
+                             handleAuthFailure(err, "Both custom token and anonymous sign-in failed.");
+                        });
+                    });
+                } else {
+                    // console.log("Attempting anonymous sign in...");
+                    signInAnonymously(auth).catch(error => {
+                        handleAuthFailure(error, "Anonymous sign-in failed.");
+                    });
+                }
+
+            } catch (error) {
+                console.error("Critical Firebase Initialization Error:", error);
+                handleAuthFailure(error, "Critical Firebase services failed to start.");
+            }
+        }
+        
+        function loadApiKeyFromFile() {
+            // The canvas environment automatically provides the API key in the '__api_key' global variable.
+            // We use a dummy key for the API call URL if the actual key isn't provided, 
+            // relying on the canvas environment to inject the real key during the fetch.
+            // The presence of the key in the URL (even empty) is just a convention.
+            apiKey = typeof __api_key !== 'undefined' ? __api_key : ''; 
+            
+            // Immediately enable chat once the API key is theoretically available (or confirmed absent, we proceed anyway)
+            setChatUIEnabled(true);
+            statusMessage.textContent = "Ready! Type your message and press Send or Enter.";
+        }
+        
+        /**
+         * Handles critical authentication failure by setting up a local fallback ID
+         * and disabling history features.
+         */
+        function handleAuthFailure(error, customMessage) {
+            // 1. Clean up Firebase state (if any)
+            if (historySnapshotUnsubscribe) {
+                historySnapshotUnsubscribe();
+                historySnapshotUnsubscribe = null;
+            }
+            db = null; // Disable firestore ops
+            clearHistoryBtn.disabled = true;
+            historyListEl.innerHTML = '<p class="text-red-400 text-sm italic">History disabled due to authentication failure.</p>';
+
+            // 2. Generate a local, non-Firebase ID for temporary use
+            userId = `local-${crypto.randomUUID().substring(0, 8)}`; 
+            
+            // 3. Update UI to reflect failure mode
+            userIdEl.textContent = formatUserId(userId);
+            userIdEl.classList.remove('text-green-400');
+            userIdEl.classList.add('text-red-400');
+
+            const errorMessage = customMessage || `Firebase initialization failed: ${error.message.substring(0, 50)}...`;
+            
+            authStatusEl.textContent = `Auth Failure: Using Local ID. History Disabled.`;
+            authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
+            authStatusEl.classList.add('text-red-400');
+
+            showAlert('Authentication Failure', 
+                `${errorMessage} 
+                You have been assigned a local User ID. You can proceed with chat but the history sidebar will be disabled as data access is restricted for fallback users. Please sign in with Google if you wish to save your history.`
+            );
+            
+            // --- FIX: Ensure the button is visible and set up for Sign In/Google ---
+            googleSignInBtn.textContent = 'Sign In';
+            googleSignInBtn.onclick = signInWithGoogle;
+            googleSignInBtn.style.display = 'inline-block'; 
+            googleSignInBtn.disabled = false; // Ensure it's clickable
+
+            // Continue with API key loading and enabling chat UI with the fallback ID
+            loadApiKeyFromFile();
+            resetChatView(); // Show initial welcome message
+            // Note: setChatUIEnabled is called in loadApiKeyFromFile()
+        }
+
+
+        // Start the application setup
+        initFirebase();
+    </script>
+</body>
+</html>
