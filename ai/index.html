@@ -203,7 +203,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
-            signInAnonymously, 
+            // signInAnonymously is now REMOVED to disable anonymous sign-in
             signInWithCustomToken, 
             onAuthStateChanged, 
             GoogleAuthProvider, 
@@ -411,6 +411,7 @@
             const isUserReady = userId !== null;
             const isFallback = userId && userId.startsWith('anon-client-');
 
+            // Only allow chatting if everything is ready
             const canChat = enabled && isApiKeyReady && isChatReady && isUserReady;
 
             userInputEl.disabled = !canChat;
@@ -421,11 +422,11 @@
             }
             
             newChatBtn.disabled = !isUserReady || !isApiKeyReady;
-            // Disable rename/delete if using fallback ID OR if not properly signed in (anonymous users cannot rename)
-            const isFirebaseUser = auth.currentUser && !auth.currentUser.isAnonymous; // Use auth.currentUser for active check
-            renameBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isFirebaseUser; 
-            deleteBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isFirebaseUser; 
-            chatActionsEl.style.display = (currentChatId && !isFallback && isFirebaseUser) ? 'flex' : 'none';
+            // Disable rename/delete if using fallback ID OR if not properly signed in (only Google-signed-in users can rename/delete)
+            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
+            renameBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isGoogleUser; 
+            deleteBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isGoogleUser; 
+            chatActionsEl.style.display = (currentChatId && !isFallback && isGoogleUser) ? 'flex' : 'none';
 
 
             // Update placeholder to prompt action if needed
@@ -563,7 +564,7 @@
                     container.appendChild(downloadBtn);
                 }
 
-                lastIndex = HTML_DELIMITER_REGEX.lastIndex;
+                lastIndex = HTML_DELIMITER_REGEX.exec(text) ? HTML_DELIMITER_REGEX.lastIndex : text.length;
             }
 
             // 3. Add remaining text
@@ -1067,8 +1068,9 @@
         });
         
         renameBtnEl.addEventListener('click', async () => {
-            // Check if user is authenticated and not a fallback/anonymous user
-            if (!currentChatId || userId.startsWith('anon-client-') || auth.currentUser?.isAnonymous) return;
+            // Check if user is authenticated and is a Google user
+            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
+            if (!currentChatId || !isGoogleUser) return;
             
             const currentTitle = chatTitleEl.textContent;
             const newTitle = await showModal('Rename Chat', 'Enter a new title for this chat:', true, 'Rename', currentTitle);
@@ -1087,8 +1089,9 @@
         });
         
         deleteBtnEl.addEventListener('click', async () => {
-            // Check if user is authenticated and not a fallback/anonymous user
-            if (!currentChatId || userId.startsWith('anon-client-') || auth.currentUser?.isAnonymous) return;
+            // Check if user is authenticated and is a Google user
+            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
+            if (!currentChatId || !isGoogleUser) return;
 
             const confirmDelete = await showModal('Delete Chat', 'Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.', false, 'Delete');
             
@@ -1152,46 +1155,48 @@
                 // 2. Set up the state listener and rely on it for UI updates
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // --- User IS authenticated (Google, Custom, or Anonymous) ---
-                        userId = user.uid;
+                        // --- User IS authenticated (Google or Custom) ---
+                        // Note: Anonymous users are now blocked from this path.
                         
-                        // Determine the user name for display
-                        let userName = user.displayName || user.email || 'Anonymous';
+                        // Check if the user is anonymous (which shouldn't happen with the new logic, but is a safe guard)
                         if (user.isAnonymous) {
-                           userName = 'Anonymous User (' + user.uid.substring(0, 8) + '...)';
+                            // Immediately sign out to prevent anonymous use, forcing Google sign-in
+                            await signOut(auth);
+                            // Fall through to the 'else' block below
+                            user = null; 
                         }
-                        userIdEl.textContent = `User: ${userName}`;
                         
-                        // Set button state to Sign Out
-                        googleSignInBtn.textContent = 'Sign Out';
-                        googleSignInBtn.onclick = signOutUser;
-                        googleSignInBtn.style.display = 'inline-block';
-                        
-                        authStatusEl.textContent = 'Firebase Ready (Signed In)';
-                        authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
-                        authStatusEl.classList.add('text-green-400');
-                        
-                        startChatListListener(); // Start listening for chats
-                        
-                    } else {
-                        // --- User IS NOT authenticated ---
-                        
-                        // Check if we need to fall back to anonymous sign-in or local ID
-                        if (initialAuthToken) {
-                            // If we failed custom token and now user is null, attempt anonymous sign-in
-                            try {
-                                await signInAnonymously(auth);
-                                // The successful sign-in will trigger the 'if (user)' block above
-                                return;
-                            } catch (e) {
-                                console.warn("Anonymous sign-in fallback failed:", e);
-                                handleAuthFailure(e);
-                                return;
-                            }
-                        } else {
-                             // No custom token and no user, fall back to local UUID
-                             handleAuthFailure(new Error("No sign-in token provided."));
+                        if (user) {
+                            userId = user.uid;
+                            
+                            // Determine the user name for display
+                            const userName = user.displayName || user.email || 'Authenticated User';
+                            userIdEl.textContent = `User: ${userName}`;
+                            
+                            // Set button state to Sign Out
+                            googleSignInBtn.textContent = 'Sign Out';
+                            googleSignInBtn.onclick = signOutUser;
+                            googleSignInBtn.style.display = 'inline-block';
+                            
+                            authStatusEl.textContent = 'Firebase Ready (Signed In)';
+                            authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
+                            authStatusEl.classList.add('text-green-400');
+                            
+                            startChatListListener(); // Start listening for chats
+                            
                         }
+                    } 
+                    
+                    if (!user) {
+                        // --- User IS NOT authenticated (or was blocked anonymous) ---
+                        
+                        // Bypass anonymous sign-in and immediately fall back to local UUID/Google Sign-In prompt.
+                        let authError = new Error("Not authenticated.");
+                        if (!initialAuthToken) {
+                            authError = new Error("No sign-in token provided.");
+                        }
+
+                        handleAuthFailure(authError);
                         
                         // Set button state to Sign In 
                         googleSignInBtn.textContent = 'Sign In';
@@ -1224,7 +1229,7 @@
             userId = getOrCreateClientId(); // Set the client-side fallback ID
             
             userIdEl.textContent = `User ID: ${userId} (Local Fallback)`;
-            userIdEl.classList.remove('text-gray-400');
+            userIdEl.classList.remove('text-gray-400', 'text-green-400');
             userIdEl.classList.add('text-red-400');
 
             const errorMessage = customMessage || `Firebase initialization failed: ${error.message.substring(0, 50)}...`;
