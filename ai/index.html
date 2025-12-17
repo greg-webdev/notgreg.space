@@ -269,6 +269,9 @@
         
         // Regex to find HTML file blocks for parsing and display (using HTml and htML markers)
         const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/gi;
+        
+        // Regex to find simple HTML blocks wrapped in @### and ###@ markers
+        const SIMPLE_HTML_REGEX = /@###([\s\S]*?)###@/g;
 
         // --- CLIENT UUID GENERATION (Fallback for failed authentication) ---
         /**
@@ -493,51 +496,78 @@
             const container = document.createElement('div');
             container.className = 'w-full';
 
-            let lastIndex = 0;
+            // Track all code blocks (both formats) with their positions
+            let allBlocks = [];
             let match;
 
-            // Reset the regex index before starting the search
-            HTML_DELIMITER_REGEX.lastIndex = 0; 
+            // Reset regex indices
+            HTML_DELIMITER_REGEX.lastIndex = 0;
+            SIMPLE_HTML_REGEX.lastIndex = 0;
 
-            // Loop to find all matching file blocks
+            // Find all HTml:...:filename.html...htML blocks
             while ((match = HTML_DELIMITER_REGEX.exec(text)) !== null) {
-                // 1. Add preceding text
-                const preText = text.substring(lastIndex, match.index).trim();
+                const fileTitle = match[1].trim();
+                const fileName = match[2].trim();
+                let fileContent = match[3];
+                
+                let contentToDownload = fileContent;
+                const htmlendIndex = fileContent.toLowerCase().lastIndexOf('htmlend');
+                if (htmlendIndex > -1) {
+                    contentToDownload = fileContent.substring(0, htmlendIndex).trim();
+                } else {
+                    contentToDownload = fileContent.replace(/htML$/, '').trim();
+                }
+
+                allBlocks.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    type: 'detailed',
+                    fileTitle: fileTitle,
+                    fileName: fileName,
+                    contentForDisplay: fileContent.trim(),
+                    contentToDownload: contentToDownload
+                });
+            }
+
+            // Find all @###...###@ blocks
+            let simpleBlockCount = 0;
+            while ((match = SIMPLE_HTML_REGEX.exec(text)) !== null) {
+                simpleBlockCount++;
+                const htmlContent = match[1].trim();
+                
+                allBlocks.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    type: 'simple',
+                    fileTitle: 'Generated HTML',
+                    fileName: `generated-${simpleBlockCount}.html`,
+                    contentForDisplay: htmlContent,
+                    contentToDownload: htmlContent
+                });
+            }
+
+            // Sort blocks by position
+            allBlocks.sort((a, b) => a.start - b.start);
+
+            // Process text and blocks in order
+            let lastIndex = 0;
+            for (const block of allBlocks) {
+                // Add preceding text
+                const preText = text.substring(lastIndex, block.start).trim();
                 if (preText) {
                     const p = document.createElement('p');
                     p.className = 'mt-3 first:mt-0';
-                    // Simple newline to <br> conversion for pre-wrap effect
                     p.innerHTML = preText.replace(/\n/g, '<br>');
                     container.appendChild(p);
                 }
 
-                // Extract file metadata and content from regex groups
-                const fileTitle = match[1].trim();
-                const fileName = match[2].trim();
-                let fileContent = match[3]; // Keep fileContent with potential markers
-                
-                let contentToDownload = fileContent;
-                // Check and strip 'htML' markers from content
-                const htmlendIndex = fileContent.toLowerCase().lastIndexOf('htmlend');
-                if (htmlendIndex > -1) {
-                    // Strip 'htmlend' from content used for downloading
-                    contentToDownload = fileContent.substring(0, htmlendIndex).trim();
-                } else {
-                     // For non-standard blocks, strip the trailing 'htML' tag manually
-                     contentToDownload = fileContent.replace(/htML$/, '').trim();
-                }
-
-                // Use the original content (potentially with markers) for display in the code block
-                const contentForDisplay = fileContent.trim();
-                
-                if (contentForDisplay) {
-                    
+                if (block.contentForDisplay) {
                     // File Header (Title and Filename)
                     const fileHeader = document.createElement('div');
                     fileHeader.className = 'mt-4 mb-2 p-2 bg-gray-700 rounded-t-lg border border-b-0 border-gray-600';
                     fileHeader.innerHTML = `
-                        <p class="text-sm font-semibold text-sky-400">${fileTitle}</p>
-                        <p class="text-xs text-gray-400">${fileName}</p>
+                        <p class="text-sm font-semibold text-sky-400">${block.fileTitle}</p>
+                        <p class="text-xs text-gray-400">${block.fileName}</p>
                     `;
                     container.appendChild(fileHeader);
 
@@ -545,7 +575,7 @@
                     const codeContainer = document.createElement('div');
                     codeContainer.className = 'p-3 bg-gray-900 rounded-b-lg overflow-x-auto text-xs font-mono border border-gray-700';
                     const codePre = document.createElement('pre');
-                    codePre.textContent = contentForDisplay;
+                    codePre.textContent = block.contentForDisplay;
                     codeContainer.appendChild(codePre);
                     container.appendChild(codeContainer);
 
@@ -554,20 +584,21 @@
                     downloadBtn.className = 'mt-1 mb-2 px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition duration-150 flex items-center shadow-md';
                     downloadBtn.innerHTML = `
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        Download ${fileName}
+                        Download ${block.fileName}
                     `;
                     // Use a closure to capture the correct content and filename
                     downloadBtn.onclick = (() => {
-                        const nameToDownload = fileName;
-                        return () => downloadFileBlob(contentToDownload, nameToDownload);
+                        const nameToDownload = block.fileName;
+                        const content = block.contentToDownload;
+                        return () => downloadFileBlob(content, nameToDownload);
                     })();
                     container.appendChild(downloadBtn);
                 }
 
-                lastIndex = HTML_DELIMITER_REGEX.exec(text) ? HTML_DELIMITER_REGEX.lastIndex : text.length;
+                lastIndex = block.end;
             }
 
-            // 3. Add remaining text
+            // Add remaining text
             const remainder = text.substring(lastIndex).trim();
             if (remainder) {
                 const p = document.createElement('p');
