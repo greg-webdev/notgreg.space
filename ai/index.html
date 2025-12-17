@@ -720,6 +720,9 @@
                 }
 
                 API_KEY = key;
+                // Log half of the API key for debugging
+                const halfLength = Math.floor(API_KEY.length / 2);
+                console.log('API Key (first half):', API_KEY.substring(0, halfLength));
                 keyStatusEl.textContent = 'Status: Key Loaded & Sanitized Successfully!';
                 keyStatusEl.classList.remove('text-yellow-400');
                 keyStatusEl.classList.add('text-green-400');
