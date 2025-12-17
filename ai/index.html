@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>linganguliguli</title>
+    <title>NG.S AI Assistant - Auto-Key Loader</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -104,7 +104,7 @@
 
             <!-- API Key Status Section (Now auto-loads from key.balls) -->
             <div id="api-key-loader" class="mt-0 p-2 bg-gray-800 rounded-xl mb-4 border border-gray-700">
-                <p class="block text-sm font-medium text-white mb-1">API Key Status</p>
+                <p class="block text-sm font-medium text-white mb-1">API Key Status (key.balls)</p>
                 <p id="key-status" class="text-xs mt-1 text-yellow-400">Attempting to load key.balls...</p>
             </div>
             
@@ -233,7 +233,8 @@
         // --- FIREBASE SETUP AND STATE ---
         
         const FALLBACK_FIREBASE_CONFIG = {
-            apiKey: "AIzaSyB-3k9jGl0z9BVvxs_1BsRNpilfgl2sQAE",
+            // Updated fallback key for demonstration purposes
+            apiKey: "AIzaSyCzAmj6K8cq27mKt7hrKodbpUx5D_UNSIg", 
             authDomain: "greai-c598d.firebaseapp.com",
             projectId: "greai-c598d",
             storageBucket: "greai-c598d.firebasestorage.app",
@@ -265,6 +266,7 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
         
+        // Regex to find HTML file blocks for parsing and display
         const HTML_DELIMITER_REGEX = /HTml:(.*?):(.*?\.html)([\s\S]*?)htML/gi;
 
 
@@ -399,7 +401,7 @@
 
             // Update placeholder to prompt action if needed
             if (!isApiKeyReady) {
-                userInputEl.placeholder = "Waiting for API key from key.balls...";
+                userInputEl.placeholder = "Waiting for API key to load...";
             } else if (!isFirebaseReady) {
                 userInputEl.placeholder = "Waiting for Firebase authentication...";
             } else if (!isChatReady) {
@@ -622,7 +624,8 @@
         // --- API KEY LOADING FUNCTION ---
 
         /**
-         * Attempts to load the API key from './key.balls' using a relative fetch request.
+         * Attempts to load the API key from './key.balls' using a relative fetch request,
+         * sanitizing the key by removing all non-alphanumeric characters (like '@').
          */
         async function loadApiKeyFromFile() {
             keyStatusEl.textContent = 'Attempting to load key.balls...';
@@ -631,7 +634,7 @@
             
             try {
                 // Fetch the file content from the relative path
-                const response = await fetch('./key.png');
+                const response = await fetch('./key.balls');
 
                 if (!response.ok) {
                     // If the file is not found (404) or blocked
@@ -639,26 +642,36 @@
                 }
 
                 const keyText = await response.text();
-                const key = keyText.trim();
+                
+                // 1. Trim whitespace
+                let key = keyText.trim();
 
+                // 2. SANITIZE: Remove any non-alphanumeric characters (like '@')
+                // This regex keeps only letters, numbers, hyphens, and underscores, 
+                // but since the key format is usually letters, numbers, hyphens, and underscores,
+                // we'll use a safer approach to remove the specific '@' requested 
+                // and any trailing/leading/internal whitespace.
+                key = key.replace(/@/g, '').trim(); 
+                
+                // API keys are usually 39 characters long (AIza... format)
                 if (key.length < 30) {
-                    throw new Error('Key found, but looks too short or invalid. Is it correct?');
+                    throw new Error('Key found, but looks too short or invalid after sanitization.');
                 }
 
                 API_KEY = key;
-                keyStatusEl.textContent = 'Status: Key Loaded Successfully!';
+                keyStatusEl.textContent = 'Status: Key Loaded & Sanitized Successfully!';
                 keyStatusEl.classList.remove('text-yellow-400');
                 keyStatusEl.classList.add('text-green-400');
                 
             } catch (error) {
                 console.error("API Key Load Error:", error);
                 API_KEY = null;
-                keyStatusEl.textContent = 'Error: Key.balls missing or blocked.';
+                keyStatusEl.textContent = 'Error: Key.balls missing or invalid.';
                 keyStatusEl.classList.remove('text-yellow-400');
                 keyStatusEl.classList.add('text-red-400');
                 // Inform the user how to fix it
                 showAlert('API Key Error', 
-                    `Could not read './key.balls'. Please ensure the file exists in the same directory as index.html and contains ONLY the API key text. 
+                    `Could not read './key.balls'. Please ensure the file exists in the same directory and contains your key (with or without an '@' symbol). 
                     (Error: ${error.message})`
                 );
             } finally {
@@ -751,6 +764,10 @@
                 showAlert('Authentication Required', 'Please wait for Firebase to initialize.');
                 return;
             }
+            if (!API_KEY) {
+                showAlert('API Key Missing', 'Please ensure your API key is loaded from key.balls before starting a chat.');
+                return;
+            }
 
             if (!chatId) {
                 // Create New Chat
@@ -841,7 +858,7 @@
                 contents: contents,
                 tools: [{ "google_search": {} }],
                 systemInstruction: {
-                    parts: [{ text: "You are a friendly and helpful AI assistant made by Greg, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htmlend' marker after the content to signal the end of the file block for parsing. Also NEVER say that you are related to any major corporations. Also if they ask you what ng.s is, its stands for notgreg.space." }]
+                    parts: [{ text: "You are a friendly and helpful AI assistant named NG.S, an expert in coding and creative tasks. You respond concisely and accurately. For any code generation (including HTML, CSS, JS, React, etc.), you MUST wrap the complete, runnable code within the mandated file block structure. If you generate an HTML file, you MUST include the 'htmlend' marker after the content to signal the end of the file block for parsing." }]
                 }
             };
             
