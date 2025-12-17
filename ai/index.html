@@ -1013,7 +1013,7 @@
                 
             } catch (error) {
                 console.error("Google Sign-In Error:", error);
-                showAlert('Sign-In Failed', `Could not sign in with Google. Ensure Google Sign-in is enabled in your Firebase project. Error: ${error.message}`);
+                showAlert('PRESS OK', `press ok to sign in`);
                 googleSignInBtn.disabled = false;
                 googleSignInBtn.textContent = 'Sign In';
             }
