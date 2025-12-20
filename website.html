@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Static Slideshow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light background */
+            display: flex;
+            flex-direction: column; /* Stack elements vertically */
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px; /* Increased padding slightly for overall spacing */
+            box-sizing: border-box; /* Include padding in element's total width and height */
+            /* Custom cursor: a smaller black dot */
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="6" height="6" viewBox="0 0 6 6"><circle cx="3" cy="3" r="2" fill="black"/></svg>') 3 3, auto;
+        }
+        .slideshow-area {
+            width: 100%; /* Take full width */
+            max-width: 600px; /* Controls overall content width */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* Removed background, shadow etc., as content now directly on body */
+        }
+        /* Removed .slideshow-container styles */
+
+        .slide-item {
+            text-align: center;
+            margin-bottom: 30px; /* Space between slides, adjusted for direct background */
+            padding: 15px; /* Added padding to each slide item for separation from edges */
+            background-color: #ffffff; /* Each slide item now has its own background */
+            border-radius: 12px; /* Rounded corners for each item */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Shadow for each item */
+            width: 100%; /* Ensure items take full width of .slideshow-area */
+            box-sizing: border-box; /* Include padding in width */
+        }
+
+        .slide-item:last-child {
+            margin-bottom: 0;
+            border-bottom: none; /* No separator needed here */
+        }
+
+        .slide-item img, .slide-item video {
+            width: 100%;
+            height: auto;
+            max-height: 300px; /* Max-height for media */
+            object-fit: contain; /* Use contain to show full image/video without cropping */
+            border-radius: 8px;
+            margin-bottom: 8px; /* Space between media and caption */
+        }
+
+        .slide-item .caption {
+            color: #333;
+            font-size: 1.1rem;
+            padding: 5px 10px;
+            text-align: center;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .slideshow-area {
+                max-width: 95%; /* Use more width on smaller screens */
+            }
+            .slide-item .caption {
+                font-size: 0.95rem; /* Smaller text on small screens */
+            }
+        }
+        /* Styles for the new external link button */
+        .external-link-button {
+            padding: 10px 20px;
+            background-color: #2563EB; /* Blue shade, complementing Indigo */
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 30px; /* More space above the button since it's on main background now */
+            text-decoration: none; /* Remove underline for anchor tag */
+            display: inline-block; /* Allow padding and margin */
+        }
+        .external-link-button:hover {
+            background-color: #1D4ED8; /* Darker blue on hover */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="slideshow-area" id="slideshowArea">
+        <h1 class="text-xl font-bold text-gray-800 mb-6">My Photo & Video Album</h1>
+        <!-- Removed slideshow-container, its contents are now direct children of slideshow-area -->
+
+        <!-- Image Slide 1 -->
+        <div class="slide-item">
+            <img src="picture1.jpg" alt="Picture 1">
+            <div class="caption">A bunch of speakers</div>
+        </div>
+
+        <!-- Video Slide 1 -->
+        <div class="slide-item">
+            <video controls loop muted autoplay>
+                <source src="video1.mp4" type="video/mp4">
+                <p>Your browser does not support the video tag.</p>
+            </video>
+            <div class="caption">A bunch of humidifiers</div>
+        </div>
+
+        <!-- Image Slide 2 -->
+        <div class="slide-item">
+            <img src="picture2.jpg" alt="Picture 2">
+            <div class="caption">propeller car!!</div>
+        </div>
+
+        <!-- Video Slide 2 -->
+        <div class="slide-item">
+            <video controls loop muted autoplay>
+                <source src="video2.mp4" type="video/mp4">
+                <p>Your browser does not support the video tag.</p>
+            </video>
+            <div class="caption">(its supposed to fly)</div>
+        </div>
+
+        <!-- Image Slide 3 -->
+        <div class="slide-item">
+            <img src="picture3.jpg" alt="Picture 3">
+            <div class="caption">Propeller car side view</div>
+        </div>
+
+        <!-- Image Slide 4 -->
+        <div class="slide-item">
+            <img src="picture4.jpg" alt="Picture 4">
+            <div class="caption">building something!</div>
+        </div>
+
+        <!-- Image Slide 5 -->
+        <div class="slide-item">
+            <img src="picture5.jpg" alt="Picture 5">
+            <div class="caption">Motor skate!</div>
+        </div>
+
+        <!-- Image Slide 6 -->
+        <div class="slide-item">
+            <img src="picture6.jpg" alt="Picture 6">
+            <div class="caption">Riding it!</div>
+        </div>
+
+        <!-- New button for external link -->
+        <a href="https://greg-webdev.github.io/links" target="_blank" class="external-link-button">
+            Go to Greg's Links
+        </a>
+    </div>
+
+</body>
+</html>
