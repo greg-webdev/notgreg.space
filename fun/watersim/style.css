@@ -1,0 +1,22 @@
+/* CSS for the html and body elements */
+html, body {
+    margin: 0; /* Removes the default margin */
+    padding: 0; /* Removes the default padding */
+    height: 100vh; /* Sets the height to 100% of the viewport height */
+    overflow: hidden; /* Hides any content that overflows the element's box */
+    display: flex; /* Enables Flexbox layout */
+    justify-content: center; /* Centers content horizontally within the container */
+    align-items: center; /* Centers content vertically within the container */
+    background: linear-gradient(to bottom, #87CEEB 0%, #4682B4 100%);
+}
+
+/* CSS for the canvas element */
+canvas {
+    display: block; /* Changes the default display to block, which removes extra space beneath the canvas typical of inline elements */
+    max-width: 100%; /* Sets the maximum width to 100% of the parent element, preventing the canvas from exceeding the width of the viewport */
+    max-height: 100vh; /* Sets the maximum height to 100% of the viewport height, preventing the canvas from exceeding the height of the viewport */
+    width: auto; /* Allows the width of the canvas to be automatically adjusted while maintaining the aspect ratio */
+    height: auto; /* Allows the height of the canvas to be automatically adjusted while maintaining the aspect ratio */
+    object-fit: contain; /* Ensures that the canvas content is scaled correctly to fit within its box while preserving aspect ratio. The entire canvas is visible, but it may be letterboxed if its aspect ratio differs from its container. */
+}
+

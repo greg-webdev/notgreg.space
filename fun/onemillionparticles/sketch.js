@@ -12,7 +12,7 @@ const particles = new Float32Array(particleCount * 5); // x, y, vx, vy, colorInd
 const colorArray = new Uint32Array(colors.length); // Precomputed RGBA colors
 
 function setup() {
-    createCanvas(700, 700);
+    createCanvas(500, 500);
     pixelDensity(1)
     // Precompute colors as 32-bit RGBA values
     for (let i = 0; i < colors.length; i++) {
@@ -21,6 +21,10 @@ function setup() {
     }
 
     // Initialize particles
+    initializeParticles();
+}
+
+function initializeParticles() {
     for (let i = 0; i < particleCount; i++) {
         const x = random(width);
         const y = random(height);
