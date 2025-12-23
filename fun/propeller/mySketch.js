@@ -30,18 +30,18 @@ function setup() {
 	lengthSlider.position(16, 16);
 	lengthSlider.style('width', '300px');
 	lengthLabel = createP('Length: ' + lengthSlider.value());
-	lengthLabel.position(16, 44);
-	lengthLabel.style('color', '#ffffff');
+	lengthLabel.position(20, 12);
+	lengthLabel.style('color', '#000000ff');
 
-	speedSlider = createSlider(0, 500, 25, 1); // range: 0..500, no negatives
+	speedSlider = createSlider(0, 100, 25, 1); // range: 0..500, no negatives
 	speedSlider.position(16, 78);
 	speedSlider.style('width', '300px');
 	speedLabel = createP('Speed: ' + speedSlider.value());
-	speedLabel.position(16, 106);
-	speedLabel.style('color', '#ffffff');
+	speedLabel.position(20, 78);
+	speedLabel.style('color', '#000000ff');
 
 	// Autoclicker UI
-	autoToggleBtn = createButton('Auto: Off');
+	autoToggleBtn = createButton('Press a to turn on Autoclicker (Or click)');
 	autoToggleBtn.position(16, 140);
 	autoToggleBtn.mousePressed(()=>{
 		if(autoClicking) stopAutoClick(); else startAutoClick();
@@ -54,8 +54,8 @@ function setup() {
 	autoRateSlider.position(16, 170);
 	autoRateSlider.style('width','300px');
 	autoRateLabel = createP('Auto rate: ' + autoRateSlider.value() + ' ms');
-	autoRateLabel.position(16, 198);
-	autoRateLabel.style('color','#ffffff');
+	autoRateLabel.position(20, 170);
+	autoRateLabel.style('color','#000000ff');
 	autoRateSlider.input(()=>{
 		autoRateLabel.html('Auto rate: ' + autoRateSlider.value() + ' ms');
 		if(autoClicking) restartAutoClick();
@@ -64,7 +64,7 @@ function setup() {
 	// FPS label
 	fpsLabel = createP('FPS: --');
 	fpsLabel.position(16, 230);
-	fpsLabel.style('color', '#ffffff');
+	fpsLabel.style('color', '#00ff40ff');
 	fpsLabel.style('fontFamily', 'monospace');
 	fpsLabel.style('fontSize', '13px');
 }
@@ -118,7 +118,7 @@ function createBallAt(x, y) {
 function startAutoClick() {
 	if (autoClicking) return;
 	autoClicking = true;
-	autoToggleBtn.html('Auto: On');
+	autoToggleBtn.html('Press a to turn off Autoclicker (Or click)');
 	autoIntervalId = setInterval(() => {
 		createBallAt(mouse.x, mouse.y);
 	}, autoRateSlider.value());
@@ -127,7 +127,7 @@ function startAutoClick() {
 function stopAutoClick() {
 	if (!autoClicking) return;
 	autoClicking = false;
-	autoToggleBtn.html('Auto: Off');
+	autoToggleBtn.html('Press a to turn on Autoclicker (Or click)');
 	if (autoIntervalId) { clearInterval(autoIntervalId); autoIntervalId = null; }
 }
 
