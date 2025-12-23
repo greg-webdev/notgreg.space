@@ -29,8 +29,8 @@ function setup() {
 		localStorage.setItem('propellerDevice', device);
 	}
 
-	const canvasWidth = device === 'mobile' ? 900 : 9000;
-	const canvasHeight = device === 'mobile' ? 1000 : 1000;
+	const canvasWidth = device === 'mobile' ? 1000 : 1000;
+	const canvasHeight = device === 'desktop' ? 1000 : 1000;
 
 	new Canvas(canvasWidth, canvasHeight);
 
