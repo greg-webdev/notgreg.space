@@ -50,7 +50,7 @@ function setup() {
 	speedLabel.style('color', '#000000ff');
 
 	// Autoclicker UI
-	autoToggleBtn = createButton('Press a to turn on Autoclicker (Or click)');
+	autoToggleBtn = createButton('Press A to turn on Autoclicker (Or click)');
 	autoToggleBtn.position(16, 140);
 	autoToggleBtn.mousePressed(()=>{
 		if(autoClicking) stopAutoClick(); else startAutoClick();
@@ -191,7 +191,7 @@ function startFpsUIUpdater() {
 function startAutoClick() {
 	if (autoClicking) return;
 	autoClicking = true;
-	autoToggleBtn.html('Press a to turn off Autoclicker (Or click)');
+	autoToggleBtn.html('Press A to turn off Autoclicker (Or click)');
 	autoIntervalId = setInterval(() => {
 		createBallAt(mouse.x, mouse.y);
 	}, autoRateSlider.value());
@@ -200,7 +200,7 @@ function startAutoClick() {
 function stopAutoClick() {
 	if (!autoClicking) return;
 	autoClicking = false;
-	autoToggleBtn.html('Press a to turn on Autoclicker (Or click)');
+	autoToggleBtn.html('Press A to turn on Autoclicker (Or click)');
 	if (autoIntervalId) { clearInterval(autoIntervalId); autoIntervalId = null; }
 }
 
