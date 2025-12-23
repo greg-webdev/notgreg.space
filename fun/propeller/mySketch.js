@@ -21,21 +21,10 @@ let fpsBarMax = 60; // maximum FPS mapped to 100%
 
 function setup() {
 	//Block 2
-	// Ask the user whether they're on mobile or desktop and persist choice
-	let device = localStorage.getItem('propellerDevice');
-	if (!device) {
-		const isMobile = confirm('Are you on a mobile device? Press OK for Mobile, Cancel for Desktop.');
-		device = isMobile ? 'mobile' : 'desktop';
-		localStorage.setItem('propellerDevice', device);
-	}
-
-	const canvasWidth = device === 'mobile' ? 1000 : 1000;
-	const canvasHeight = device === 'desktop' ? 1000 : 1000;
-
-	new Canvas(canvasWidth, canvasHeight);
+	new Canvas(1000, 1000);
 
 	propeller = new Sprite();
-	propeller.width = device === 'mobile' ? 300 : 450;
+	propeller.width = 450;
 	propeller.height = 16;
 	propeller.collider = "kinematic";
 	propeller.rotationSpeed = 25;
@@ -43,17 +32,10 @@ function setup() {
 	propeller.x = width/2;
 	propeller.y = height/2;
 
-	// Optional change device button
-	if (typeof createButton === 'function') {
-		const changeBtn = createButton('Change Device');
-		changeBtn.position(340, 16);
-		changeBtn.mousePressed(()=>{ localStorage.removeItem('propellerDevice'); location.reload(); });
-		changeBtn.style('padding','6px 10px');
-	}
 
 
 	// UI sliders
-	lengthSlider = createSlider(50, 800, 450, 1);
+	lengthSlider = createSlider(15, 1200, 450, 1);
 	lengthSlider.position(16, 16);
 	lengthSlider.style('width', '300px');
 	lengthLabel = createP('Length: ' + lengthSlider.value());
