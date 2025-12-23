@@ -19,5 +19,14 @@ canvas {
     left: 50%; 
     transform: translate(-50%, -50%); 
 }
-    
+
+/* FPS bar stalled animation (compositor-driven, will keep animating if main thread is busy) */
+.fps-bar.fps-stalled {
+  animation: fpsPulse 1s infinite ease-in-out;
+}
+@keyframes fpsPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
     

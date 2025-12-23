@@ -11,6 +11,13 @@ let autoRateSlider, autoRateLabel, autoToggleBtn;
 // FPS display (smoothed)
 let fpsLabel;
 let fpsSmoothed = 60;
+let fpsBar; // visual bar element
+let frameTick = 0; // counts frames for the separate FPS updater
+let lastDrawTime = performance.now();
+let fpsUpdaterId = null;
+let fpsBarSmoothed = 60; // independent smoothing for the visual bar
+let fpsBarMin = 15; // minimum FPS mapped to 0%
+let fpsBarMax = 60; // maximum FPS mapped to 100%
 
 function setup() {
 	//Block 2
@@ -66,7 +73,30 @@ function setup() {
 	fpsLabel.position(16, 230);
 	fpsLabel.style('color', '#00ff40ff');
 	fpsLabel.style('fontFamily', 'monospace');
-	fpsLabel.style('fontSize', '13px');
+	fpsLabel.style('fontSize', '13px');	// FPS bar container
+	const fpsContainer = createDiv();
+	fpsContainer.position(16, 258);
+	fpsContainer.style('width','300px');
+	fpsContainer.style('height','10px');
+	fpsContainer.style('background','#222');
+	fpsContainer.style('border','1px solid #333');
+	fpsContainer.style('borderRadius','6px');
+	fpsContainer.style('overflow','hidden');
+	fpsBar = createDiv();
+	fpsBar.parent(fpsContainer);
+	// Use transform scaleX for GPU-accelerated animation
+	fpsBar.style('width','100%');
+	fpsBar.style('height','100%');
+	fpsBar.style('transform-origin','left');
+	fpsBar.style('transform','scaleX(0)');
+	fpsBar.style('background','linear-gradient(90deg,#10b981,#84cc16)');
+	fpsBar.style('transition','transform 120ms linear');
+	fpsBar.addClass('fps-bar');
+
+	// Start the independent FPS UI updater so the bar can remain responsive
+	startFpsUIUpdater();
+	// Ensure we clean up when leaving the page
+	window.addEventListener('beforeunload', ()=>{ if(fpsUpdaterId) clearInterval(fpsUpdaterId); });
 }
 
 function draw() {
@@ -83,10 +113,14 @@ function draw() {
 
 		// Apply rotation (degrees per second)
 		propeller.rotation += propeller.rotationSpeed * (deltaTime / 1000);
-		// Update FPS (smoothed)
+		// Update FPS (smoothed) — numeric label only. The visual bar is updated by a separate updater to remain responsive.
 		const instFps = (typeof deltaTime === 'number' && deltaTime > 0) ? 1000 / deltaTime : 0;
 		fpsSmoothed = fpsSmoothed * 0.9 + instFps * 0.1;
 		if (typeof fpsLabel !== 'undefined') fpsLabel.html('FPS: ' + Math.round(fpsSmoothed));
+
+		// Increment frame tick and record time for the independent updater
+		frameTick++;
+		lastDrawTime = performance.now();
 	}
 
 	// Creates a new ball every time the mouse is clicked (or by autoclicker)
@@ -115,6 +149,43 @@ function createBallAt(x, y) {
 	ball.y = by;
 }
 
+// Independent UI updater to keep FPS bar responsive
+function startFpsUIUpdater() {
+	let lastUpdate = performance.now();
+	fpsUpdaterId = setInterval(() => {
+		const now = performance.now();
+		const elapsed = now - lastUpdate;
+		if (elapsed <= 0) return;
+		const measured = (frameTick > 0) ? (frameTick / (elapsed / 1000)) : 0;
+		frameTick = 0;
+		lastUpdate = now;
+
+		// Smooth the measured FPS for nicer visual updates
+		fpsBarSmoothed = fpsBarSmoothed * 0.85 + measured * 0.15;
+
+		// Update visual bar using GPU-accelerated transform (scaleX)
+		// Map the visual range to a limited FPS band (fpsBarMin..fpsBarMax)
+		let pct = (fpsBarSmoothed - fpsBarMin) / (fpsBarMax - fpsBarMin);
+		pct = Math.max(0, Math.min(1, pct));
+		if (typeof fpsBar !== 'undefined') {
+			fpsBar.style('transform', 'scaleX(' + pct + ')');
+			// Color thresholds: green >=50, yellow >=30, red below
+			if (fpsBarSmoothed >= 50) fpsBar.style('background','linear-gradient(90deg,#10b981,#84cc16)');
+			else if (fpsBarSmoothed >= 30) fpsBar.style('background','linear-gradient(90deg,#f59e0b,#f97316)');
+			else fpsBar.style('background','linear-gradient(90deg,#ef4444,#dc2626)');
+
+			// If main draw hasn't run in a while, show a compositor-driven visual pulse
+			if (now - lastDrawTime > 500) {
+				fpsBar.addClass('fps-stalled');
+			} else {
+				fpsBar.removeClass('fps-stalled');
+			}
+		}
+
+		// Also update label if draw has been quiet
+		if (typeof fpsLabel !== 'undefined') fpsLabel.html('FPS: ' + Math.round(fpsBarSmoothed));
+	}, 150); // Update UI ~6-7 times per second to reduce overhead
+}
 function startAutoClick() {
 	if (autoClicking) return;
 	autoClicking = true;
