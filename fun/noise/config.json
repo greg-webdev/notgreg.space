@@ -1,0 +1,8 @@
+{
+  "bodyBackgroundColor": "#0a0a0a",
+  "canvasBackgroundColor": "#111",
+  "canvasWidth": 1920,
+  "canvasHeight": 1080,
+  "fps": 60,
+  "pixelated": false
+}

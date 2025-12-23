@@ -1,0 +1,188 @@
+<!-- 
+NOTICE: Do Not Modify This File
+This file is provided as part of the Code Shorts template.
+Modifications to index.html will not be used when your project is published on AIJS.
+Only your sketch.js and config.json will be applied.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <meta charset="utf-8" />
+  <title>Code Short</title>
+</head>
+
+<body>
+  <main>
+    <canvas id="c"></canvas>
+    <div id="error-message" style="display: none; color: red; font-family: Arial, sans-serif;">
+      Code exceeds 140 characters!
+    </div>
+  </main>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      let config = {
+        bodyBackgroundColor: "#111",
+        canvasBackgroundColor: "white",
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        fps: 60,
+        pixelated: false
+      }; // Default config values
+
+      // Load configuration from config.json
+      fetch('config.json')
+        .then(response => response.json())
+        .then(json => {
+          config = { ...config, ...json }; // Merge defaults with loaded config
+          applyConfig();
+        })
+        .catch(error => {
+          console.warn("Error loading config.json, using default settings:", error);
+          applyConfig();
+        });
+
+      function applyConfig() {
+        // Apply body background color
+        document.body.style.backgroundColor = config.bodyBackgroundColor;
+
+        // Set up canvas and context
+        const c = document.getElementById('c');
+        if (!c) {
+          console.error("Canvas element 'c' not found in the DOM.");
+          return;
+        }
+
+        const x = c.getContext('2d');
+        c.width = config.canvasWidth;
+        c.height = config.canvasHeight;
+        c.style.backgroundColor = config.canvasBackgroundColor;
+
+        // Apply pixelated style if enabled
+        if (config.pixelated) {
+          c.style.imageRendering = 'pixelated';
+          c.style.fontSmooth = 'never';
+          c.style.webkitFontSmoothing = 'none';
+        }
+
+        // Predefined shorthand variables and functions
+        const { sin: S, cos: C, tan: T, PI } = Math;
+        const R = (r, g, b, a = 1) => `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+
+        let u; // We will define 'u' after fetching 'sketch.js'
+
+        // Byte check removed — allow sketches of any size
+        function checkByteLimit(code) {
+          // We intentionally allow larger sketches now. Keep the error message hidden.
+          const errorMessage = document.getElementById('error-message');
+          if (errorMessage) errorMessage.style.display = 'none';
+          return true;
+        }
+
+        // Interaction params and simple overlay
+        window._p = window._p || 10;
+        window._mX = 0; window._mY = 0;
+        window._pointerDown = false;
+        window._paused = false;
+        window._speed = 1;
+
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.right = '12px';
+        overlay.style.bottom = '12px';
+        overlay.style.padding = '8px 10px';
+        overlay.style.background = 'rgba(0,0,0,0.5)';
+        overlay.style.color = 'white';
+        overlay.style.fontFamily = 'Arial, sans-serif';
+        overlay.style.fontSize = '12px';
+        overlay.style.borderRadius = '6px';
+        overlay.style.zIndex = 9999;
+        overlay.innerText = 'Noise — move mouse; ↑/↓ px; ←/→ speed; space pause; S save';
+        document.body.appendChild(overlay);
+
+        // Pointer events
+        c.addEventListener('pointermove', e => {
+          const r = c.getBoundingClientRect();
+          const nx = (e.clientX - r.left) / r.width;
+          const ny = (e.clientY - r.top) / r.height;
+          window._mX = (nx - 0.5) * 2;
+          window._mY = (ny - 0.5) * 2;
+        });
+        c.addEventListener('pointerdown', e => window._pointerDown = true);
+        c.addEventListener('pointerup', e => window._pointerDown = false);
+
+        // Keyboard controls
+        document.addEventListener('keydown', e => {
+          if (e.key === 'ArrowUp') window._p = Math.min(128, (window._p || 10) + 1);
+          else if (e.key === 'ArrowDown') window._p = Math.max(2, (window._p || 10) - 1);
+          else if (e.key === ' ') window._paused = !window._paused;
+          else if (e.key === 's' || e.key === 'S') {
+            const data = c.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = data;
+            a.download = 'noise-' + Date.now() + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else if (e.key === 'ArrowRight') window._speed = (window._speed || 1) + 0.1;
+          else if (e.key === 'ArrowLeft') window._speed = Math.max(0.1, (window._speed || 1) - 0.1);
+        });
+
+        // Animation loop with `t` as time in seconds
+        let t = 0;
+        function animate() {
+          if (!window._paused) {
+            if (typeof u === 'function') {
+              try {
+                u(t, x, S, C, T, R, PI); // Pass x, S, C, T, R, PI as arguments
+              } catch (e) {
+                console.error("Error executing user's code in u(t):", e);
+                return; // Stop the animation loop if an error occurs
+              }
+            }
+            t += (1 / config.fps) * (window._speed || 1); // Use FPS and speed
+          }
+
+          // update overlay
+          overlay.innerText = `px:${window._p} speed:${(window._speed||1).toFixed(1)} ${window._pointerDown ? 'DOWN' : ''}`;
+
+          requestAnimationFrame(animate);
+
+          // Adjust the canvas size based on the aspect ratio
+          let windowAspect = window.innerWidth / window.innerHeight;
+          let canvasAspect = c.width / c.height;
+          if (canvasAspect > windowAspect) {
+            c.style.width = '100vw';
+            c.style.height = 'auto';
+          } else {
+            c.style.width = 'auto';
+            c.style.height = '100vh';
+          }
+        }
+
+        // Fetch 'sketch.js' and initialize 'u'
+        fetch('sketch.js')
+          .then(response => response.text())
+          .then(code => {
+          // console.log("Fetched code:", code); // Debug: check content of code
+            if (checkByteLimit(code)) {
+              try {
+                // Create the function 'u(t, x, S, C, T, R, PI)' dynamically with injected variables
+                u = new Function('t', 'x', 'S', 'C', 'T', 'R', 'PI', code);
+                animate();
+              } catch (e) {
+                console.error("Error creating function 'u' with user's code:", e);
+              }
+            }
+          })
+          .catch(error => {
+            console.error('Error loading sketch.js:', error);
+          });
+      }
+  });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fun — Demos & Experiments</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f172a; color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    a.card { transition: transform .12s ease, box-shadow .12s ease; }
+    a.card:hover { transform: translateY(-4px); box-shadow: 0 6px 20px rgba(2,6,23,0.6); }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+  <main class="w-full max-w-4xl">
+    <header class="mb-8 text-center">
+      <h1 class="text-4xl font-bold text-sky-400">Fun — Interactive Demos</h1>
+      <p class="text-gray-300 mt-2">Quick access to the demos inside this folder. Click a card to open the demo.</p>
+    </header>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="cloudyspace/" title="Cloudy Space">
+        <h2 class="text-xl font-semibold text-white">☁️ Cloudy Space</h2>
+        <p class="text-gray-300 text-sm mt-2">A small canvas sketch with clouds and effects.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="onemillionparticles/" title="One Million Particles">
+        <h2 class="text-xl font-semibold text-white">✨ One Million Particles</h2>
+        <p class="text-gray-300 text-sm mt-2">Particle simulation with lots of particles — try resizing your window.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="pixelrocket/" title="Pixel Rocket">
+        <h2 class="text-xl font-semibold text-white">🚀 Pixel Rocket</h2>
+        <p class="text-gray-300 text-sm mt-2">Retro-style pixel game/animation demo.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="watersim/" title="Water Simulation">
+        <h2 class="text-xl font-semibold text-white">💧 Water Simulation</h2>
+        <p class="text-gray-300 text-sm mt-2">Interactive water and ripple effects using canvas.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="noise/" title="Noise Playground">
+        <h2 class="text-xl font-semibold text-white">🔊 Noise Playground</h2>
+        <p class="text-gray-300 text-sm mt-2">Interactive generative noise — move the mouse, change pixel size with ↑/↓, space to pause, 'S' to save.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="betteronemillionparticles/" title="Better 1M Particles">
+        <h2 class="text-xl font-semibold text-white">✨ Better 1M Particles</h2>
+        <p class="text-gray-300 text-sm mt-2">Optimized pixel renderer with controls and a safe default; scale to 1,000,000 if your machine supports it.</p>
+      </a>
+
+      <a class="card block p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700" href="propeller/" title="Propeller Demo">
+        <h2 class="text-xl font-semibold text-white">🌀 Propeller</h2>
+        <p class="text-gray-300 text-sm mt-2">Interactive spinning propeller — move the mouse left/right to change speed, click to toggle spin, press 'S' to save.</p>
+      </a>
+    </section> 
+
+    <footer class="mt-8 text-center text-sm text-gray-400">
+      <p>Back to <a class="text-sky-400 hover:underline" href="../">site index</a></p>
+    </footer>
+  </main>
+</body>
+</html>

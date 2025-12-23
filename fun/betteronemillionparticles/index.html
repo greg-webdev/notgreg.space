@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Optimized Pixel-based Particle Simulation with Simple Noise</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #242829;
+    }
+
+    canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      image-rendering: pixelated;
+      font-smooth: never;
+      -webkit-font-smoothing: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 700; // You may increase Resolution depending on your computer
+    canvas.height = 700;
+
+    const width = canvas.width;
+    const height = canvas.height;
+
+    const particleCount = 1000000;
+    const colors = [
+      "#f5c851", "#63a48e", "#f2eac3", "#e73427", "#0e7395", "#efd1b5",
+      "#559b88", "#efad2e", "#f2d692", "#2597a4", "#e56c30", "#446269",
+      "#5483a8", "#0d455b", "#efe8cf", "#3e6078"
+    ];
+
+    let mouseX = -1, mouseY = -1;
+    const mouseRadius = 100;
+    const repelForce = 0.5; // Try playing with this value!
+
+    const canvasMetrics = {};
+
+    function calculateCanvasMetrics() {
+      // Calculate displayed canvas dimensions and scale factors based on CSS scaling
+      const rect = canvas.getBoundingClientRect();
+      const aspectRatioCanvas = width / height;
+      const aspectRatioRect = rect.width / rect.height;
+
+      const isCanvasWider = aspectRatioCanvas > aspectRatioRect;
+      const displayedWidth = isCanvasWider ? rect.width : rect.height * aspectRatioCanvas;
+      const displayedHeight = isCanvasWider ? rect.width / aspectRatioCanvas : rect.height;
+
+      canvasMetrics.offsetX = (rect.width - displayedWidth) / 2 + rect.left;
+      canvasMetrics.offsetY = (rect.height - displayedHeight) / 2 + rect.top;
+      canvasMetrics.scaleX = width / displayedWidth;
+      canvasMetrics.scaleY = height / displayedHeight;
+    }
+
+    function updateMousePosition(e) {
+      // Map mouse position to canvas coordinates accounting for CSS scaling
+      const { offsetX, offsetY, scaleX, scaleY } = canvasMetrics;
+      mouseX = (e.clientX - offsetX) * scaleX;
+      mouseY = (e.clientY - offsetY) * scaleY;
+    }
+
+    // Combined array (x, y, vx, vy for each particle)
+    const particles = new Float32Array(particleCount * 4);
+    const particleColors = new Uint32Array(particleCount); // Color for each particle
+
+    // Pre-calculate colors in RGBA format for fast assignment
+    const colorArray = colors.map(hexToRGBA);
+
+    // Simple gradient noise function
+    function noise(x, y) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+
+      const fx = x - ix;
+      const fy = y - iy;
+
+      const dot = (x, y, gx, gy) => x * gx + y * gy;
+
+      // Random gradient vectors at corners of the cell
+      const g00 = gradient(ix, iy);
+      const g10 = gradient(ix + 1, iy);
+      const g01 = gradient(ix, iy + 1);
+      const g11 = gradient(ix + 1, iy + 1);
+
+      // Dot products between gradient vectors and vectors to the point
+      const n00 = dot(fx, fy, g00[0], g00[1]);
+      const n10 = dot(fx - 1, fy, g10[0], g10[1]);
+      const n01 = dot(fx, fy - 1, g01[0], g01[1]);
+      const n11 = dot(fx - 1, fy - 1, g11[0], g11[1]);
+
+      // Smooth interpolation
+      const u = fade(fx);
+      const v = fade(fy);
+
+      return lerp(lerp(n00, n10, u), lerp(n01, n11, u), v);
+    }
+
+    function fade(t) {
+      // Fade function for smoother transitions in noise values
+      return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+
+    function lerp(a, b, t) {
+      return a + t * (b - a);
+    }
+
+    function gradient(x, y) {
+      // Gradient vector generation based on pseudo-randomness
+      const random = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      return [Math.cos(random), Math.sin(random)];
+    }
+
+    // Initialize particles with noise-based color distribution
+    for (let i = 0; i < particleCount; i++) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      const idx = i * 4;
+      particles[idx] = x;        // x position
+      particles[idx + 1] = y;    // y position
+      particles[idx + 2] = 0;    // vx (velocity x)
+      particles[idx + 3] = 0;    // vy (velocity y)
+
+      // Use noise to create a color gradient effect
+      const noiseValue = noise(x * 0.0051, y * 0.0051); // Adjust scale for variation
+      const colorIndex = Math.floor((noiseValue + 1) / 2 * colorArray.length);
+      particleColors[i] = colorArray[colorIndex];
+    }
+    
+    // Animation Loop
+    function animate() {
+      const radiusSq = mouseRadius * mouseRadius;
+      const imageData = ctx.createImageData(width, height);
+      const data = new Uint32Array(imageData.data.buffer); // Direct access to pixel data buffer
+
+      for (let i = 0; i < particleCount; i++) {
+        const idx = i * 4;
+
+        const px = particles[idx];
+        const py = particles[idx + 1];
+
+        // Only apply movement if the mouse is within canvas bounds
+        if (mouseX >= 0 && mouseY >= 0) {
+          const dx = px - mouseX;
+          const dy = py - mouseY;
+          const distanceSq = dx * dx + dy * dy;
+
+          if (distanceSq < radiusSq && distanceSq > 0) {
+            const distance = distanceSq ** 0.5; // **0.5 instead of Math.sqrt
+            const effectStrength = (1 - distance / mouseRadius) * repelForce;
+            particles[idx + 2] += (dx / distance) * effectStrength;
+            particles[idx + 3] += (dy / distance) * effectStrength;
+          }
+        }
+
+        // Update particle position based on velocity
+        particles[idx] += particles[idx + 2];
+        particles[idx + 1] += particles[idx + 3];
+
+        // Apply friction to gradually slow particles down
+        particles[idx + 2] *= 0.98;
+        particles[idx + 3] *= 0.98;
+
+        // Bounce off walls
+        if (particles[idx] < 0 || particles[idx] >= width) {
+          particles[idx + 2] *= -1;
+        }
+        if (particles[idx + 1] < 0 || particles[idx + 1] >= height) {
+          particles[idx + 3] *= -1;
+        }
+
+        // Set pixel color in ImageData
+        const x = Math.floor(particles[idx]);
+        const y = Math.floor(particles[idx + 1]);
+        const pixelIndex = y * width + x;
+        data[pixelIndex] = particleColors[i]; // Assign color
+      }
+
+      // Render ImageData to canvas
+      ctx.putImageData(imageData, 0, 0);
+
+      requestAnimationFrame(animate);
+    }
+
+    // Helper: Convert Hex color to RGBA Uint32
+    function hexToRGBA(hex) {
+      const bigint = parseInt(hex.slice(1), 16);
+      return (255 << 24) | ((bigint & 0xff) << 16) | ((bigint >> 8 & 0xff) << 8) | ((bigint >> 16) & 0xff);
+    }
+
+    // Calculate canvas metrics on load
+    calculateCanvasMetrics();
+
+    // Mouse Move Event to Update Mouse Position
+    canvas.addEventListener('mousemove', (e) => updateMousePosition(e));
+
+    // Mouse Leave Event to Reset Mouse Position
+    canvas.addEventListener('mouseleave', () => {
+      mouseX = -1;
+      mouseY = -1;
+    });
+
+    // Recalculate canvas metrics on resize
+    window.addEventListener('resize', calculateCanvasMetrics);
+
+    // Start Animation
+    animate();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,28 @@
+/* 
+NOTICE: Do Not Modify This File
+This file is provided as part of the Code Shorts template.
+Modifications to style.css will not be used when your project is published on AIJS.
+Only your sketch.js and config.json will be applied.
+*/
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #111;
+}
+
+canvas {
+  background: white;
+  display: block;
+  max-width: 100%;
+  max-height: 100vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}

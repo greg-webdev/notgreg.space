@@ -66,16 +66,49 @@ function createDownloadButton() {
 }
 
 function downloadCanvas() {
-    // Get canvas data as blob
-    canvas.elt.toBlob(function(blob) {
-        // Create download link
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cloudyspace-' + Date.now() + '.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 'image/png');
+    // Find the canvas element reliably
+    const c = document.querySelector('canvas');
+    if (!c) {
+        alert('Canvas element not found.');
+        return;
+    }
+
+    // Prefer toBlob when available (async and efficient)
+    if (typeof c.toBlob === 'function') {
+        c.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'cloudyspace-' + Date.now() + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+        return;
+    }
+
+    // Fallback to data URL if toBlob isn't supported
+    if (typeof c.toDataURL === 'function') {
+        try {
+            const dataURL = c.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataURL;
+            a.download = 'cloudyspace-' + Date.now() + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+        } catch (e) {
+            console.warn('toDataURL failed:', e);
+        }
+    }
+
+    // Final fallback: use p5's saveCanvas if available
+    try {
+        saveCanvas('cloudyspace-' + Date.now(), 'png');
+    } catch (e) {
+        alert('Download not supported in this browser.');
+        console.error('Download failed:', e);
+    }
 }
