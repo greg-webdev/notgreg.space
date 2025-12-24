@@ -52,7 +52,7 @@ async function fetchLocalData(){
 function showLiveStatus(isLive, blockedByHttps=false){
   const s = document.getElementById('liveStatus'); const btn = document.getElementById('triggerScanBtn'); const openBtn = document.getElementById('openLocalMonitorBtn');
   if(!s) return;
-  if(isLive){ s.textContent = `Live on http://${MONITOR_HOST}:${MONITOR_PORT}`; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; if(openBtn) openBtn.style.display='none'; }
+  if(isLive){ s.textContent = 'Connected to se4rver'; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; if(openBtn) openBtn.style.display='none'; }
   else {
     if(blockedByHttps){
       s.innerHTML = `Local server reachable but blocked by browser (mixed-content). <a href="http://${MONITOR_HOST}:${MONITOR_PORT}/actions/monitor.html" target="_blank" rel="noopener">Open monitor over HTTP</a>`;
