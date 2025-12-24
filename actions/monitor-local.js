@@ -59,5 +59,23 @@ function showSiteDetails(siteName, data){
 document.getElementById('refreshLocalBtn').addEventListener('click', ()=>fetchLocalData());
 document.getElementById('closeHistory').addEventListener('click', ()=>{ const modal = document.getElementById('historyModal'); modal.style.display='none'; modal.setAttribute('aria-hidden','true'); });
 
+// Fullscreen toggle
+function updateFullscreenButton(){
+  const btn = document.getElementById('fullscreenBtn'); if(!btn) return;
+  if(document.fullscreenElement) { btn.textContent = 'Exit fullscreen'; btn.setAttribute('aria-pressed','true'); }
+  else { btn.textContent = 'Enter fullscreen'; btn.setAttribute('aria-pressed','false'); }
+}
+function toggleFullscreen(){
+  const docEl = document.documentElement;
+  if(!document.fullscreenElement){
+    if(docEl.requestFullscreen) docEl.requestFullscreen().catch(()=>{});
+  } else {
+    if(document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  }
+}
+const fsBtn = document.getElementById('fullscreenBtn'); if(fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+
 // init
+updateFullscreenButton();
 fetchLocalData();
