@@ -1,8 +1,10 @@
-/* Local scan viewer script: prefer a live server at localhost but fall back to local file */
+/* Local scan viewer script: prefer a live server at the provided IP but fall back to local file */
 const SITE_DOMAIN = 'https://notgreg.space';
 const MONITOR_PORT = 50123;
-const SERVER_HTTP = `http://localhost:${MONITOR_PORT}`;
-const SERVER_HTTPS = `https://localhost:${MONITOR_PORT}`;
+// Default to the IP you provided. Change MONITOR_HOST here if you want a different address.
+const MONITOR_HOST = '165.173.23.252';
+const SERVER_HTTP = `http://${MONITOR_HOST}:${MONITOR_PORT}`;
+const SERVER_HTTPS = `https://${MONITOR_HOST}:${MONITOR_PORT}`;
 let lastFetchedData = null; let liveConnected = false;
 
 async function fetchWithTimeout(url, timeout = 3000){
@@ -50,10 +52,10 @@ async function fetchLocalData(){
 function showLiveStatus(isLive, blockedByHttps=false){
   const s = document.getElementById('liveStatus'); const btn = document.getElementById('triggerScanBtn'); const openBtn = document.getElementById('openLocalMonitorBtn');
   if(!s) return;
-  if(isLive){ s.textContent = `Live on http://localhost:${MONITOR_PORT}`; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; if(openBtn) openBtn.style.display='none'; }
+  if(isLive){ s.textContent = `Live on http://${MONITOR_HOST}:${MONITOR_PORT}`; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; if(openBtn) openBtn.style.display='none'; }
   else {
     if(blockedByHttps){
-      s.innerHTML = `Local server reachable but blocked by browser (mixed-content). <a href="http://localhost:${MONITOR_PORT}/actions/monitor.html" target="_blank" rel="noopener">Open monitor over HTTP</a>`;
+      s.innerHTML = `Local server reachable but blocked by browser (mixed-content). <a href="http://${MONITOR_HOST}:${MONITOR_PORT}/actions/monitor.html" target="_blank" rel="noopener">Open monitor over HTTP</a>`;
       s.style.color = 'orange'; if(btn) btn.style.display='none'; if(openBtn) { openBtn.style.display='inline-block'; }
     } else {
       s.textContent = 'No live server'; s.style.color = 'crimson'; if(btn) btn.style.display='none'; if(openBtn) openBtn.style.display='none';
@@ -95,7 +97,7 @@ function renderLocalChanges(data){
 async function triggerScan(){
   if(!liveConnected) return alert('No live server');
   try{
-    const res = await fetch(`${SERVER_BASE}/scan`, {method:'POST'});
+    const res = await fetch(`${SERVER_HTTP}/scan`, {method:'POST'});
     if(!res.ok) throw new Error('Scan failed');
     const json = await res.json(); alert('Scan triggered, output logged to server.');
     // refresh after a short delay
@@ -136,7 +138,7 @@ function toggleFullscreen(){
   }
 }
 const fsBtn = document.getElementById('fullscreenBtn'); if(fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
-const openLocalBtn = document.getElementById('openLocalMonitorBtn'); if(openLocalBtn) openLocalBtn.addEventListener('click', ()=>{ window.open(`http://localhost:${MONITOR_PORT}/actions/monitor.html`, '_blank'); });
+const openLocalBtn = document.getElementById('openLocalMonitorBtn'); if(openLocalBtn) openLocalBtn.addEventListener('click', ()=>{ window.open(`http://${MONITOR_HOST}:${MONITOR_PORT}/actions/monitor.html`, '_blank'); });
 
 document.addEventListener('fullscreenchange', updateFullscreenButton);
 

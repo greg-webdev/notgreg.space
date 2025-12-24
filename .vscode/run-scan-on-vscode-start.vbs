@@ -47,7 +47,7 @@ Sub RunServer()
     Log "Starting monitor server (background)"
     Dim srvCmd
     srvCmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command " & _
-             """Set-Location -LiteralPath '" & repoPath & "'; npm run serve-monitor *> '" & repoPath & "\actions\monitor-run.log'"""
+             """Set-Location -LiteralPath '" & repoPath & "'; $env:PUBLIC_HOST='165.173.23.252'; npm run serve-monitor *> '" & repoPath & "\actions\monitor-run.log' 2>&1"""
     wsh.Run srvCmd, 0, False
   Else
     Log "Monitor server already running"

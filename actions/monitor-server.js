@@ -16,6 +16,10 @@ app.use('/actions', express.static(__dirname));
 
 const MONITOR_PATH = path.join(__dirname, 'monitor-data.json');
 const PORT = process.env.MONITOR_PORT || 50123;
+// Bind to all interfaces by default so the server is reachable via port-forwarding.
+// Use PUBLIC_HOST (or MONITOR_HOST) for display/links only (doesn't affect binding).
+const HOST = process.env.BIND_HOST || '0.0.0.0';
+const PUBLIC_HOST = process.env.PUBLIC_HOST || process.env.MONITOR_HOST || 'localhost';
 
 app.get('/monitor-data.json', (req, res) => {
   fs.readFile(MONITOR_PATH, 'utf8', (err, data) => {
@@ -46,7 +50,7 @@ app.post('/scan', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[monitor-server] Listening on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[monitor-server] Listening on http://${PUBLIC_HOST}:${PORT} (bound on ${HOST})`);
   console.log(`[monitor-server] GET /monitor-data.json  POST /scan`);
 });

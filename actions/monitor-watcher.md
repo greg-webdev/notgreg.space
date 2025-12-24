@@ -23,7 +23,9 @@ If you want the browser
 npm run serve-monitor
 ```
 
-This starts a small HTTP server on port 50123 (configurable via `MONITOR_PORT`) and exposes:
+This starts a small HTTP server on port 50123 (configurable via `MONITOR_PORT`) and binds to `MONITOR_HOST` (default `165.173.23.252`). You can change the host by setting the environment variable `MONITOR_HOST` when starting the server.
+
+It exposes:
 
 - `GET /monitor-data.json` — the latest report (CORS enabled)
 - `POST /scan` — trigger a one-off scan (runs the watcher script once)
