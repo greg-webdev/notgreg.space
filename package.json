@@ -1,0 +1,14 @@
+{
+  "name": "site-monitor-watcher",
+  "version": "1.0.0",
+  "description": "Watcher script to monitor site file changes and emit actions/monitor-data.json",
+  "main": "actions/monitor-watcher.js",
+  "scripts": {
+    "monitor": "node actions/monitor-watcher.js --watch",
+    "scan": "node actions/monitor-watcher.js"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "minimist": "^1.2.8"
+  }
+}

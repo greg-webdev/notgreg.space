@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Actions — Site tools</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:900px;margin:24px auto;padding:12px}
+    .card{border:1px solid #ddd;padding:12px;border-radius:6px;margin:12px 0}
+    button{padding:8px 12px;margin-right:8px}
+    .muted{color:#666;font-size:13px}
+    pre{white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <h1>Actions</h1>
+  <div class="card">
+    <h2>Monitor</h2>
+    <p class="muted">Tools for tracking changes to this site.</p>
+    <p>
+      <a href="monitor.html">Open Site Monitor</a>
+      &nbsp;•&nbsp;
+      <a href="monitor-watcher.md">Watcher docs</a>
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Local scan summary</h2>
+    <p class="muted">Shows the most recently changed files detected by the local watcher (reads <code>actions/monitor-data.json</code>).</p>
+    <p>
+      <button id="refreshBtn">Refresh</button>
+      <button id="scanNowBtn">Trigger a scan (one-off)</button>
+    </p>
+    <div id="summary">Loading…</div>
+  </div>
+
+  <script>
+    async function fetchSummary(){
+      const el = document.getElementById('summary');
+      try{
+        const r = await fetch('monitor-data.json', {cache:'no-store'});
+        if(!r.ok) throw new Error('no report');
+        const data = await r.json();
+        // group by top-level folder (site) and exclude 'mc2'
+        const siteMap = {};
+        Object.entries(data.files || {}).forEach(([p,info])=>{
+          // skip top-level files
+          if(!p.includes('/')) return;
+          const top = p.split('/')[0];
+          if(top === 'mc2') return;
+          siteMap[top] = siteMap[top] || {name: top, latest: null, count: 0};
+          siteMap[top].count += 1;
+          if(info.latest && (!siteMap[top].latest || info.latest.timestamp > siteMap[top].latest.timestamp)) siteMap[top].latest = info.latest;
+        });
+        const sites = Object.values(siteMap).sort((a,b)=>{
+          const ta = a.latest && a.latest.timestamp ? Date.parse(a.latest.timestamp) : 0;
+          const tb = b.latest && b.latest.timestamp ? Date.parse(b.latest.timestamp) : 0;
+          return tb - ta;
+        });
+        if(!sites.length) { el.innerHTML = '<p>No sites recorded.</p>'; return; }
+        const list = document.createElement('div');
+        sites.slice(0,50).forEach(s=>{
+          const d = document.createElement('div'); d.style.padding='6px 0';
+          d.innerHTML = `<strong>${s.name}</strong> <span class=\"muted\">${(s.latest && s.latest.timestamp)||''}</span> <span class=\"muted\">(${s.count} files)</span> <a href=\"https://notgreg.space/${encodeURIComponent(s.name)}/\" target=\"_blank\" rel=\"noopener\">Open site</a>`;
+          list.appendChild(d);
+        });
+        el.innerHTML = ''; el.appendChild(list);
+      }catch(e){
+        el.innerHTML = '<p style="color:crimson">No local report found. Run the watcher (see Watcher docs) or click "Trigger a scan" if available.</p>';
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', ()=>{ fetchSummary(); });
+    document.getElementById('scanNowBtn').addEventListener('click', ()=>{
+      // This POST trigger only works if you add server-side support. Otherwise run npm run scan locally.
+      fetch('monitor-data.json?scan=1', {method:'POST'}).then(r=>{ if(r.ok) alert('Triggered scan (if server supports it).'); else alert('Trigger not supported. Run `npm run scan` on your PC.'); }).catch(()=>alert('Trigger failed. Run `npm run scan` on your PC.'));
+    });
+
+    // load on open
+    fetchSummary();
+  </script>
+</body>
+</html>
