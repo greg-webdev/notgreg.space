@@ -9,6 +9,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Simple request logging
+app.use((req, res, next) => { console.log(`[monitor-server] ${req.method} ${req.url}`); next(); });
+// Serve the monitor UI from the actions folder so you can open it directly via HTTP
+app.use('/actions', express.static(__dirname));
+
 const MONITOR_PATH = path.join(__dirname, 'monitor-data.json');
 const PORT = process.env.MONITOR_PORT || 50123;
 

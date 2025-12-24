@@ -1,6 +1,8 @@
-/* Local scan viewer script: prefer a live server at http://localhost:50123 but fall back to local file */
+/* Local scan viewer script: prefer a live server at localhost but fall back to local file */
 const SITE_DOMAIN = 'https://notgreg.space';
-const SERVER_BASE = `http://localhost:${process.env.MONITOR_PORT||50123}`;
+const MONITOR_PORT = 50123;
+const SERVER_HTTP = `http://localhost:${MONITOR_PORT}`;
+const SERVER_HTTPS = `https://localhost:${MONITOR_PORT}`;
 let lastFetchedData = null; let liveConnected = false;
 
 async function fetchWithTimeout(url, timeout = 3000){
@@ -10,10 +12,24 @@ async function fetchWithTimeout(url, timeout = 3000){
 }
 
 async function tryFetchLive(){
+  // Try same-protocol first. If the page is https and server only speaks http, the browser will block mixed content — in that case we display a helpful message.
   try{
-    const res = await fetchWithTimeout(`${SERVER_BASE}/monitor-data.json`, 2500);
+    const tryUrl = (window.location.protocol === 'https:') ? SERVER_HTTPS : SERVER_HTTP;
+    const res = await fetchWithTimeout(`${tryUrl}/monitor-data.json`, 1200);
     if(res && res.ok){ const data = await res.json(); liveConnected = true; showLiveStatus(true); lastFetchedData = data; renderLocalChanges(data); return true; }
+  }catch(e){ /* fail */ }
+
+  // If page is HTTPS, don't attempt an http:// access (it would be blocked by the browser). Instead, inform the user with an explicit link.
+  if(window.location.protocol === 'https:'){
+    liveConnected = false; showLiveStatus(false, true); return false;
+  }
+
+  // Otherwise try http as a fallback
+  try{
+    const res2 = await fetchWithTimeout(`${SERVER_HTTP}/monitor-data.json`, 1200);
+    if(res2 && res2.ok){ const data = await res2.json(); liveConnected = true; showLiveStatus(true); lastFetchedData = data; renderLocalChanges(data); return true; }
   }catch(e){ /* not available */ }
+
   liveConnected = false; showLiveStatus(false);
   return false;
 }
@@ -31,11 +47,18 @@ async function fetchLocalData(){
   }
 }
 
-function showLiveStatus(isLive){
-  const s = document.getElementById('liveStatus'); const btn = document.getElementById('triggerScanBtn');
+function showLiveStatus(isLive, blockedByHttps=false){
+  const s = document.getElementById('liveStatus'); const btn = document.getElementById('triggerScanBtn'); const openBtn = document.getElementById('openLocalMonitorBtn');
   if(!s) return;
-  if(isLive){ s.textContent = `Live on ${SERVER_BASE}`; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; }
-  else { s.textContent = 'No live server'; s.style.color = 'crimson'; if(btn) btn.style.display='none'; }
+  if(isLive){ s.textContent = `Live on http://localhost:${MONITOR_PORT}`; s.style.color = 'green'; if(btn) btn.style.display='inline-block'; if(openBtn) openBtn.style.display='none'; }
+  else {
+    if(blockedByHttps){
+      s.innerHTML = `Local server reachable but blocked by browser (mixed-content). <a href="http://localhost:${MONITOR_PORT}/actions/monitor.html" target="_blank" rel="noopener">Open monitor over HTTP</a>`;
+      s.style.color = 'orange'; if(btn) btn.style.display='none'; if(openBtn) { openBtn.style.display='inline-block'; }
+    } else {
+      s.textContent = 'No live server'; s.style.color = 'crimson'; if(btn) btn.style.display='none'; if(openBtn) openBtn.style.display='none';
+    }
+  }
 }
 
 function renderLocalChanges(data){
@@ -113,6 +136,8 @@ function toggleFullscreen(){
   }
 }
 const fsBtn = document.getElementById('fullscreenBtn'); if(fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+const openLocalBtn = document.getElementById('openLocalMonitorBtn'); if(openLocalBtn) openLocalBtn.addEventListener('click', ()=>{ window.open(`http://localhost:${MONITOR_PORT}/actions/monitor.html`, '_blank'); });
+
 document.addEventListener('fullscreenchange', updateFullscreenButton);
 
 // init
