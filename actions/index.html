@@ -50,18 +50,20 @@
           if(top === 'mc2') return;
           siteMap[top] = siteMap[top] || {name: top, latest: null, count: 0};
           siteMap[top].count += 1;
-          if(info.latest && (!siteMap[top].latest || info.latest.timestamp > siteMap[top].latest.timestamp)) siteMap[top].latest = info.latest;
+          if(info.latest && info.latest.mtime){
+            if(!siteMap[top].latest || Date.parse(info.latest.mtime) > Date.parse(siteMap[top].latest.mtime)) siteMap[top].latest = info.latest;
+          }
         });
         const sites = Object.values(siteMap).sort((a,b)=>{
-          const ta = a.latest && a.latest.timestamp ? Date.parse(a.latest.timestamp) : 0;
-          const tb = b.latest && b.latest.timestamp ? Date.parse(b.latest.timestamp) : 0;
+          const ta = a.latest && a.latest.mtime ? Date.parse(a.latest.mtime) : 0;
+          const tb = b.latest && b.latest.mtime ? Date.parse(b.latest.mtime) : 0;
           return tb - ta;
         });
         if(!sites.length) { el.innerHTML = '<p>No sites recorded.</p>'; return; }
         const list = document.createElement('div');
         sites.slice(0,50).forEach(s=>{
           const d = document.createElement('div'); d.style.padding='6px 0';
-          d.innerHTML = `<strong>${s.name}</strong> <span class=\"muted\">${(s.latest && s.latest.timestamp)||''}</span> <span class=\"muted\">(${s.count} files)</span> <a href=\"https://notgreg.space/${encodeURIComponent(s.name)}/\" target=\"_blank\" rel=\"noopener\">Open site</a>`;
+          d.innerHTML = `<strong>${s.name}</strong> <span class=\"muted\">${(s.latest && s.latest.mtime)||''}</span> <span class=\"muted\">(${s.count} files)</span> <a href=\"https://notgreg.space/${encodeURIComponent(s.name)}/\" target=\"_blank\" rel=\"noopener\">Open site</a>`;
           list.appendChild(d);
         });
         el.innerHTML = ''; el.appendChild(list);

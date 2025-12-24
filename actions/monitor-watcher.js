@@ -44,13 +44,15 @@ function readFileSafe(fp){
 function snapshot(filePath){
   const txt = readFileSafe(filePath);
   if(txt === null) return null;
+  let mtime = null;
+  try{ mtime = fs.statSync(filePath).mtime.toISOString(); }catch(e){ mtime = null; }
   const s = txt.slice(0, MAX_SNAPSHOT);
   const hash = sha1(txt);
   const size = Buffer.byteLength(txt,'utf8');
-  return {snapshot: s, hash, size};
+  return {snapshot: s, hash, size, mtime};
 }
 
-function updateFile(data, relPath){
+function updateFile(data, relPath, force=false){
   const abs = path.join(WATCH_ROOT, relPath);
   // skip top-level files (we only track files inside folders)
   if(!relPath.includes('/')) return;
@@ -62,16 +64,21 @@ function updateFile(data, relPath){
   if(!snap){
     // file deleted
     entry.history.push({timestamp:ts, deleted:true});
-    entry.latest = {timestamp:ts, deleted:true};
+    entry.latest = {timestamp:ts, deleted:true, mtime: null};
     log('deleted', relPath);
   } else {
     const prevLatest = entry.latest || {};
     if(!prevLatest.hash || prevLatest.hash !== snap.hash){
-      const h = {timestamp:ts, hash:snap.hash, size:snap.size, snapshot:snap.snapshot, prevSnapshot: prevLatest.snapshot || null};
+      const h = {timestamp:ts, mtime: snap.mtime, hash:snap.hash, size:snap.size, snapshot:snap.snapshot, prevSnapshot: prevLatest.snapshot || null};
       entry.history = entry.history || [];
       entry.history.push(h);
-      entry.latest = {timestamp:ts, hash:snap.hash, size:snap.size};
+      entry.latest = {timestamp:ts, mtime: snap.mtime, hash:snap.hash, size:snap.size};
       log('updated', relPath);
+    } else {
+      // update mtime even if content did not change so we can show accurate 'last modified' times
+      entry.latest = Object.assign(entry.latest || {}, {mtime: snap.mtime});
+      if(force) entry.latest.timestamp = ts; // optionally mark scan time
+      log('unchanged (mtime updated)', relPath);
     }
   }
 }
@@ -91,7 +98,7 @@ function scanOnce(){
         // skip top-level files (we only track files inside folders)
         if(!rel.includes('/')) continue;
         if(isExcluded(rel)) continue;
-        updateFile(data, rel);
+        updateFile(data, rel, true);
       }
     }
   }
@@ -108,19 +115,19 @@ function startWatch(){
     const rel = path.relative(WATCH_ROOT,p).replace(/\\/g,'/');
     if(!rel.includes('/')) return;
     if(isExcluded(rel)) return;
-    updateFile(data, rel); saveData(data);
+    updateFile(data, rel, false); saveData(data);
   });
   watcher.on('change', p=>{
     const rel = path.relative(WATCH_ROOT,p).replace(/\\/g,'/');
     if(!rel.includes('/')) return;
     if(isExcluded(rel)) return;
-    updateFile(data, rel); saveData(data);
+    updateFile(data, rel, false); saveData(data);
   });
   watcher.on('unlink', p=>{
     const rel = path.relative(WATCH_ROOT,p).replace(/\\/g,'/');
     if(!rel.includes('/')) return;
     if(isExcluded(rel)) return;
-    updateFile(data, rel); saveData(data);
+    updateFile(data, rel, false); saveData(data);
   });
 
   log('watcher running — output:', OUT_FILE);

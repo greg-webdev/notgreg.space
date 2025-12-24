@@ -5,9 +5,7 @@ const STORAGE_KEY = 'siteMonitor_sites_v1';
 let sites = [];
 let timers = {};
 
-const defaultProxy = 'https://api.allorigins.win/raw?url='; // useful for CORS
 const SITE_DOMAIN = 'https://notgreg.space'; // domain to link top-level sites to
-function getProxyHost(){ const e = document.getElementById('defaultProxy'); return e && e.value.trim() ? e.value.trim() : defaultProxy; }
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 
@@ -37,8 +35,8 @@ function render(){
   });
 }
 
-function addSite(url, intervalSec=60, useProxy=false){
-  const site = { id:uid(), url, intervalSec, useProxy, lastChecked:null, history:[] };
+function addSite(url, intervalSec=60){
+  const site = { id:uid(), url, intervalSec, lastChecked:null, history:[] };
   sites.push(site); save(); render(); schedule(site.id);
 }
 
@@ -62,7 +60,7 @@ function stopTimer(id){ if(timers[id]){ clearInterval(timers[id]); delete timers
 
 async function checkSite(id){
   const s = sites.find(x=>x.id===id); if(!s) return;
-  const url = s.useProxy ? getProxyHost() + encodeURIComponent(s.url) : s.url;
+  const url = s.url;
   const timestamp = new Date().toISOString();
   let event = { timestamp, status: null, statusText: '', headers: {}, contentHash: '', contentLength:0, summary:'', diffHTML:'', changedResources:[], error:null };
   try{
@@ -144,8 +142,7 @@ document.getElementById('addForm').addEventListener('submit', e=>{
   e.preventDefault();
   const url = document.getElementById('url').value.trim();
   const interval = parseInt(document.getElementById('interval').value,10) || 60;
-  const useProxy = document.getElementById('useProxy').checked;
-  addSite(url, interval, useProxy);
+  addSite(url, interval);
   e.target.reset();
 });
 
@@ -204,14 +201,16 @@ function renderLocalChanges(data){
     const top = p.split('/')[0];
     if(top === 'mc2') return; // exclude mc2 explicitly
     siteMap[top] = siteMap[top] || {name: top, latest: null, files: []};
-    if(info.latest && (!siteMap[top].latest || info.latest.timestamp > siteMap[top].latest.timestamp)){
-      siteMap[top].latest = info.latest;
+    if(info.latest && info.latest.mtime){
+      if(!siteMap[top].latest || Date.parse(info.latest.mtime) > Date.parse(siteMap[top].latest.mtime)){
+        siteMap[top].latest = info.latest;
+      }
     }
     siteMap[top].files.push({path:p, info});
   });
   const sites = Object.values(siteMap).sort((a,b)=>{
-    const ta = a.latest && a.latest.timestamp ? Date.parse(a.latest.timestamp) : 0;
-    const tb = b.latest && b.latest.timestamp ? Date.parse(b.latest.timestamp) : 0;
+    const ta = a.latest && a.latest.mtime ? Date.parse(a.latest.mtime) : 0;
+    const tb = b.latest && b.latest.mtime ? Date.parse(b.latest.mtime) : 0;
     return tb - ta; // newest first
   });
   if(!sites.length) { list.innerHTML = '<p>No sites recorded yet.</p>'; return; }
