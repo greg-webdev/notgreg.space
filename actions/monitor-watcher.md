@@ -14,3 +14,18 @@ Notes:
 - The watcher excludes `.git`, `node_modules`, `.github`, and the output file `actions/monitor-data.json`.
 - The watcher stores a small snapshot of file contents (up to 100k). The browser monitor uses those snapshots to compute diffs.
 - Serve your site locally (e.g., using a static server) so that `actions/monitor.html` can fetch `actions/monitor-data.json`.
+
+## Live server (optional)
+If you want the browser
+ to fetch the scan *live* from your PC (so you don't have to commit `monitor-data.json`), run the built-in monitor server:
+
+```bash
+npm run serve-monitor
+```
+
+This starts a small HTTP server on port 50123 (configurable via `MONITOR_PORT`) and exposes:
+
+- `GET /monitor-data.json` — the latest report (CORS enabled)
+- `POST /scan` — trigger a one-off scan (runs the watcher script once)
+
+The browser UI will try to use `http://localhost:50123` automatically and falls back to `actions/monitor-data.json` if the server isn't running.

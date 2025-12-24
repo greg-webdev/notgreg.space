@@ -28,13 +28,30 @@ End Function
 
 Sub RunScan()
   On Error Resume Next
-  Log "Triggering npm run scan"
-  ' Use cmd to open a window and run the commands so you can see output.
+  Log "Triggering npm run scan (hidden)"
+  ' Run the scan hidden and append output to the monitor log so this runs in background
   Dim cmd
   cmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command " & _
-        """Set-Location -LiteralPath '" & repoPath & "'; npm run scan"""
-  ' Run hidden (0) or normal window (1) - choose 1 so you can see progress
-  wsh.Run cmd, 1, False
+        """Set-Location -LiteralPath '" & repoPath & "'; npm run scan *> '" & repoPath & "\actions\monitor-run.log'"""
+  ' Run hidden (0) and do not wait for completion
+  wsh.Run cmd, 0, False
+End Sub
+
+Sub RunServer()
+  On Error Resume Next
+  Log "Ensuring monitor server is running (background)"
+  Dim q, colProcs
+  q = "Select * from Win32_Process where CommandLine like '%monitor-server.js%'"
+  Set colProcs = svc.ExecQuery(q)
+  If colProcs.Count = 0 Then
+    Log "Starting monitor server (background)"
+    Dim srvCmd
+    srvCmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command " & _
+             """Set-Location -LiteralPath '" & repoPath & "'; npm run serve-monitor *> '" & repoPath & "\actions\monitor-run.log'"""
+    wsh.Run srvCmd, 0, False
+  Else
+    Log "Monitor server already running"
+  End If
 End Sub
 
 ' If VS Code is already running when this script starts, trigger a scan immediately
@@ -43,18 +60,42 @@ If IsProcessRunning("Code.exe") Then
   RunScan
 End If
 
-' Watch for new Code.exe process creation and run scan when it occurs
-Dim query, watcher
-query = "Select * from __InstanceCreationEvent Within 2 Where TargetInstance ISA 'Win32_Process' and TargetInstance.Name = 'Code.exe'"
-Set watcher = svc.ExecNotificationQuery(query)
-Log "Watcher started - waiting for Code.exe creation events"
+' Polling loop: run scan on Code.exe start and every 10 minutes
+Log "Watcher started - polling for VS Code launch and periodic scans every 10 minutes"
+' Start the monitor server in the background if it isn't already running
+RunServer
+Dim prevRunning
+prevRunning = IsProcessRunning("Code.exe")
+If prevRunning Then
+  Log "VS Code was running at script start"
+End If
+Dim lastScan
+lastScan = Now
+' Run an initial scan immediately so the report is fresh
+RunScan
+lastScan = Now
 
 Do
   On Error Resume Next
-  Dim evt
-  Set evt = watcher.NextEvent()
-  If Not evt Is Nothing Then
+  ' detect Code.exe start (edge: previously running -> newly running)
+  Dim currentlyRunning
+  currentlyRunning = IsProcessRunning("Code.exe")
+  If currentlyRunning And Not prevRunning Then
     Log "Detected Code.exe start - running scan"
     RunScan
+    lastScan = Now
   End If
+  prevRunning = currentlyRunning
+
+  ' periodic scan every 10 minutes (600 seconds)
+  Dim elapsedMinutes
+  elapsedMinutes = DateDiff("n", lastScan, Now)
+  If elapsedMinutes >= 10 Then
+    Log "Periodic scan (10 minutes) - running scan"
+    RunScan
+    lastScan = Now
+  End If
+
+  ' sleep briefly to reduce CPU usage (20 seconds)
+  WScript.Sleep 20000
 Loop
