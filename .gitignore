@@ -1,0 +1,8 @@
+# Ignore monitor output and logs
+/actions/monitor-data.json
+/actions/monitor-run.log
+
+# Ignore node_modules and logs
+node_modules/
+npm-debug.log
+.DS_Store
