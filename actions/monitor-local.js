@@ -88,8 +88,9 @@ function renderLocalChanges(data){
   if(!sites.length) { list.innerHTML = '<p>No sites recorded yet.</p>'; return; }
   sites.forEach(s=>{
     const d = document.createElement('div'); d.style.borderTop='1px solid #eee'; d.style.padding='8px 0';
-    d.innerHTML = `<div><strong>${s.name}</strong> <span style="color:#666">${s.latestMtime||''}</span> <span style="color:#666">(${s.count} files)</span> <a href="${SITE_DOMAIN}/${encodeURIComponent(s.name)}/" target="_blank" rel="noopener">Open site</a></div>`;
-    d.addEventListener('click', ()=> showSiteDetails(s.name, lastFetchedData));
+    d.innerHTML = `<div><strong>${s.name}</strong> <span style=\"color:#666\">${s.latestMtime||''}</span> <span style=\"color:#666\">(${s.count} files)</span> <a href=\"${SITE_DOMAIN}/${encodeURIComponent(s.name)}/\" rel=\"noopener\">Open site</a></div>`;
+    // Click the row to open the actual site (navigates away)
+    d.addEventListener('click', ()=>{ window.location.href = `${SITE_DOMAIN}/${encodeURIComponent(s.name)}/`; });
     list.appendChild(d);
   });
 }
