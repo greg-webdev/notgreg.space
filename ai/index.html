@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NG.S AI Assistant - Auto-Key Loader</title>
+    <title>New Tab</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -84,7 +84,7 @@
     <div id="full-screen-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-40" style="display: none;">
         <div class="flex flex-col items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
             <!-- Loading GIF size: w-8 h-8 (32x32px) -->
-            <img id="typing-loader-gif" src="https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzJ3bTFnY201Mnl3NTFldjQxM24yeXJ3NHBydHpmcnZ3ZjFkY253byZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/cqp01l3Q7E0z0e4F7/giphy.gif" alt="Loading Spinner" class="w-8 h-8"> 
+            <img id="typing-loader-gif" src="loader.gif" alt="Loading Spinner" class="w-16 h-16"> 
             <span class="text-xl font-bold text-sky-400 mt-4">AI is thinking...</span>
             <p id="loader-status-text" class="text-sm text-gray-400 mt-2">Connecting to model...</p>
         </div>
@@ -104,7 +104,7 @@
 
             <!-- API Key Status Section (Now auto-loads from key.balls) -->
             <div id="api-key-loader" class="mt-0 p-2 bg-gray-800 rounded-xl mb-4 border border-gray-700">
-                <p class="block text-sm font-medium text-white mb-1">API Key Status (key.balls)</p>
+                <p class="block text-sm font-medium text-white mb-1">API Key Status</p>
                 <p id="key-status" class="text-xs mt-1 text-yellow-400">Attempting to load key.balls...</p>
             </div>
             
@@ -723,19 +723,19 @@
                 // Log half of the API key for debugging
                 const halfLength = Math.floor(API_KEY.length / 2);
                 console.log('API Key (first half):', API_KEY.substring(0, halfLength));
-                keyStatusEl.textContent = 'Status: Key Loaded & Sanitized Successfully!';
+                keyStatusEl.textContent = 'WORKING';
                 keyStatusEl.classList.remove('text-yellow-400');
                 keyStatusEl.classList.add('text-green-400');
                 
             } catch (error) {
                 console.error("API Key Load Error:", error);
                 API_KEY = null;
-                keyStatusEl.textContent = 'Error: Key.balls missing or invalid.';
+                keyStatusEl.textContent = 'NO WORKING';
                 keyStatusEl.classList.remove('text-yellow-400');
                 keyStatusEl.classList.add('text-red-400');
                 // Inform the user how to fix it
                 showAlert('API Key Error', 
-                    `Could not read './key.balls'. Please ensure the file exists in the same directory and contains your key (with or without an '@' symbol). 
+                    `BROKEN.
                     (Error: ${error.message})`
                 );
             } finally {
@@ -888,8 +888,8 @@
             chatTitleEl.textContent = 'Select a chat or start a new one.';
             chatMessagesEl.innerHTML = `
                 <div class="text-center text-gray-500 mt-20">
-                    <p class="text-3xl mb-2">👋 Welcome to NG.S/AI</p>
-                    <p>1. Ensure API Key is loaded from key.balls.</p>
+                    <p class="text-3xl mb-2">👋 Welcome to NOTGREG.SPACE/AI</p>
+                    <p>1. Sign in</p>
                     <p>2. Start a new chat!</p>
                 </div>
             `;
@@ -1273,7 +1273,7 @@
 
             showAlert('Warning', 
                 `${errorMessage} 
-                and it is still in development so it might not be de best.`
+                and it is still in development so it might not be de best. For more info, text greg@notgreg.space (email)`
             );
             
             // --- FIX: Ensure the button is visible and set up for Sign In/Google ---
