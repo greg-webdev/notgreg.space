@@ -44,19 +44,35 @@
             align-items: center;
             gap: 10px;
         }
+        .ua-info {
+            font-size: 10px;
+            opacity: 0.7;
+            max-width: 250px;
+            text-align: right;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .ua-info:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+        .ua-info:active {
+            transform: scale(0.95);
+        }
         .touch-controls {
             position: absolute;
-            bottom: 30px;
+            bottom: 40px;
             left: 0;
             right: 0;
             display: flex;
             justify-content: space-between;
-            padding: 0 40px;
+            padding: 0 5%;
             pointer-events: none;
         }
         .touch-btn {
-            width: 80px;
-            height: 80px;
+            width: 70px;
+            height: 70px;
             background: rgba(255, 255, 255, 0.15);
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 20px;
@@ -68,6 +84,14 @@
             color: white;
             font-weight: bold;
             font-size: 24px;
+            user-select: none;
+        }
+        @media (min-width: 768px) {
+            .touch-btn {
+                width: 90px;
+                height: 90px;
+                font-size: 32px;
+            }
         }
         .touch-btn:active {
             transform: scale(0.9);
@@ -165,6 +189,10 @@
             </div>
             <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: public</div>
         </div>
+        <div class="ua-info stat-card flex-col items-end" id="ua-card" onclick="toggleZoom()">
+            <div class="font-bold mb-1">USER AGENT (Click to Zoom)</div>
+            <div id="ua-text" class="break-all text-[8px]"></div>
+        </div>
     </div>
 
     <div class="touch-controls hidden" id="touch-ui">
@@ -209,11 +237,15 @@
         const balanceEl = document.getElementById('balance');
         const levelEl = document.getElementById('level-display');
         const loadingText = document.getElementById('loading-text');
+        const uaTextEl = document.getElementById('ua-text');
+
+        uaTextEl.innerText = navigator.userAgent;
 
         let activeLobby = "public";
         let currentUser = null;
         let inMenu = true;
         let unsubscribeLobby = null;
+        let currentZoom = 1;
 
         const player = {
             id: null, x: 0, y: 0, width: 40, height: 40,
@@ -230,15 +262,18 @@
         const keys = {};
         const touchState = { left: false, right: false, jump: false };
 
-        // --- GLOBAL BRIDGE ---
+        // --- GLOBAL BRIDGES ---
+        window.toggleZoom = () => {
+            currentZoom = currentZoom === 1 ? 0.2 : 1;
+            log("Zoom set to: " + currentZoom + "x");
+        };
+
         window.enterGame = () => {
             const codeInput = document.getElementById('lobby-code').value.trim();
             if (codeInput) {
                 activeLobby = codeInput.toLowerCase();
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby;
                 log("Switching to lobby: " + activeLobby);
-                
-                // Clear state for new lobby
                 otherPlayers = {}; 
                 if (unsubscribeLobby) unsubscribeLobby();
                 startMultiplayer();
@@ -281,12 +316,8 @@
 
         function startMultiplayer() {
             if (!currentUser || !activeLobby) return;
-            
-            // CORRECT PATH: /artifacts/{appId}/public/data/{collectionName}
             const collectionName = `players_${activeLobby}`;
             const playersCol = collection(db, 'artifacts', appId, 'public', 'data', collectionName);
-            
-            log("Syncing " + collectionName);
             
             unsubscribeLobby = onSnapshot(playersCol, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
@@ -295,15 +326,10 @@
                         else otherPlayers[change.doc.id] = change.doc.data();
                     }
                 });
-            }, (err) => {
-                log("Sync Error: " + err.code);
-            });
+            }, (err) => log("Sync Error: " + err.code));
 
-            // High-frequency sync loop
-            const syncInterval = setInterval(async () => {
+            setInterval(async () => {
                 if (!currentUser || inMenu) return; 
-                // Clear interval if lobby changes or user logs out (not fully implemented here but loop guards are active)
-                
                 try {
                     const playerRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, player.id);
                     await setDoc(playerRef, {
@@ -315,9 +341,7 @@
                         velX: parseFloat(player.velX.toFixed(2)), 
                         lastUpdate: Date.now()
                     }, { merge: true });
-                } catch (e) {
-                    // Fail silently to avoid spamming console during movement
-                }
+                } catch (e) {}
             }, 250);
         }
 
@@ -367,12 +391,14 @@
         });
         window.addEventListener('keyup', e => keys[e.code] = false);
 
-        // Touch Setup
         const bind = (id, k) => {
             const b = document.getElementById(id);
             if (!b) return;
             b.ontouchstart = (e) => { e.preventDefault(); touchState[k] = true; if(k==='jump') handleJump(); };
             b.ontouchend = (e) => { e.preventDefault(); touchState[k] = false; };
+            b.onmousedown = (e) => { touchState[k] = true; if(k==='jump') handleJump(); };
+            b.onmouseup = (e) => { touchState[k] = false; };
+            b.onmouseleave = (e) => { touchState[k] = false; };
         };
         bind('btn-left', 'left'); bind('btn-right', 'right'); bind('btn-jump', 'jump');
 
@@ -380,9 +406,13 @@
             const moveL = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
             const moveR = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
 
-            if (moveL) player.velX = Math.max(player.velX - 1.2, -7);
-            else if (moveR) player.velX = Math.min(player.velX + 1.2, 7);
-            else player.velX *= 0.85;
+            // Movement and Friction - SLOWER SETTINGS
+            if (moveL) player.velX = Math.max(player.velX - 0.6, -4); // Reduced accel from 1.5, max from 9
+            else if (moveR) player.velX = Math.min(player.velX + 0.6, 4); // Reduced accel from 1.5, max from 9
+            else {
+                player.velX *= 0.75;
+                if (Math.abs(player.velX) < 0.1) player.velX = 0;
+            }
 
             player.velY += 0.6;
             player.x += player.velX;
@@ -393,7 +423,6 @@
             if (player.onGround) { player.coyoteTime = 10; player.jumpCount = 0; }
             else player.coyoteTime--;
 
-            // Coins
             gameState.coins.forEach(c => {
                 if (!c.collected && Math.abs(player.x - c.x) < 30 && Math.abs(player.y - c.y) < 30) {
                     c.collected = true;
@@ -402,15 +431,13 @@
                 }
             });
 
-            // Portal
             if (Math.abs(player.x - gameState.portal.x) < 50 && Math.abs(player.y - gameState.portal.y) < 50) {
                 gameState.level++;
                 generateLevel(gameState.level);
             }
 
-            // Camera
-            const targetCamX = player.x - canvas.width / 2;
-            const targetCamY = player.y - canvas.height / 2;
+            const targetCamX = player.x - (canvas.width / 2) / currentZoom;
+            const targetCamY = player.y - (canvas.height / 2) / currentZoom;
             gameState.camera.x += (targetCamX - gameState.camera.x) * 0.1;
             gameState.camera.y += (targetCamY - gameState.camera.y) * 0.1;
         }
@@ -438,6 +465,8 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
+            // Apply Zoom
+            ctx.scale(currentZoom, currentZoom);
             ctx.translate(-gameState.camera.x, -gameState.camera.y);
 
             // Portal
@@ -481,7 +510,6 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.width, player.height);
             
-            // Eyes
             ctx.fillStyle = 'white';
             const ex = player.velX > 0.5 ? 6 : (player.velX < -0.5 ? -6 : 0);
             ctx.fillRect(player.x + 10 + ex, player.y + 10, 8, 8);
@@ -497,7 +525,6 @@
         }
         window.addEventListener('resize', resize);
         
-        // Initial Launch
         resize();
         generateLevel(1);
         initAuth();
