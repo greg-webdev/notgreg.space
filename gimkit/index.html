@@ -25,7 +25,7 @@
             top: 20px;
             left: 20px;
             right: 20px;
-            pointer-events: none;
+            pointer-events: none; /* Container is transparent to clicks */
             color: white;
             text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
             display: flex;
@@ -43,13 +43,13 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            pointer-events: auto; /* Enable clicks on individual cards */
         }
         .ua-info {
             font-size: 10px;
             opacity: 0.7;
             max-width: 250px;
             text-align: right;
-            pointer-events: auto;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -69,6 +69,7 @@
             justify-content: space-between;
             padding: 0 5%;
             pointer-events: none;
+            z-index: 50;
         }
         .touch-btn {
             width: 70px;
@@ -83,7 +84,7 @@
             backdrop-filter: blur(5px);
             color: white;
             font-weight: bold;
-            font-size: 24px;
+            font-size: 20px;
             user-select: none;
         }
         @media (min-width: 768px) {
@@ -264,7 +265,7 @@
 
         // --- GLOBAL BRIDGES ---
         window.toggleZoom = () => {
-            currentZoom = currentZoom === 1 ? 0.2 : 1;
+            currentZoom = (currentZoom === 1) ? 0.2 : 1;
             log("Zoom set to: " + currentZoom + "x");
         };
 
@@ -372,6 +373,7 @@
         }
 
         const handleJump = () => {
+            if (inMenu) return;
             if (player.onGround || player.coyoteTime > 0) {
                 player.velY = -15;
                 player.jumpCount = 1;
@@ -391,24 +393,39 @@
         });
         window.addEventListener('keyup', e => keys[e.code] = false);
 
+        // Robust Touch/Mouse Binding
         const bind = (id, k) => {
             const b = document.getElementById(id);
             if (!b) return;
-            b.ontouchstart = (e) => { e.preventDefault(); touchState[k] = true; if(k==='jump') handleJump(); };
-            b.ontouchend = (e) => { e.preventDefault(); touchState[k] = false; };
-            b.onmousedown = (e) => { touchState[k] = true; if(k==='jump') handleJump(); };
-            b.onmouseup = (e) => { touchState[k] = false; };
-            b.onmouseleave = (e) => { touchState[k] = false; };
+            const startHandler = (e) => {
+                e.preventDefault();
+                touchState[k] = true;
+                if (k === 'jump') handleJump();
+            };
+            const endHandler = (e) => {
+                e.preventDefault();
+                touchState[k] = false;
+            };
+            
+            b.addEventListener('touchstart', startHandler, { passive: false });
+            b.addEventListener('touchend', endHandler, { passive: false });
+            b.addEventListener('mousedown', (e) => { touchState[k] = true; if(k==='jump') handleJump(); });
+            b.addEventListener('mouseup', (e) => { touchState[k] = false; });
+            b.addEventListener('mouseleave', (e) => { touchState[k] = false; });
         };
-        bind('btn-left', 'left'); bind('btn-right', 'right'); bind('btn-jump', 'jump');
+        
+        bind('btn-left', 'left'); 
+        bind('btn-right', 'right'); 
+        bind('btn-jump', 'jump');
 
         function update() {
+            if (inMenu) return;
+            
             const moveL = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
             const moveR = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
 
-            // Movement and Friction - SLOWER SETTINGS
-            if (moveL) player.velX = Math.max(player.velX - 0.6, -4); // Reduced accel from 1.5, max from 9
-            else if (moveR) player.velX = Math.min(player.velX + 0.6, 4); // Reduced accel from 1.5, max from 9
+            if (moveL) player.velX = Math.max(player.velX - 0.6, -4); 
+            else if (moveR) player.velX = Math.min(player.velX + 0.6, 4); 
             else {
                 player.velX *= 0.75;
                 if (Math.abs(player.velX) < 0.1) player.velX = 0;
@@ -465,7 +482,6 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
-            // Apply Zoom
             ctx.scale(currentZoom, currentZoom);
             ctx.translate(-gameState.camera.x, -gameState.camera.y);
 
