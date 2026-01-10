@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gimkit Style Platformer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            pointer-events: none;
+            color: white;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 10;
+        }
+        .stat-card {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .touch-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            pointer-events: none;
+        }
+        .touch-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+        }
+        .touch-btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 0.3);
+        }
+        #home-screen {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(45, 27, 78, 0.8) 0%, rgba(26, 26, 26, 0.9) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+            transition: opacity 0.5s ease;
+        }
+        .menu-card {
+            background: rgba(0,0,0,0.6);
+            padding: 40px;
+            border-radius: 24px;
+            border: 2px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(15px);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .primary-btn {
+            background: #3d5afe;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+            border: none;
+        }
+        .primary-btn:hover { background: #536dfe; transform: scale(1.02); }
+        .primary-btn:active { transform: scale(0.98); }
+        
+        input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        #debug-log {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 5px;
+            pointer-events: none;
+            z-index: 200;
+            max-width: 250px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="debug-log">System: Initializing</div>
+
+    <div id="home-screen">
+        <div class="menu-card">
+            <h1 class="text-5xl font-black mb-2 tracking-tighter">GIMKIT TOWER</h1>
+            <p class="opacity-50 mb-8" id="loading-text">Server Status: Connecting...</p>
+            
+            <button id="join-btn" class="primary-btn text-lg" onclick="enterGame()">START PLAYING</button>
+            
+            <div class="mt-8 border-t border-white/10 pt-6">
+                <p class="text-xs opacity-40 mb-2">PRIVATE LOBBY CODE</p>
+                <input type="text" id="lobby-code" placeholder="Leave empty for public..." maxlength="6">
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-layer" class="hidden">
+        <div>
+            <div class="stat-card">
+                <div class="w-6 h-6 bg-green-500 rounded-full"></div>
+                <div class="text-2xl font-bold">Balance: <span id="balance">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="w-6 h-6 bg-blue-500 rounded-full"></div>
+                <div class="text-lg">Level: <span id="level-display">1</span></div>
+            </div>
+            <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: public</div>
+        </div>
+    </div>
+
+    <div class="touch-controls hidden" id="touch-ui">
+        <div class="flex gap-4">
+            <div class="touch-btn" id="btn-left">←</div>
+            <div class="touch-btn" id="btn-right">→</div>
+        </div>
+        <div class="touch-btn" id="btn-jump">JUMP</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+        const log = (msg) => {
+            console.log(msg);
+            document.getElementById('debug-log').innerText = "System: " + msg;
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyCyZymZUXSf-5JKT30sVX5DoAUgU6QlieY",
+                authDomain: "gimkit1.firebaseapp.com",
+                projectId: "gimkit1",
+                storageBucket: "gimkit1.firebasestorage.app",
+                messagingSenderId: "552582099200",
+                appId: "1:552582099200:web:c1d44b8028e662c88403e5"
+            };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gimkit-tower-v1';
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // UI & State
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const balanceEl = document.getElementById('balance');
+        const levelEl = document.getElementById('level-display');
+        const loadingText = document.getElementById('loading-text');
+
+        let activeLobby = "public";
+        let currentUser = null;
+        let inMenu = true;
+        let unsubscribeLobby = null;
+
+        const player = {
+            id: null, x: 0, y: 0, width: 40, height: 40,
+            velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+            onGround: false, jumpCount: 0, maxJumps: 2, coyoteTime: 0
+        };
+
+        let gameState = {
+            balance: 0, level: 1, camera: { x: 0, y: 0 },
+            platforms: [], coins: [], portal: { x: 0, y: 0 }
+        };
+
+        let otherPlayers = {};
+        const keys = {};
+        const touchState = { left: false, right: false, jump: false };
+
+        // --- GLOBAL BRIDGE ---
+        window.enterGame = () => {
+            const codeInput = document.getElementById('lobby-code').value.trim();
+            if (codeInput) {
+                activeLobby = codeInput.toLowerCase();
+                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby;
+                log("Switching to lobby: " + activeLobby);
+                
+                // Clear state for new lobby
+                otherPlayers = {}; 
+                if (unsubscribeLobby) unsubscribeLobby();
+                startMultiplayer();
+            }
+            
+            inMenu = false;
+            document.getElementById('home-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('home-screen').classList.add('hidden');
+                document.getElementById('ui-layer').classList.remove('hidden');
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    document.getElementById('touch-ui').classList.remove('hidden');
+                }
+            }, 500);
+        };
+
+        // --- FIREBASE INIT ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                log("Auth Success: " + user.uid.substring(0,6));
+                currentUser = user;
+                player.id = user.uid;
+                loadingText.innerText = "Server Status: Connected";
+                startMultiplayer();
+            }
+        });
+
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                log("Auth Fail: " + e.message);
+                loadingText.innerText = "Server Status: Local Only";
+            }
+        }
+
+        function startMultiplayer() {
+            if (!currentUser || !activeLobby) return;
+            
+            // CORRECT PATH: /artifacts/{appId}/public/data/{collectionName}
+            const collectionName = `players_${activeLobby}`;
+            const playersCol = collection(db, 'artifacts', appId, 'public', 'data', collectionName);
+            
+            log("Syncing " + collectionName);
+            
+            unsubscribeLobby = onSnapshot(playersCol, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.doc.id !== player.id) {
+                        if (change.type === "removed") delete otherPlayers[change.doc.id];
+                        else otherPlayers[change.doc.id] = change.doc.data();
+                    }
+                });
+            }, (err) => {
+                log("Sync Error: " + err.code);
+            });
+
+            // High-frequency sync loop
+            const syncInterval = setInterval(async () => {
+                if (!currentUser || inMenu) return; 
+                // Clear interval if lobby changes or user logs out (not fully implemented here but loop guards are active)
+                
+                try {
+                    const playerRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, player.id);
+                    await setDoc(playerRef, {
+                        x: Math.round(player.x), 
+                        y: Math.round(player.y), 
+                        color: player.color,
+                        balance: gameState.balance, 
+                        level: gameState.level,
+                        velX: parseFloat(player.velX.toFixed(2)), 
+                        lastUpdate: Date.now()
+                    }, { merge: true });
+                } catch (e) {
+                    // Fail silently to avoid spamming console during movement
+                }
+            }, 250);
+        }
+
+        // --- GAME ENGINE ---
+        function generateLevel(levelNum) {
+            gameState.platforms = [];
+            gameState.coins = [];
+            const width = 14;
+            const height = 15 + (levelNum * 4);
+            const TILE = 64;
+            
+            for (let r = 0; r < height; r++) {
+                for (let c = 0; c < width; c++) {
+                    if (c === 0 || c === width - 1 || r === height - 1) {
+                        gameState.platforms.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE });
+                    } else if (r < height - 2 && r % 3 === 0 && Math.random() > 0.45) {
+                        gameState.platforms.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE });
+                        if (Math.random() > 0.7) {
+                            gameState.coins.push({ x: c * TILE + 20, y: (r - 1) * TILE + 20, collected: false });
+                        }
+                    }
+                }
+            }
+            gameState.portal = { x: (width / 2) * TILE - 40, y: TILE };
+            player.x = (width / 2) * TILE - 20;
+            player.y = (height - 2) * TILE;
+            levelEl.innerText = levelNum;
+        }
+
+        const handleJump = () => {
+            if (player.onGround || player.coyoteTime > 0) {
+                player.velY = -15;
+                player.jumpCount = 1;
+                player.onGround = false;
+            } else if (player.jumpCount < player.maxJumps) {
+                player.velY = -14;
+                player.jumpCount++;
+            }
+        };
+
+        window.addEventListener('keydown', e => {
+            if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+                e.preventDefault();
+                handleJump();
+            }
+            keys[e.code] = true;
+        });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        // Touch Setup
+        const bind = (id, k) => {
+            const b = document.getElementById(id);
+            if (!b) return;
+            b.ontouchstart = (e) => { e.preventDefault(); touchState[k] = true; if(k==='jump') handleJump(); };
+            b.ontouchend = (e) => { e.preventDefault(); touchState[k] = false; };
+        };
+        bind('btn-left', 'left'); bind('btn-right', 'right'); bind('btn-jump', 'jump');
+
+        function update() {
+            const moveL = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
+            const moveR = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
+
+            if (moveL) player.velX = Math.max(player.velX - 1.2, -7);
+            else if (moveR) player.velX = Math.min(player.velX + 1.2, 7);
+            else player.velX *= 0.85;
+
+            player.velY += 0.6;
+            player.x += player.velX;
+            checkCollisions('h');
+            player.y += player.velY;
+            checkCollisions('v');
+
+            if (player.onGround) { player.coyoteTime = 10; player.jumpCount = 0; }
+            else player.coyoteTime--;
+
+            // Coins
+            gameState.coins.forEach(c => {
+                if (!c.collected && Math.abs(player.x - c.x) < 30 && Math.abs(player.y - c.y) < 30) {
+                    c.collected = true;
+                    gameState.balance += 10;
+                    balanceEl.innerText = gameState.balance;
+                }
+            });
+
+            // Portal
+            if (Math.abs(player.x - gameState.portal.x) < 50 && Math.abs(player.y - gameState.portal.y) < 50) {
+                gameState.level++;
+                generateLevel(gameState.level);
+            }
+
+            // Camera
+            const targetCamX = player.x - canvas.width / 2;
+            const targetCamY = player.y - canvas.height / 2;
+            gameState.camera.x += (targetCamX - gameState.camera.x) * 0.1;
+            gameState.camera.y += (targetCamY - gameState.camera.y) * 0.1;
+        }
+
+        function checkCollisions(dir) {
+            if (dir === 'v') player.onGround = false;
+            gameState.platforms.forEach(p => {
+                if (player.x < p.x + p.w && player.x + player.width > p.x && 
+                    player.y < p.y + p.h && player.y + player.height > p.y) {
+                    if (dir === 'h') {
+                        player.x = player.velX > 0 ? p.x - player.width : p.x + p.w;
+                        player.velX = 0;
+                    } else {
+                        if (player.velY > 0) { player.y = p.y - player.height; player.onGround = true; }
+                        else player.y = p.y + p.h;
+                        player.velY = 0;
+                    }
+                }
+            });
+        }
+
+        function draw() {
+            update();
+            ctx.fillStyle = '#14141a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-gameState.camera.x, -gameState.camera.y);
+
+            // Portal
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#7c4dff';
+            ctx.fillStyle = '#7c4dff';
+            ctx.beginPath();
+            ctx.ellipse(gameState.portal.x + 40, gameState.portal.y + 60, 40, 60, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Platforms
+            ctx.fillStyle = '#2c2c38';
+            gameState.platforms.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.strokeStyle = '#3d3d4d';
+                ctx.strokeRect(p.x+2, p.y+2, p.w-4, p.h-4);
+            });
+
+            // Coins
+            ctx.fillStyle = '#ffd700';
+            gameState.coins.forEach(c => {
+                if(!c.collected) {
+                    ctx.beginPath();
+                    ctx.arc(c.x + 10, c.y + 10, 8, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            });
+
+            // Others
+            ctx.globalAlpha = 0.4;
+            Object.values(otherPlayers).forEach(p => {
+                if (p.level === gameState.level) {
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, 40, 40);
+                }
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Eyes
+            ctx.fillStyle = 'white';
+            const ex = player.velX > 0.5 ? 6 : (player.velX < -0.5 ? -6 : 0);
+            ctx.fillRect(player.x + 10 + ex, player.y + 10, 8, 8);
+            ctx.fillRect(player.x + 22 + ex, player.y + 10, 8, 8);
+
+            ctx.restore();
+            requestAnimationFrame(draw);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        
+        // Initial Launch
+        resize();
+        generateLevel(1);
+        initAuth();
+        requestAnimationFrame(draw);
+    </script>
+</body>
+</html>
