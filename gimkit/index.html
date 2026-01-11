@@ -295,7 +295,19 @@
             if (!box) return;
             const ua = navigator.userAgent;
             let label = currentServerLabel || 'none';
-            box.innerText = ua + '  |  Server: ' + label;
+            let text = ua + '  |  Server: ' + label;
+            // append simple metrics if available for WS
+            try {
+                const metrics = serverStatus.ws && serverStatus.ws.metrics;
+                if (metrics) {
+                    const cpu = (metrics.cpu_pct !== null && typeof metrics.cpu_pct !== 'undefined') ? metrics.cpu_pct + '% CPU' : null;
+                    const mem = (metrics.mem_pct !== null && typeof metrics.mem_pct !== 'undefined') ? metrics.mem_pct + '% RAM' : null;
+                    const gpu = (metrics.gpu_util_pct !== null && typeof metrics.gpu_util_pct !== 'undefined') ? metrics.gpu_util_pct + '% GPU' : null;
+                    const parts = [cpu, mem, gpu].filter(Boolean);
+                    if (parts.length) text += '  |  ' + parts.join('  ');
+                }
+            } catch (e) {}
+            box.innerText = text;
         };
 
         const initFirebase = async () => {
@@ -497,7 +509,7 @@ function connectWS() {
         wsReconnectAttempts = 0;
         if (wsConnectTimer) { clearTimeout(wsConnectTimer); wsConnectTimer = null; }
         log('WS: connected');
-        serverStatus.ws.online = true; renderServerStatusUI();
+        serverStatus.ws.online = true; serverStatus.ws.metrics = null; currentServerLabel = 'ws'; updateUserAgentBox(); renderServerStatusUI();
         try { wsSocket.send(JSON.stringify({ type: 'join', lobby: activeLobby, id: player.id, x: Math.round(player.x), y: Math.round(player.y), ts: Date.now() })); } catch(e){}
     };
     wsSocket.onmessage = (evt) => {
@@ -506,7 +518,10 @@ function connectWS() {
             if (data && data.type === 'snapshot' && data.lobbies) {
                 const players = data.lobbies[activeLobby] || [];
                 serverStatus.ws.load = Array.isArray(players) ? players.length : 0;
+                if (data.server) serverStatus.ws.metrics = data.server;
                 renderServerStatusUI();
+                // show metrics in user-agent box too
+                updateUserAgentBox();
             }
             if (data && data.type === 'snapshot' && data.lobbies) {
                 const players = data.lobbies[activeLobby];

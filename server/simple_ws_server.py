@@ -11,6 +11,12 @@ import os
 import signal
 from collections import defaultdict
 import websockets
+import subprocess
+
+try:
+    import psutil
+except Exception:
+    psutil = None
 
 PORT = int(os.environ.get('PORT', '3000'))
 BROADCAST_HZ = int(os.environ.get('BROADCAST_HZ', '100'))
@@ -55,8 +61,57 @@ async def broadcaster():
                 for pid in stale:
                     del lobby['players'][pid]
                 payload[lid] = list(lobby['players'].items())
+            # gather simple server metrics
+            def get_metrics():
+                metrics = {}
+                try:
+                    if psutil:
+                        metrics['cpu_pct'] = psutil.cpu_percent(interval=None)
+                        vm = psutil.virtual_memory()
+                        metrics['mem_pct'] = round(vm.percent, 1)
+                    else:
+                        # fallback: use loadavg and /proc/meminfo
+                        try:
+                            load1 = os.getloadavg()[0]
+                            cpu_count = os.cpu_count() or 1
+                            metrics['cpu_pct'] = round((load1 / cpu_count) * 100, 1)
+                        except Exception:
+                            metrics['cpu_pct'] = None
+                        try:
+                            meminfo = {}
+                            with open('/proc/meminfo', 'r') as f:
+                                for line in f:
+                                    k, v = line.split(':')
+                                    meminfo[k.strip()] = int(v.split()[0])
+                            total = meminfo.get('MemTotal')
+                            avail = meminfo.get('MemAvailable') if 'MemAvailable' in meminfo else meminfo.get('MemFree')
+                            if total and avail:
+                                used_pct = round((1 - (avail / total)) * 100, 1)
+                                metrics['mem_pct'] = used_pct
+                            else:
+                                metrics['mem_pct'] = None
+                        except Exception:
+                            metrics['mem_pct'] = None
+                    # GPU via nvidia-smi if available
+                    try:
+                        out = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'], stderr=subprocess.DEVNULL)
+                        line = out.decode().strip().split('\n')[0]
+                        if line:
+                            parts = [p.strip() for p in line.split(',')]
+                            metrics['gpu_util_pct'] = float(parts[0])
+                            metrics['gpu_mem_used'] = float(parts[1])
+                            metrics['gpu_mem_total'] = float(parts[2])
+                        else:
+                            metrics['gpu_util_pct'] = None
+                    except Exception:
+                        metrics['gpu_util_pct'] = None
+                except Exception:
+                    metrics = {'cpu_pct': None, 'mem_pct': None, 'gpu_util_pct': None}
+                return metrics
+
+            server_metrics = get_metrics()
             if payload:
-                msg = json.dumps({'type': 'snapshot', 'lobbies': payload})
+                msg = json.dumps({'type': 'snapshot', 'lobbies': payload, 'server': server_metrics})
                 await asyncio.gather(*[c.send(msg) for c in list(clients) if not c.closed], return_exceptions=True)
         await asyncio.sleep(interval)
 
