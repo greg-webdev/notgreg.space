@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gimkit Style Platformer</title>
+    <title>Sync Tower Multiplayer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -25,40 +25,32 @@
             top: 20px;
             left: 20px;
             right: 20px;
-            pointer-events: none; /* Container is transparent to clicks */
+            pointer-events: none;
             color: white;
             text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             z-index: 10;
+            transform: translateX(-100%);
+            animation: slideInLeft 0.5s ease-out forwards;
+        }
+        @keyframes slideInLeft {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
         }
         .stat-card {
             background: rgba(0, 0, 0, 0.6);
             padding: 10px 20px;
-            border-radius: 12px;
+            border-radius: 24px;
             border: 2px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(4px);
             margin-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 10px;
-            pointer-events: auto; /* Enable clicks on individual cards */
-        }
-        .ua-info {
-            font-size: 10px;
-            opacity: 0.7;
-            max-width: 250px;
-            text-align: right;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .ua-info:hover {
-            background: rgba(255, 255, 255, 0.1);
-            transform: scale(1.05);
-        }
-        .ua-info:active {
-            transform: scale(0.95);
+            pointer-events: auto;
+            transition: all 0.3s ease;
         }
         .touch-controls {
             position: absolute;
@@ -70,13 +62,35 @@
             padding: 0 5%;
             pointer-events: none;
             z-index: 50;
+            transform: translateY(100%);
+            animation: slideInBottom 0.5s ease-out forwards;
+        }
+        @keyframes slideInBottom {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        .coin-bounce {
+            animation: bounce 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .portal-pulse {
+            animation: pulse 2s infinite;
         }
         .touch-btn {
             width: 70px;
             height: 70px;
             background: rgba(255, 255, 255, 0.15);
             border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 20px;
+            border-radius: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -85,14 +99,7 @@
             color: white;
             font-weight: bold;
             font-size: 20px;
-            user-select: none;
-        }
-        @media (min-width: 768px) {
-            .touch-btn {
-                width: 90px;
-                height: 90px;
-                font-size: 32px;
-            }
+            transition: all 0.3s ease;
         }
         .touch-btn:active {
             transform: scale(0.9);
@@ -108,42 +115,54 @@
             justify-content: center;
             z-index: 100;
             color: white;
-            transition: opacity 0.5s ease;
+            opacity: 0;
+            animation: fadeIn 1s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         .menu-card {
             background: rgba(0,0,0,0.6);
             padding: 40px;
-            border-radius: 24px;
+            border-radius: 32px;
             border: 2px solid rgba(255,255,255,0.1);
             backdrop-filter: blur(15px);
             text-align: center;
             max-width: 400px;
             width: 90%;
+            transition: all 0.3s ease;
         }
         .primary-btn {
             background: #3d5afe;
             color: white;
             padding: 12px 30px;
-            border-radius: 12px;
+            border-radius: 20px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
             display: block;
             width: 100%;
             margin-top: 10px;
             border: none;
         }
-        .primary-btn:hover { background: #536dfe; transform: scale(1.02); }
-        .primary-btn:active { transform: scale(0.98); }
-        
+        .primary-btn:hover {
+            background: #536dfe;
+            transform: translateY(-2px);
+        }
         input {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.2);
             padding: 12px;
-            border-radius: 8px;
+            border-radius: 16px;
             color: white;
             width: 100%;
             margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        input:focus {
+            border-color: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.1);
         }
         #debug-log {
             position: fixed;
@@ -154,26 +173,26 @@
             font-family: monospace;
             font-size: 10px;
             padding: 5px;
+            border-radius: 12px;
             pointer-events: none;
             z-index: 200;
-            max-width: 250px;
         }
     </style>
 </head>
 <body>
 
-    <div id="debug-log">System: Initializing</div>
+    <div id="debug-log">System: Initializing...</div>
 
     <div id="home-screen">
         <div class="menu-card">
-            <h1 class="text-5xl font-black mb-2 tracking-tighter">GIMKIT TOWER</h1>
-            <p class="opacity-50 mb-8" id="loading-text">Server Status: Connecting...</p>
+            <h1 class="text-5xl font-black mb-2 tracking-tighter italic text-blue-400">SYNC TOWER</h1>
+            <p class="opacity-50 mb-8" id="loading-text">Server Status: Authenticating...</p>
             
-            <button id="join-btn" class="primary-btn text-lg" onclick="enterGame()">START PLAYING</button>
+            <button id="join-btn" class="primary-btn text-lg" onclick="enterGame()">JOIN GLOBAL LOBBY</button>
             
             <div class="mt-8 border-t border-white/10 pt-6">
-                <p class="text-xs opacity-40 mb-2">PRIVATE LOBBY CODE</p>
-                <input type="text" id="lobby-code" placeholder="Leave empty for public..." maxlength="6">
+                <p class="text-xs opacity-40 mb-2">JOIN SPECIFIC SERVER</p>
+                <input type="text" id="lobby-code" placeholder="Enter Code (e.g. 123456)" maxlength="10">
             </div>
         </div>
     </div>
@@ -188,12 +207,9 @@
                 <div class="w-6 h-6 bg-blue-500 rounded-full"></div>
                 <div class="text-lg">Level: <span id="level-display">1</span></div>
             </div>
-            <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: public</div>
+            <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: global</div>
         </div>
-        <div class="ua-info stat-card flex-col items-end" id="ua-card" onclick="toggleZoom()">
-            <div class="font-bold mb-1">USER AGENT (Click to Zoom)</div>
-            <div id="ua-text" class="break-all text-[8px]"></div>
-        </div>
+        <div id="user-agent-box" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 8px; color: white; font-size: 10px; cursor: pointer; backdrop-filter: blur(4px);"></div>
     </div>
 
     <div class="touch-controls hidden" id="touch-ui">
@@ -206,344 +222,269 @@
 
     <canvas id="gameCanvas"></canvas>
 
+    <script>
+        window.__firebase_config = JSON.stringify({
+            apiKey: "AIzaSyCyZymZUXSf-5JKT30sVX5DoAUgU6QlieY",
+            authDomain: "gimkit1.firebaseapp.com",
+            projectId: "gimkit1",
+            storageBucket: "gimkit1.firebasestorage.app",
+            messagingSenderId: "552582099200",
+            appId: "1:552582099200:web:c1d44b8028e662c88403e5"
+        });
+    </script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        const log = (msg) => {
-            console.log(msg);
-            document.getElementById('debug-log').innerText = "System: " + msg;
-        };
+        class SeededRandom {
+            constructor(seed) { this.seed = seed; }
+            next() {
+                this.seed = (this.seed * 9301 + 49297) % 233280;
+                return this.seed / 233280;
+            }
+        }
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "AIzaSyCyZymZUXSf-5JKT30sVX5DoAUgU6QlieY",
-                authDomain: "gimkit1.firebaseapp.com",
-                projectId: "gimkit1",
-                storageBucket: "gimkit1.firebasestorage.app",
-                messagingSenderId: "552582099200",
-                appId: "1:552582099200:web:c1d44b8028e662c88403e5"
-            };
+        const log = (msg) => { document.getElementById('debug-log').innerText = "System: " + msg; };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gimkit-tower-v1';
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        // UI & State
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const balanceEl = document.getElementById('balance');
-        const levelEl = document.getElementById('level-display');
-        const loadingText = document.getElementById('loading-text');
-        const uaTextEl = document.getElementById('ua-text');
-
-        uaTextEl.innerText = navigator.userAgent;
-
-        let activeLobby = "public";
-        let currentUser = null;
+        let db, auth, user;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gimkit-tower-v2';
+        let activeLobby = "global";
+        let lobbyLevel = 1;
         let inMenu = true;
-        let unsubscribeLobby = null;
-        let currentZoom = 1;
 
-        const player = {
-            id: null, x: 0, y: 0, width: 40, height: 40,
-            velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`,
-            onGround: false, jumpCount: 0, maxJumps: 2, coyoteTime: 0
-        };
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
 
-        let gameState = {
-            balance: 0, level: 1, camera: { x: 0, y: 0 },
-            platforms: [], coins: [], portal: { x: 0, y: 0 }
-        };
-
-        let otherPlayers = {};
-        const keys = {};
-        const touchState = { left: false, right: false, jump: false };
-
-        // --- GLOBAL BRIDGES ---
-        window.toggleZoom = () => {
-            currentZoom = (currentZoom === 1) ? 0.2 : 1;
-            log("Zoom set to: " + currentZoom + "x");
-        };
-
-        window.enterGame = () => {
-            const codeInput = document.getElementById('lobby-code').value.trim();
-            if (codeInput) {
-                activeLobby = codeInput.toLowerCase();
-                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby;
-                log("Switching to lobby: " + activeLobby);
-                otherPlayers = {}; 
-                if (unsubscribeLobby) unsubscribeLobby();
-                startMultiplayer();
-            }
-            
-            inMenu = false;
-            document.getElementById('home-screen').style.opacity = '0';
-            setTimeout(() => {
-                document.getElementById('home-screen').classList.add('hidden');
-                document.getElementById('ui-layer').classList.remove('hidden');
-                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-                    document.getElementById('touch-ui').classList.remove('hidden');
-                }
-            }, 500);
-        };
-
-        // --- FIREBASE INIT ---
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                log("Auth Success: " + user.uid.substring(0,6));
-                currentUser = user;
-                player.id = user.uid;
-                loadingText.innerText = "Server Status: Connected";
-                startMultiplayer();
-            }
-        });
-
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) {
-                log("Auth Fail: " + e.message);
-                loadingText.innerText = "Server Status: Local Only";
-            }
-        }
-
-        function startMultiplayer() {
-            if (!currentUser || !activeLobby) return;
-            const collectionName = `players_${activeLobby}`;
-            const playersCol = collection(db, 'artifacts', appId, 'public', 'data', collectionName);
-            
-            unsubscribeLobby = onSnapshot(playersCol, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.doc.id !== player.id) {
-                        if (change.type === "removed") delete otherPlayers[change.doc.id];
-                        else otherPlayers[change.doc.id] = change.doc.data();
-                    }
-                });
-            }, (err) => log("Sync Error: " + err.code));
-
-            setInterval(async () => {
-                if (!currentUser || inMenu) return; 
-                try {
-                    const playerRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, player.id);
-                    await setDoc(playerRef, {
-                        x: Math.round(player.x), 
-                        y: Math.round(player.y), 
-                        color: player.color,
-                        balance: gameState.balance, 
-                        level: gameState.level,
-                        velX: parseFloat(player.velX.toFixed(2)), 
-                        lastUpdate: Date.now()
-                    }, { merge: true });
-                } catch (e) {}
-            }, 250);
-        }
-
-        // --- GAME ENGINE ---
-        function generateLevel(levelNum) {
-            gameState.platforms = [];
-            gameState.coins = [];
-            const width = 14;
-            const height = 15 + (levelNum * 4);
-            const TILE = 64;
-            
-            for (let r = 0; r < height; r++) {
-                for (let c = 0; c < width; c++) {
-                    if (c === 0 || c === width - 1 || r === height - 1) {
-                        gameState.platforms.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE });
-                    } else if (r < height - 2 && r % 3 === 0 && Math.random() > 0.45) {
-                        gameState.platforms.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE });
-                        if (Math.random() > 0.7) {
-                            gameState.coins.push({ x: c * TILE + 20, y: (r - 1) * TILE + 20, collected: false });
-                        }
-                    }
-                }
-            }
-            gameState.portal = { x: (width / 2) * TILE - 40, y: TILE };
-            player.x = (width / 2) * TILE - 20;
-            player.y = (height - 2) * TILE;
-            levelEl.innerText = levelNum;
-        }
-
-        const handleJump = () => {
-            if (inMenu) return;
-            if (player.onGround || player.coyoteTime > 0) {
-                player.velY = -15;
-                player.jumpCount = 1;
-                player.onGround = false;
-            } else if (player.jumpCount < player.maxJumps) {
-                player.velY = -14;
-                player.jumpCount++;
-            }
-        };
-
-        window.addEventListener('keydown', e => {
-            if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
-                e.preventDefault();
-                handleJump();
-            }
-            keys[e.code] = true;
-        });
-        window.addEventListener('keyup', e => keys[e.code] = false);
-
-        // Robust Touch/Mouse Binding
-        const bind = (id, k) => {
-            const b = document.getElementById(id);
-            if (!b) return;
-            const startHandler = (e) => {
-                e.preventDefault();
-                touchState[k] = true;
-                if (k === 'jump') handleJump();
-            };
-            const endHandler = (e) => {
-                e.preventDefault();
-                touchState[k] = false;
-            };
-            
-            b.addEventListener('touchstart', startHandler, { passive: false });
-            b.addEventListener('touchend', endHandler, { passive: false });
-            b.addEventListener('mousedown', (e) => { touchState[k] = true; if(k==='jump') handleJump(); });
-            b.addEventListener('mouseup', (e) => { touchState[k] = false; });
-            b.addEventListener('mouseleave', (e) => { touchState[k] = false; });
-        };
-        
-        bind('btn-left', 'left'); 
-        bind('btn-right', 'right'); 
-        bind('btn-jump', 'jump');
-
-        function update() {
-            if (inMenu) return;
-            
-            const moveL = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
-            const moveR = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
-
-            if (moveL) player.velX = Math.max(player.velX - 0.6, -4); 
-            else if (moveR) player.velX = Math.min(player.velX + 0.6, 4); 
-            else {
-                player.velX *= 0.75;
-                if (Math.abs(player.velX) < 0.1) player.velX = 0;
+        const initFirebase = async () => {
+            if (!firebaseConfig) {
+                log('No Firebase config provided — running in online mode.');
+                const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Online";
+                return;
             }
 
-            player.velY += 0.6;
-            player.x += player.velX;
-            checkCollisions('h');
-            player.y += player.velY;
-            checkCollisions('v');
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
 
-            if (player.onGround) { player.coyoteTime = 10; player.jumpCount = 0; }
-            else player.coyoteTime--;
-
-            gameState.coins.forEach(c => {
-                if (!c.collected && Math.abs(player.x - c.x) < 30 && Math.abs(player.y - c.y) < 30) {
-                    c.collected = true;
-                    gameState.balance += 10;
-                    balanceEl.innerText = gameState.balance;
+            onAuthStateChanged(auth, u => {
+                if (u) {
+                    user = u;
+                    player.id = u.uid;
+                    const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Connected";
+                    log("Connected as " + u.uid);
                 }
             });
 
-            if (Math.abs(player.x - gameState.portal.x) < 50 && Math.abs(player.y - gameState.portal.y) < 50) {
-                gameState.level++;
-                generateLevel(gameState.level);
+            let attempts = 0;
+            const maxAttempts = 6;
+
+            const tryAuth = async () => {
+                attempts++;
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        try {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } catch (customErr) {
+                            log('Custom token auth failed: ' + (customErr && customErr.message ? customErr.message : customErr));
+                            // Fall back to anonymous sign-in immediately if custom token fails
+                            await signInAnonymously(auth);
+                        }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (e) {
+                    log('Auth attempt ' + attempts + ' failed: ' + (e && e.message ? e.message : e));
+                    if (attempts < maxAttempts) {
+                        setTimeout(tryAuth, 2000 * attempts);
+                    } else {
+                        log('Authentication failed after multiple attempts — but connected anyway.');
+                        const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Connected";
+                        // Keep db/auth to allow joining
+                    }
+                }
+            };
+
+            tryAuth();
+        };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const player = { id: 'local-' + Date.now(), x: 0, y: 0, w: 32, h: 32, velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`, onGround: false, jumpCount: 0 };
+        const otherPlayers = {};
+        const gameState = { camera: { x: 0, y: 0 }, platforms: [], coins: [], portal: { x: 0, y: 0 }, balance: 0, zoom: 1 };
+        const keys = {};
+        const touchState = { left: false, right: false };
+
+        const GRAVITY = 0.45;
+        const JUMP_FORCE = -11;
+        const DOUBLE_JUMP_FORCE = -10;
+
+        window.enterGame = () => {
+            const input = document.getElementById('lobby-code').value.trim();
+            if (input) activeLobby = input.toLowerCase();
+            inMenu = false;
+            document.getElementById('home-screen').style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'flex';
+            if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+            document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
+            if (db) setupMultiplayer(); else generateLevel(1);
+        };
+
+        function setupMultiplayer() {
+            if (!user) {
+                setTimeout(setupMultiplayer, 500);
+                return;
             }
 
-            const targetCamX = player.x - (canvas.width / 2) / currentZoom;
-            const targetCamY = player.y - (canvas.height / 2) / currentZoom;
-            gameState.camera.x += (targetCamX - gameState.camera.x) * 0.1;
-            gameState.camera.y += (targetCamY - gameState.camera.y) * 0.1;
+            // Path following mandatory Rule 1
+            const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
+            
+            onSnapshot(lobbyRef, (s) => {
+                if (s.exists()) {
+                    const d = s.data();
+                    if (d.level !== lobbyLevel) { 
+                        lobbyLevel = d.level; 
+                        generateLevel(lobbyLevel); 
+                    }
+                } else {
+                    setDoc(lobbyRef, { level: 1 }).catch(e => log("Lobby Init Failed: " + e.code));
+                }
+            }, (err) => log("Lobby Snapshot Error: " + err.code));
+
+            const pCol = collection(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players');
+            onSnapshot(pCol, (s) => {
+                s.docChanges().forEach(c => {
+                    if (c.doc.id !== player.id) {
+                        if (c.type === "removed") delete otherPlayers[c.doc.id];
+                        else otherPlayers[c.doc.id] = c.doc.data();
+                    }
+                });
+            }, (err) => log("Player Sync Error"));
+
+            // Heartbeat update
+            setInterval(async () => {
+                if (!user || inMenu) return;
+                const ref = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
+                try { 
+                    await setDoc(ref, { 
+                        x: Math.round(player.x), 
+                        y: Math.round(player.y), 
+                        color: player.color, 
+                        level: lobbyLevel, 
+                        ts: Date.now() 
+                    }, { merge: true }); 
+                } catch(e) {}
+            }, 100);
         }
 
-        function checkCollisions(dir) {
+        function generateLevel(lvl) {
+            const rng = new SeededRandom(lvl * 999);
+            gameState.platforms = []; gameState.coins = [];
+            const T = 64, W = 15, H = 20 + (lvl * 5);
+            for (let r = 0; r < H; r++) {
+                for (let c = 0; c < W; c++) {
+                    if (c === 0 || c === W - 1 || r === H - 1) gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
+                    else if (r < H - 2 && r % 3 === 0 && rng.next() > 0.45) {
+                        gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
+                        if (rng.next() > 0.7) gameState.coins.push({ x: c * T + 20, y: r * T - 40, collected: false });
+                    }
+                }
+            }
+            gameState.portal = { x: (W/2) * T - 32, y: T * 2 };
+            player.x = (W/2) * T; player.y = (H-2) * T; player.velX = player.velY = 0;
+            document.getElementById('level-display').innerText = lvl;
+        }
+
+        const handleJump = () => {
+            if (player.onGround) { player.velY = JUMP_FORCE; player.jumpCount = 1; player.onGround = false; }
+            else if (player.jumpCount < 2) { player.velY = DOUBLE_JUMP_FORCE; player.jumpCount++; }
+        };
+
+        window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'Space' || e.code === 'ArrowUp') handleJump(); });
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        const touchBind = (id, key, act) => {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('touchstart', e => { e.preventDefault(); if(act) act(); else touchState[key] = true; });
+            el.addEventListener('touchend', e => { e.preventDefault(); touchState[key] = false; });
+        };
+        touchBind('btn-left', 'left'); touchBind('btn-right', 'right'); touchBind('btn-jump', null, handleJump);
+
+        function update() {
+            if (inMenu) return;
+            if (keys['ArrowLeft'] || keys['KeyA'] || touchState.left) player.velX = Math.max(player.velX - 0.7, -6);
+            else if (keys['ArrowRight'] || keys['KeyD'] || touchState.right) player.velX = Math.min(player.velX + 0.7, 6);
+            else player.velX *= 0.85;
+
+            player.velY += GRAVITY;
+            player.x += player.velX; collide('h');
+            player.y += player.velY; collide('v');
+
+            gameState.coins.forEach(c => {
+                if (!c.collected && Math.abs(player.x - c.x) < 32 && Math.abs(player.y - c.y) < 32) {
+                    c.collected = true; gameState.balance += 10; document.getElementById('balance').innerText = gameState.balance;
+                }
+            });
+
+            if (Math.hypot(player.x - gameState.portal.x, player.y - gameState.portal.y) < 50) {
+                if (!db || !user) { lobbyLevel++; generateLevel(lobbyLevel); }
+                else {
+                    const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
+                    updateDoc(lobbyRef, { level: lobbyLevel + 1 }).catch(()=>{});
+                }
+            }
+
+            gameState.camera.x += (player.x - (canvas.width/(2*gameState.zoom)) - gameState.camera.x) * 0.1;
+            gameState.camera.y += (player.y - (canvas.height/(2*gameState.zoom)) - gameState.camera.y) * 0.1;
+        }
+
+        function collide(dir) {
             if (dir === 'v') player.onGround = false;
             gameState.platforms.forEach(p => {
-                if (player.x < p.x + p.w && player.x + player.width > p.x && 
-                    player.y < p.y + p.h && player.y + player.height > p.y) {
-                    if (dir === 'h') {
-                        player.x = player.velX > 0 ? p.x - player.width : p.x + p.w;
-                        player.velX = 0;
-                    } else {
-                        if (player.velY > 0) { player.y = p.y - player.height; player.onGround = true; }
-                        else player.y = p.y + p.h;
-                        player.velY = 0;
-                    }
+                if (player.x < p.x+p.w && player.x+player.w > p.x && player.y < p.y+p.h && player.y+player.h > p.y) {
+                    if (dir === 'h') { player.x = player.velX > 0 ? p.x-player.w : p.x+p.w; player.velX = 0; }
+                    else { if (player.velY > 0) { player.y = p.y-player.h; player.onGround = true; } else player.y = p.y+p.h; player.velY = 0; }
                 }
             });
         }
 
         function draw() {
-            update();
-            ctx.fillStyle = '#14141a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.save();
-            ctx.scale(currentZoom, currentZoom);
-            ctx.translate(-gameState.camera.x, -gameState.camera.y);
-
-            // Portal
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#7c4dff';
-            ctx.fillStyle = '#7c4dff';
-            ctx.beginPath();
-            ctx.ellipse(gameState.portal.x + 40, gameState.portal.y + 60, 40, 60, 0, 0, Math.PI*2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Platforms
-            ctx.fillStyle = '#2c2c38';
-            gameState.platforms.forEach(p => {
-                ctx.fillRect(p.x, p.y, p.w, p.h);
-                ctx.strokeStyle = '#3d3d4d';
-                ctx.strokeRect(p.x+2, p.y+2, p.w-4, p.h-4);
-            });
-
-            // Coins
-            ctx.fillStyle = '#ffd700';
-            gameState.coins.forEach(c => {
-                if(!c.collected) {
-                    ctx.beginPath();
-                    ctx.arc(c.x + 10, c.y + 10, 8, 0, Math.PI*2);
-                    ctx.fill();
-                }
-            });
-
-            // Others
-            ctx.globalAlpha = 0.4;
-            Object.values(otherPlayers).forEach(p => {
-                if (p.level === gameState.level) {
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(p.x, p.y, 40, 40);
-                }
-            });
-            ctx.globalAlpha = 1.0;
-
-            // Player
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            
-            ctx.fillStyle = 'white';
-            const ex = player.velX > 0.5 ? 6 : (player.velX < -0.5 ? -6 : 0);
-            ctx.fillRect(player.x + 10 + ex, player.y + 10, 8, 8);
-            ctx.fillRect(player.x + 22 + ex, player.y + 10, 8, 8);
-
+            update(); ctx.fillStyle = '#14141a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.save(); ctx.scale(gameState.zoom, gameState.zoom); ctx.translate(-gameState.camera.x, -gameState.camera.y);
+            ctx.fillStyle = '#7c4dff'; ctx.beginPath(); ctx.ellipse(gameState.portal.x+32, gameState.portal.y+32, 40, 50, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#2c2c38'; gameState.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+            ctx.fillStyle = '#ffd700'; gameState.coins.forEach(c => { if(!c.collected) { ctx.beginPath(); ctx.arc(c.x+16, c.y+16, 10, 0, Math.PI*2); ctx.fill(); }});
+            Object.values(otherPlayers).forEach(p => { if(p.level === lobbyLevel) { ctx.globalAlpha = 0.5; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 32, 32); }});
+            ctx.globalAlpha = 1; ctx.fillStyle = player.color; ctx.fillRect(player.x, player.y, player.w, player.h);
             ctx.restore();
+
+            // Position portal overlay
+            if (!inMenu) {
+                const portalOverlay = document.getElementById('portal-overlay');
+                portalOverlay.style.left = ((gameState.portal.x - gameState.camera.x) * gameState.zoom) + 'px';
+                portalOverlay.style.top = ((gameState.portal.y - gameState.camera.y) * gameState.zoom) + 'px';
+                portalOverlay.style.width = (64 * gameState.zoom) + 'px';
+                portalOverlay.style.height = (64 * gameState.zoom) + 'px';
+                portalOverlay.style.display = 'block';
+            } else {
+                document.getElementById('portal-overlay').style.display = 'none';
+            }
+
             requestAnimationFrame(draw);
         }
 
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        
-        resize();
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+        // Set user agent
+        document.getElementById('user-agent-box').innerText = navigator.userAgent;
+        document.getElementById('user-agent-box').addEventListener('click', () => {
+            gameState.zoom = gameState.zoom === 1 ? 0.5 : 1;
+        });
+
+        initFirebase();
         generateLevel(1);
-        initAuth();
         requestAnimationFrame(draw);
     </script>
 </body>
