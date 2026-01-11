@@ -198,6 +198,7 @@
             <p class="opacity-50 mb-8" id="loading-text">Server Status: Authenticating...</p>
             
             <button id="join-btn" class="primary-btn text-lg" onclick="enterGame()">JOIN GLOBAL LOBBY</button>
+            <button id="test-join-btn" class="primary-btn text-lg" style="display:none; margin-top:8px; background:#ff6b6b;" onclick="joinTestMode()">JOIN ALL SERVERS (TEST)</button>
             
             <div class="mt-8 border-t border-white/10 pt-6">
                 <p class="text-xs opacity-40 mb-2">JOIN SPECIFIC SERVER</p>
@@ -279,6 +280,21 @@
 
         let _usingBackup = false;
 
+        // Firestore app instances (may hold two projects simultaneously)
+        let dbGimkit0 = null;
+        let dbGimkit01 = null;
+
+        let currentServerLabel = 'none';
+        let testMode = false; // when true, join all three servers
+
+        const updateUserAgentBox = () => {
+            const box = document.getElementById('user-agent-box');
+            if (!box) return;
+            const ua = navigator.userAgent;
+            let label = currentServerLabel || 'none';
+            box.innerText = ua + '  |  Server: ' + label;
+        };
+
         const initFirebase = async () => {
                     if (!navigator.onLine) {
                         log('Network offline — running in offline mode.');
@@ -300,6 +316,9 @@
                 const app = initializeApp(chosenConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                // mark which project this default app corresponds to
+                if (!_usingBackup && firebaseConfig) dbGimkit0 = db;
+                else if (_usingBackup && firebaseBackupConfig) dbGimkit01 = db;
             } catch (initErr) {
                 console.error('Firebase init error', initErr);
                 // if primary failed and backup is available, try backup once
@@ -310,6 +329,7 @@
                         const app = initializeApp(firebaseBackupConfig);
                         db = getFirestore(app);
                         auth = getAuth(app);
+                        dbGimkit01 = db;
                     } catch (bErr) {
                         console.error('Backup Firebase init failed', bErr);
                         log('Both Firebase inits failed — running in online mode without server.');
@@ -320,6 +340,23 @@
                     return;
                 }
             }
+            
+            // Attempt to initialize the alternate project (so both projects can be used simultaneously in test mode)
+            try {
+                if (firebaseConfig && firebaseBackupConfig) {
+                    if (_usingBackup && firebaseConfig) {
+                        try {
+                            const primaryApp = initializeApp(firebaseConfig, 'gimkit0');
+                            dbGimkit0 = getFirestore(primaryApp);
+                        } catch (e) { /* ignore */ }
+                    } else if (!_usingBackup && firebaseBackupConfig) {
+                        try {
+                            const backupApp = initializeApp(firebaseBackupConfig, 'gimkit01');
+                            dbGimkit01 = getFirestore(backupApp);
+                        } catch (e) { /* ignore */ }
+                    }
+                }
+            } catch(e) { /* continue silently */ }
 
             onAuthStateChanged(auth, u => {
                 if (u) {
@@ -327,6 +364,11 @@
                     player.id = u.uid;
                     const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Connected";
                     log("Connected as " + u.uid);
+                    // update server label
+                    if (testMode) currentServerLabel = 'gimkit0 + gimkit01 + ws';
+                    else if (dbGimkit0 && db === dbGimkit0) currentServerLabel = 'gimkit0';
+                    else if (dbGimkit01 && db === dbGimkit01) currentServerLabel = 'gimkit01';
+                    updateUserAgentBox();
                 }
             });
 
@@ -471,12 +513,33 @@ function connectWS() {
             document.getElementById('user-agent-box').style.display = 'block';
             if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
             document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
-            if (db) setupMultiplayer(); else generateLevel(1);
+                if (input === 'test') {
+                    const tb = document.getElementById('test-join-btn');
+                    if (tb) tb.style.display = 'block';
+                    const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Test mode ready — click JOIN ALL SERVERS";
+                    return;
+                }
+                if (db) setupMultiplayer(); else generateLevel(1);
         };
 
+            function joinTestMode() {
+                testMode = true;
+                currentServerLabel = 'gimkit0 + gimkit01 + ws';
+                updateUserAgentBox();
+                inMenu = false;
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'flex';
+                document.getElementById('user-agent-box').style.display = 'block';
+                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase() + ' (TEST)';
+                // start listeners across all servers
+                setupMultiServerTest();
+                generateLevel(1);
+            }
+
         function setupMultiplayer() {
-                    if (typeof firestoreSetupDone !== 'undefined' && firestoreSetupDone) return;
-                    firestoreSetupDone = true;
+            if (typeof firestoreSetupDone !== 'undefined' && firestoreSetupDone) return;
+            firestoreSetupDone = true;
                     // Path following mandatory Rule 1
             const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
 
@@ -542,18 +605,91 @@ function connectWS() {
                 }
 
                 // Fallback to Firestore when no WS
-                const ref = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
+                // In test mode, write to all configured Firestore projects so you appear across servers
+                const writeToFirestore = async (dbInstance) => {
+                    if (!dbInstance) return;
+                    try {
+                        const ref = doc(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
+                        await setDoc(ref, {
+                            x: currentX,
+                            y: currentY,
+                            color: player.color,
+                            level: lobbyLevel,
+                            ts: Date.now()
+                        }, { merge: true });
+                    } catch (e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
+                };
+
                 try {
-                    await setDoc(ref, {
-                        x: currentX,
-                        y: currentY,
-                        color: player.color,
-                        level: lobbyLevel,
-                        ts: Date.now()
-                    }, { merge: true });
+                    if (testMode) {
+                        await writeToFirestore(dbGimkit0);
+                        await writeToFirestore(dbGimkit01);
+                    } else {
+                        if (db) await writeToFirestore(db);
+                    }
                     lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
                 } catch(e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
             }, 250);
+        }
+
+        // Attach listeners for a specific Firestore instance and merge players into the shared `otherPlayers`
+        function setupFirestoreListeners(dbInstance, label) {
+            if (!dbInstance) return;
+            try {
+                const lobbyRefLocal = doc(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
+                onSnapshot(lobbyRefLocal, (s) => {
+                    if (s.exists()) {
+                        const d = s.data();
+                        if (d.level !== lobbyLevel) {
+                            lobbyLevel = d.level;
+                            generateLevel(lobbyLevel);
+                        }
+                    } else {
+                        setDoc(lobbyRefLocal, { level: 1 }).catch(e => log("Lobby Init Failed: " + e.code));
+                    }
+                }, (err) => log(label + " Lobby Snapshot Error: " + (err && err.code ? err.code : err)));
+
+                const pColLocal = collection(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players');
+                onSnapshot(pColLocal, (s) => {
+                    s.docChanges().forEach(c => {
+                        if (c.doc.id === player.id) return;
+                        if (c.type === "removed") {
+                            delete otherPlayers[c.doc.id];
+                        } else {
+                            const d = c.doc.data();
+                            const existing = otherPlayers[c.doc.id];
+                            if (existing) {
+                                existing.targetX = d.x || existing.targetX;
+                                existing.targetY = d.y || existing.targetY;
+                                existing.color = d.color || existing.color;
+                                existing.level = d.level || existing.level;
+                                existing.ts = d.ts || existing.ts;
+                            } else {
+                                otherPlayers[c.doc.id] = {
+                                    renderX: d.x || 0,
+                                    renderY: d.y || 0,
+                                    targetX: d.x || 0,
+                                    targetY: d.y || 0,
+                                    color: d.color || '#fff',
+                                    level: d.level || 1,
+                                    ts: d.ts || Date.now()
+                                };
+                            }
+                        }
+                    });
+                }, (err) => log(label + " Player Sync Error: " + (err && err.code ? err.code : err)));
+            } catch(e) { console.error('setupFirestoreListeners error', e); }
+        }
+
+        function setupMultiServerTest() {
+            // ensure we connect WS and attach Firestore listeners to both projects (if present)
+            try { connectWS(); } catch(e){}
+            if (dbGimkit0) setupFirestoreListeners(dbGimkit0, 'gimkit0');
+            if (dbGimkit01) setupFirestoreListeners(dbGimkit01, 'gimkit01');
+            // also attach regular setupMultiplayer for compatibility (it will short-circuit if already done)
+            if (db && !firestoreSetupDone) setupMultiplayer();
+            firestoreSetupDone = true;
+            updateUserAgentBox();
         }
 
         function generateLevel(lvl) {
@@ -690,7 +826,7 @@ function connectWS() {
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
         // Set user agent
-        document.getElementById('user-agent-box').innerText = navigator.userAgent;
+        updateUserAgentBox();
         document.getElementById('user-agent-box').addEventListener('click', () => {
             gameState.zoom = gameState.zoom === 1 ? 0.5 : 1;
         });
