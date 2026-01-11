@@ -603,8 +603,7 @@ function connectWS() {
             document.getElementById('user-agent-box').style.display = 'block';
             if ("ontouchstart" in window) {
                 document.getElementById('touch-ui').style.display = 'flex';
-                const b1 = document.getElementById('btn-noclip'); if (b1) b1.style.display = 'flex';
-                const b2 = document.getElementById('btn-fly'); if (b2) b2.style.display = 'flex';
+                const b = document.getElementById('btn-fly-noclip'); if (b) b.style.display = 'flex';
             }
             document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
             if (db) setupMultiplayer(); else generateLevel(1);
@@ -746,7 +745,7 @@ function connectWS() {
                 // If WS available, send heartbeat over WS (much cheaper than Firestore)
                 if (wsSocket && wsSocket.readyState === 1) {
                     try {
-                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, name: player.name, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
+                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, name: player.name, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel, email: (user && user.email) ? user.email : undefined }));
                         lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
                         return;
                     } catch (e) { /* fall back to Firestore below */ }
@@ -908,7 +907,17 @@ function connectWS() {
             else if (player.jumpCount < 2) { player.velY = DOUBLE_JUMP_FORCE; player.jumpCount++; }
         };
 
-        window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'Space' || e.code === 'ArrowUp') handleJump(); });
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'Space' || e.code === 'ArrowUp') handleJump();
+            if (e.code === 'KeyF') {
+                // toggle both fly and noclip together
+                player.canFly = !player.canFly;
+                player.noclip = !player.noclip;
+                const b = document.getElementById('btn-fly-noclip');
+                if (b) b.style.background = (player.canFly && player.noclip) ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.12)';
+            }
+        });
         window.addEventListener('keyup', e => keys[e.code] = false);
 
         const touchBind = (id, key, act) => {
@@ -919,36 +928,31 @@ function connectWS() {
         };
         touchBind('btn-left', 'left'); touchBind('btn-right', 'right'); touchBind('btn-jump', null, handleJump);
 
-        // add noclip and fly touch buttons
-        const noclipBtn = document.createElement('div');
-        noclipBtn.id = 'btn-noclip';
-        noclipBtn.className = 'touch-btn';
-        noclipBtn.style.position = 'absolute';
-        noclipBtn.style.bottom = '120px';
-        noclipBtn.style.right = '20px';
-        noclipBtn.style.width = '56px';
-        noclipBtn.style.height = '56px';
-        noclipBtn.style.fontSize = '12px';
-        noclipBtn.style.display = 'none';
-        noclipBtn.style.cursor = 'pointer';
-        noclipBtn.innerText = 'NOC';
-        noclipBtn.addEventListener('touchstart', e => { e.preventDefault(); player.noclip = !player.noclip; noclipBtn.style.background = player.noclip ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.15)'; });
-        document.body.appendChild(noclipBtn);
-
-        const flyBtn = document.createElement('div');
-        flyBtn.id = 'btn-fly';
-        flyBtn.className = 'touch-btn';
-        flyBtn.style.position = 'absolute';
-        flyBtn.style.bottom = '120px';
-        flyBtn.style.right = '90px';
-        flyBtn.style.width = '56px';
-        flyBtn.style.height = '56px';
-        flyBtn.style.fontSize = '12px';
-        flyBtn.style.display = 'none';
-        flyBtn.style.cursor = 'pointer';
-        flyBtn.innerText = 'FLY';
-        flyBtn.addEventListener('touchstart', e => { e.preventDefault(); player.canFly = !player.canFly; flyBtn.style.background = player.canFly ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.15)'; });
-        document.body.appendChild(flyBtn);
+        // Combined fly + noclip touch toggle button
+        const flyNocBtn = document.createElement('div');
+        flyNocBtn.id = 'btn-fly-noclip';
+        flyNocBtn.className = 'touch-btn';
+        flyNocBtn.style.position = 'absolute';
+        flyNocBtn.style.bottom = '120px';
+        flyNocBtn.style.right = '20px';
+        flyNocBtn.style.width = '64px';
+        flyNocBtn.style.height = '64px';
+        flyNocBtn.style.fontSize = '12px';
+        flyNocBtn.style.display = 'none';
+        flyNocBtn.style.cursor = 'pointer';
+        flyNocBtn.innerText = 'FL/NOC';
+        const updateFlyNocBtn = () => {
+            flyNocBtn.style.background = (player.canFly && player.noclip) ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.12)';
+        };
+        const toggleFlyNoclip = () => {
+            player.canFly = !player.canFly;
+            player.noclip = !player.noclip;
+            updateFlyNocBtn();
+            log('Fly: ' + player.canFly + ' Noclip: ' + player.noclip);
+        };
+        flyNocBtn.addEventListener('touchstart', e => { e.preventDefault(); toggleFlyNoclip(); });
+        document.body.appendChild(flyNocBtn);
+        updateFlyNocBtn();
 
         function update() {
             if (inMenu) return;

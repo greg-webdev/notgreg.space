@@ -19,7 +19,8 @@ except Exception:
     psutil = None
 
 PORT = int(os.environ.get('PORT', '2343'))
-BROADCAST_HZ = int(os.environ.get('BROADCAST_HZ', '100'))
+BROADCAST_HZ = int(os.environ.get('BROADCAST_HZ', '15'))
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'gregbloxd@gmail.com')
 
 # In-memory lobbies: lobby_id -> {players: {id: {x,y,ts}}}
 lobbies = defaultdict(lambda: {'players': {}})
@@ -39,12 +40,79 @@ async def handler(ws, path):
             pid = data.get('id')
             if t == 'join' and pid:
                 l = lobbies[lobby]
-                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'name': data.get('name') or None, 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                # store extra fields if provided (email, color, level)
+                l['players'][pid] = {
+                    'x': data.get('x', 0),
+                    'y': data.get('y', 0),
+                    'name': data.get('name') or None,
+                    'email': data.get('email') or data.get('by_email') or None,
+                    'color': data.get('color') or None,
+                    'level': data.get('level') or 1,
+                    'ts': data.get('ts') or asyncio.get_event_loop().time()
+                }
                 ws_player_map[ws] = (lobby, pid)
             elif t == 'heartbeat' and pid:
                 l = lobbies[lobby]
-                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'name': data.get('name') or None, 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                l['players'][pid] = {
+                    'x': data.get('x', 0),
+                    'y': data.get('y', 0),
+                    'name': data.get('name') or None,
+                    'email': data.get('email') or data.get('by_email') or None,
+                    'color': data.get('color') or None,
+                    'level': data.get('level') or 1,
+                    'ts': data.get('ts') or asyncio.get_event_loop().time()
+                }
                 ws_player_map[ws] = (lobby, pid)
+            elif t == 'kick':
+                # admin-triggered kick: requires requester to be admin
+                target = data.get('target')
+                target_lobby = data.get('lobby')
+                # determine requester email (prefer stored player email)
+                requester_email = None
+                if ws in ws_player_map:
+                    req_lobby, req_pid = ws_player_map[ws]
+                    req_player = lobbies.get(req_lobby, {}).get('players', {}).get(req_pid, {})
+                    requester_email = req_player.get('email')
+                if not requester_email:
+                    requester_email = data.get('by_email')
+                if requester_email == ADMIN_EMAIL and target:
+                    # remove target player from specified lobby or search all lobbies
+                    removed = False
+                    if target_lobby:
+                        l = lobbies.get(target_lobby)
+                        if l and target in l['players']:
+                            try:
+                                del l['players'][target]
+                                removed = True
+                            except Exception:
+                                pass
+                    else:
+                        for lid, l in lobbies.items():
+                            if target in l['players']:
+                                try:
+                                    del l['players'][target]
+                                    removed = True
+                                    break
+                                except Exception:
+                                    pass
+                    # also try to find a websocket for the kicked player and close it
+                    for w, (wl, wp) in list(ws_player_map.items()):
+                        if wp == target:
+                            try:
+                                await w.close(code=4000, reason='kicked')
+                            except Exception:
+                                pass
+                            try:
+                                del ws_player_map[w]
+                            except Exception:
+                                pass
+                    if removed:
+                        # broadcast a small event informing clients (snapshot loop will reflect removal)
+                        try:
+                            notice = json.dumps({'type': 'kicked', 'target': target})
+                            await asyncio.gather(*[c.send(notice) for c in list(clients) if not c.closed], return_exceptions=True)
+                        except Exception:
+                            pass
             elif t == 'leave' and pid:
                 l = lobbies[lobby]
                 if pid in l['players']:
