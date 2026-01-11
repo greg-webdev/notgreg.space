@@ -209,8 +209,9 @@
             </div>
             <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: global</div>
         </div>
-        <div id="user-agent-box" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 8px; color: white; font-size: 10px; cursor: pointer; backdrop-filter: blur(4px);"></div>
     </div>
+
+    <div id="user-agent-box" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 8px; color: white; font-size: 10px; cursor: pointer; backdrop-filter: blur(4px); display: none; z-index: 100;"></div>
 
     <div class="touch-controls hidden" id="touch-ui">
         <div class="flex gap-4">
@@ -221,6 +222,8 @@
     </div>
 
     <canvas id="gameCanvas"></canvas>
+
+    <div id="portal-overlay" style="position: absolute; pointer-events: none; z-index: 20;"></div>
 
     <script>
         window.__firebase_config = JSON.stringify({
@@ -325,6 +328,7 @@
             inMenu = false;
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'flex';
+            document.getElementById('user-agent-box').style.display = 'block';
             if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
             document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
             if (db) setupMultiplayer(); else generateLevel(1);
@@ -435,8 +439,8 @@
                 }
             }
 
-            gameState.camera.x += (player.x - (canvas.width/(2*gameState.zoom)) - gameState.camera.x) * 0.1;
-            gameState.camera.y += (player.y - (canvas.height/(2*gameState.zoom)) - gameState.camera.y) * 0.1;
+            gameState.camera.x += (player.x - (canvas.width/(2*gameState.zoom)) - gameState.camera.x) * 1;
+            gameState.camera.y += (player.y - (canvas.height/(2*gameState.zoom)) - gameState.camera.y) * 1;
         }
 
         function collide(dir) {
