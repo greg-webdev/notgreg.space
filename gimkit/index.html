@@ -335,20 +335,15 @@
         };
 
         function setupMultiplayer() {
-            if (!user) {
-                setTimeout(setupMultiplayer, 500);
-                return;
-            }
-
             // Path following mandatory Rule 1
             const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
-            
+
             onSnapshot(lobbyRef, (s) => {
                 if (s.exists()) {
                     const d = s.data();
-                    if (d.level !== lobbyLevel) { 
-                        lobbyLevel = d.level; 
-                        generateLevel(lobbyLevel); 
+                    if (d.level !== lobbyLevel) {
+                        lobbyLevel = d.level;
+                        generateLevel(lobbyLevel);
                     }
                 } else {
                     setDoc(lobbyRef, { level: 1 }).catch(e => log("Lobby Init Failed: " + e.code));
@@ -363,22 +358,29 @@
                         else otherPlayers[c.doc.id] = c.doc.data();
                     }
                 });
-            }, (err) => log("Player Sync Error"));
+            }, (err) => log("Player Sync Error: " + err.code));
 
-            // Heartbeat update
+            // Heartbeat update - reduced frequency to avoid quota limits
+            let lastUpdate = { x: 0, y: 0, level: 1 };
             setInterval(async () => {
-                if (!user || inMenu) return;
+                if (inMenu) return;
+                // Only update if position changed significantly or level changed
+                const currentX = Math.round(player.x);
+                const currentY = Math.round(player.y);
+                if (Math.abs(currentX - lastUpdate.x) < 5 && Math.abs(currentY - lastUpdate.y) < 5 && lobbyLevel === lastUpdate.level) return;
+
                 const ref = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
-                try { 
-                    await setDoc(ref, { 
-                        x: Math.round(player.x), 
-                        y: Math.round(player.y), 
-                        color: player.color, 
-                        level: lobbyLevel, 
-                        ts: Date.now() 
-                    }, { merge: true }); 
-                } catch(e) {}
-            }, 100);
+                try {
+                    await setDoc(ref, {
+                        x: currentX,
+                        y: currentY,
+                        color: player.color,
+                        level: lobbyLevel,
+                        ts: Date.now()
+                    }, { merge: true });
+                    lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
+                } catch(e) { log("Heartbeat Error: " + e.code); }
+            }, 500);
         }
 
         function generateLevel(lvl) {
