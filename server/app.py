@@ -131,12 +131,46 @@ async def cleanup_task():
                 await broadcast_players(lid)
         await asyncio.sleep(10)
 
+    async def periodic_broadcast_task():
+        # Broadcast snapshots at high frequency to support high-rate heartbeats
+        BROADCAST_HZ = int(__import__('os').environ.get('BROADCAST_HZ', '100'))
+        interval = 1.0 / max(1, BROADCAST_HZ)
+        while True:
+            try:
+                for lid, lobby in list(lobbies.items()):
+                    # build snapshot
+                    snapshot = []
+                    for pid, p in list(lobby['players'].items()):
+                        w = p.get('ws')
+                        if not w or w.closed:
+                            try: del lobby['players'][pid]
+                            except Exception: pass
+                            continue
+                        snapshot.append({'id': pid, 'x': p.get('x',0), 'y': p.get('y',0), 'color': p.get('color','#fff'), 'level': p.get('level', lobby['level']), 'ts': p.get('ts')})
+                    if not snapshot: continue
+                    payload = {'type': 'players', 'players': snapshot, 'level': lobby['level']}
+                    # fire-and-forget sends to avoid blocking the loop
+                    for pid, p in list(lobby['players'].items()):
+                        w = p.get('ws')
+                        if not w or w.closed: continue
+                        try:
+                            asyncio.create_task(w.send_json(payload))
+                        except Exception:
+                            try: del lobby['players'][pid]
+                            except Exception: pass
+            except Exception:
+                pass
+            await asyncio.sleep(interval)
+
 async def on_startup(app):
     app['cleanup'] = app.loop.create_task(cleanup_task())
+    app['broadcaster'] = app.loop.create_task(periodic_broadcast_task())
 
 async def on_cleanup(app):
     app['cleanup'].cancel()
     await app['cleanup']
+    app['broadcaster'].cancel()
+    await app['broadcaster']
 
 app = web.Application()
 app.router.add_get('/lobbies/{lobbyId}', get_lobby)

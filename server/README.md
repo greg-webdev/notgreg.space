@@ -1,3 +1,19 @@
+Simple WebSocket server (no C extensions)
+
+This repository contains a minimal WebSocket server implemented with the pure-Python `websockets` library to avoid compilation issues.
+
+Run:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+BROADCAST_HZ=100 PORT=3000 python simple_ws_server.py
+```
+
+Client protocol:
+- Send JSON messages: {"type":"join"|"heartbeat"|"leave","lobby":"<id>","id":"<player-id>","x":num,"y":num}
+- Server broadcasts snapshots: {"type":"snapshot","lobbies": {"lobbyId": [["playerId", {x:,y:,ts:}], ...]}}
 Python aiohttp realtime server for Sync Tower
 
 This server reduces Firestore load by handling realtime heartbeats and lobby state in-memory.

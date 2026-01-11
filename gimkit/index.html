@@ -243,6 +243,15 @@
             messagingSenderId: "20630047761",
             appId: "1:20630047761:web:5e64c8d07d9a6b6b1435b0"
         });
+        // backup Firebase config (used if primary fails)
+        window.__firebase_backup_config = JSON.stringify({
+            apiKey: "AIzaSyDenXeINnIs26RDevg7orMkIiBErI1wmFI",
+            authDomain: "gimkit01.firebaseapp.com",
+            projectId: "gimkit01",
+            storageBucket: "gimkit01.firebasestorage.app",
+            messagingSenderId: "182095229306",
+            appId: "1:182095229306:web:6676465b209236e63ca6c3"
+        });
     </script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
@@ -266,17 +275,51 @@
         let inMenu = true;
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const firebaseBackupConfig = typeof __firebase_backup_config !== 'undefined' ? JSON.parse(__firebase_backup_config) : null;
+
+        let _usingBackup = false;
 
         const initFirebase = async () => {
-            if (!firebaseConfig) {
-                log('No Firebase config provided — running in online mode.');
-                const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Online";
-                return;
-            }
+                    if (!navigator.onLine) {
+                        log('Network offline — running in offline mode.');
+                        const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Offline";
+                        disableMultiplayer('offline');
+                        return;
+                    }
 
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
+                    if (!firebaseConfig) {
+                        log('No Firebase config provided — running in online mode.');
+                        const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Online";
+                        return;
+                    }
+
+            // choose which config to use
+            let chosenConfig = (!_usingBackup && firebaseConfig) ? firebaseConfig : (firebaseBackupConfig || firebaseConfig);
+
+            try {
+                const app = initializeApp(chosenConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+            } catch (initErr) {
+                console.error('Firebase init error', initErr);
+                // if primary failed and backup is available, try backup once
+                if (!_usingBackup && firebaseBackupConfig) {
+                    _usingBackup = true;
+                    log('Primary Firebase init failed — switching to backup project.');
+                    try {
+                        const app = initializeApp(firebaseBackupConfig);
+                        db = getFirestore(app);
+                        auth = getAuth(app);
+                    } catch (bErr) {
+                        console.error('Backup Firebase init failed', bErr);
+                        log('Both Firebase inits failed — running in online mode without server.');
+                        return;
+                    }
+                } else {
+                    log('Firebase init failed — running in online mode without server.');
+                    return;
+                }
+            }
 
             onAuthStateChanged(auth, u => {
                 if (u) {
@@ -319,6 +362,94 @@
             tryAuth();
         };
 
+// Network status handling: if offline, run purely local; when online, try reconnecting services
+window.addEventListener('offline', () => {
+    log('Network: offline');
+    const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Offline";
+    disableMultiplayer('offline');
+});
+
+window.addEventListener('online', () => {
+    log('Network: online — attempting reconnect');
+    const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Reconnecting...";
+    // Re-init Firebase and WS when we come back online
+    try { initFirebase(); } catch(e) { console.error('initFirebase on online error', e); }
+    try { connectWS(); } catch(e) { console.error('connectWS on online error', e); }
+});
+
+// --- Minimal WebSocket client (prefers WS over Firestore for frequent heartbeats)
+let wsSocket = null;
+let wsConnected = false;
+let firestoreSetupDone = false;
+let wsConnectTimer = null;
+let wsReconnectAttempts = 0;
+function connectWS() {
+    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : null;
+    if (!url) return;
+    try { if (wsSocket) { wsSocket.onclose = null; wsSocket.close(); } } catch(e){}
+    wsSocket = new WebSocket(url);
+
+    // If WS doesn't open quickly, fall back to Firestore (if available)
+    if (wsConnectTimer) clearTimeout(wsConnectTimer);
+    wsConnectTimer = setTimeout(() => {
+        if (!wsSocket || wsSocket.readyState !== 1) {
+            console.warn('WS: server not available; falling back to Firestore');
+            if (db && !firestoreSetupDone) setupMultiplayer();
+        }
+    }, 1500);
+
+    wsSocket.onopen = () => {
+        wsConnected = true;
+        wsReconnectAttempts = 0;
+        if (wsConnectTimer) { clearTimeout(wsConnectTimer); wsConnectTimer = null; }
+        log('WS: connected');
+        try { wsSocket.send(JSON.stringify({ type: 'join', lobby: activeLobby, id: player.id, x: Math.round(player.x), y: Math.round(player.y), ts: Date.now() })); } catch(e){}
+    };
+    wsSocket.onmessage = (evt) => {
+        try {
+            const data = JSON.parse(evt.data);
+            if (data && data.type === 'snapshot' && data.lobbies) {
+                const players = data.lobbies[activeLobby];
+                if (Array.isArray(players)) {
+                    players.forEach(([pid, p]) => {
+                        if (pid === player.id) return;
+                        const existing = otherPlayers[pid];
+                        if (existing) {
+                            existing.targetX = (p && typeof p.x === 'number') ? p.x : existing.targetX;
+                            existing.targetY = (p && typeof p.y === 'number') ? p.y : existing.targetY;
+                            existing.color = (p && p.color) || existing.color;
+                            existing.level = (p && p.level) || existing.level;
+                            existing.ts = (p && p.ts) || existing.ts;
+                        } else {
+                            otherPlayers[pid] = {
+                                renderX: (p && p.x) || 0,
+                                renderY: (p && p.y) || 0,
+                                targetX: (p && p.x) || 0,
+                                targetY: (p && p.y) || 0,
+                                color: (p && p.color) || '#fff',
+                                level: (p && p.level) || 1,
+                                ts: (p && p.ts) || Date.now()
+                            };
+                        }
+                    });
+                }
+            }
+        } catch (e) { /* ignore parse errors */ }
+    };
+    wsSocket.onclose = () => {
+        wsConnected = false;
+        log('WS: disconnected');
+        wsSocket = null;
+        wsReconnectAttempts++;
+        if (wsReconnectAttempts <= 3) {
+            setTimeout(connectWS, 500 * wsReconnectAttempts);
+        } else {
+            if (db && !firestoreSetupDone) setupMultiplayer();
+        }
+    };
+    wsSocket.onerror = (e) => { console.error('WS error', e); };
+}
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const player = { id: 'local-' + Date.now(), x: 0, y: 0, w: 32, h: 32, velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`, onGround: false, jumpCount: 0 };
@@ -328,8 +459,8 @@
         const touchState = { left: false, right: false };
 
         const GRAVITY = 0.45;
-        const JUMP_FORCE = -11;
-        const DOUBLE_JUMP_FORCE = -10;
+        const JUMP_FORCE = -14; // stronger upward impulse (more negative => higher jump)
+        const DOUBLE_JUMP_FORCE = -13; // stronger double-jump
 
         window.enterGame = () => {
             const input = document.getElementById('lobby-code').value.trim();
@@ -344,7 +475,9 @@
         };
 
         function setupMultiplayer() {
-            // Path following mandatory Rule 1
+                    if (typeof firestoreSetupDone !== 'undefined' && firestoreSetupDone) return;
+                    firestoreSetupDone = true;
+                    // Path following mandatory Rule 1
             const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
 
             onSnapshot(lobbyRef, (s) => {
@@ -389,15 +522,26 @@
                 });
             }, (err) => log("Player Sync Error: " + (err && err.code ? err.code : err)));
 
-            // Heartbeat update - 2x faster (more frequent)
+            // Heartbeat update - prefers WebSocket if available, otherwise Firestore.
             let lastUpdate = { x: 0, y: 0, level: 1 };
+            // ensure WS is connected if configured
+            try { connectWS(); } catch(e){}
             setInterval(async () => {
                 if (inMenu) return;
-                // Only update if position changed significantly or level changed
                 const currentX = Math.round(player.x);
                 const currentY = Math.round(player.y);
                 if (Math.abs(currentX - lastUpdate.x) < 5 && Math.abs(currentY - lastUpdate.y) < 5 && lobbyLevel === lastUpdate.level) return;
 
+                // If WS available, send heartbeat over WS (much cheaper than Firestore)
+                if (wsSocket && wsSocket.readyState === 1) {
+                    try {
+                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
+                        lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
+                        return;
+                    } catch (e) { /* fall back to Firestore below */ }
+                }
+
+                // Fallback to Firestore when no WS
                 const ref = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
                 try {
                     await setDoc(ref, {
@@ -408,18 +552,22 @@
                         ts: Date.now()
                     }, { merge: true });
                     lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
-                } catch(e) { log("Heartbeat Error: " + e.code); }
+                } catch(e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
             }, 250);
         }
 
         function generateLevel(lvl) {
             const rng = new SeededRandom(lvl * 999);
             gameState.platforms = []; gameState.coins = [];
-            const T = 64, W = 15, H = 20 + (lvl * 5);
+            const T = 64, W = 15;
+            // make very tall levels less punishing for higher levels (especially level 3)
+            let H = 20 + Math.max(0, (lvl - 1)) * 3; // slower growth
+            // increase platform spawn probability for harder levels so they remain reachable
+            const spawnProb = lvl >= 3 ? 0.35 : 0.45;
             for (let r = 0; r < H; r++) {
                 for (let c = 0; c < W; c++) {
-                    if (c === 0 || c === W - 1 || r === H - 1) gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
-                    else if (r < H - 2 && r % 3 === 0 && rng.next() > 0.45) {
+                        if (c === 0 || c === W - 1 || r === H - 1) gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
+                        else if (r < H - 2 && r % 3 === 0 && rng.next() > spawnProb) {
                         gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
                         if (rng.next() > 0.7) gameState.coins.push({ x: c * T + 20, y: r * T - 40, collected: false });
                     }
@@ -450,7 +598,11 @@
             if (inMenu) return;
             if (keys['ArrowLeft'] || keys['KeyA'] || touchState.left) player.velX = Math.max(player.velX - 0.7, -6);
             else if (keys['ArrowRight'] || keys['KeyD'] || touchState.right) player.velX = Math.min(player.velX + 0.7, 6);
-            else player.velX *= 0.85;
+            else {
+                // stronger friction when on the ground; lighter air resistance when airborne
+                if (player.onGround) player.velX *= 0.5; // high ground friction
+                else player.velX *= 0.92; // mild air drag
+            }
 
             player.velY += GRAVITY;
             player.x += player.velX; collide('h');
