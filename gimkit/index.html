@@ -25,7 +25,7 @@
             top: 20px;
             left: 20px;
             right: 20px;
-            pointer-events: none;
+            pointer-events: auto;
             color: white;
             text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
             display: flex;
@@ -42,8 +42,8 @@
         .stat-card {
             background: rgba(0, 0, 0, 0.6);
             padding: 10px 20px;
-            border-radius: 24px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(4px);
             margin-bottom: 10px;
             display: flex;
@@ -51,6 +51,7 @@
             gap: 10px;
             pointer-events: auto;
             transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(2,6,23,0.6);
         }
         .touch-controls {
             position: absolute;
@@ -134,31 +135,31 @@
         .menu-card {
             background: rgba(0,0,0,0.6);
             padding: 40px;
-            border-radius: 32px;
-            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.06);
             backdrop-filter: blur(15px);
             text-align: center;
             max-width: 400px;
             width: 90%;
             transition: all 0.3s ease;
+            box-shadow: 0 14px 40px rgba(2,6,23,0.7);
         }
         .primary-btn {
-            background: #3d5afe;
+            background: linear-gradient(180deg,#4f46e5,#3d5afe);
             color: white;
             padding: 12px 30px;
-            border-radius: 20px;
-            font-weight: bold;
+            border-radius: 28px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms;
             display: block;
             width: 100%;
             margin-top: 10px;
             border: none;
+            box-shadow: 0 6px 18px rgba(45,55,72,0.18);
+            pointer-events: auto;
         }
-        .primary-btn:hover {
-            background: #536dfe;
-            transform: translateY(-2px);
-        }
+        .primary-btn:hover { transform: translateY(-4px); opacity: 0.98; }
         input {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.2);
@@ -205,7 +206,9 @@
             
             <div class="mt-8 border-t border-white/10 pt-6">
                 <p class="text-xs opacity-40 mb-2">JOIN SPECIFIC SERVER</p>
-                <input type="text" id="lobby-code" placeholder="Enter Code (e.g. 123456)" maxlength="10">
+                    <input type="text" id="lobby-code" placeholder="Enter Code (e.g. 123456)" maxlength="10">
+                    <input type="text" id="username-input" placeholder="Display name (optional)" maxlength="20" style="margin-top:8px;">
+                    <button id="set-username" class="primary-btn" style="margin-top:6px; padding:8px 12px; width:auto; display:inline-block;">Set Name</button>
             </div>
         </div>
     </div>
@@ -494,7 +497,7 @@ function renderServerStatusUI() {
     container.appendChild(makeItem('gimkit01', 'gimkit01'));
 }
 function connectWS() {
-    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://' + window.location.hostname + ':6942');
+    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://' + window.location.hostname + ':2343');
     if (!url) return;
     try { if (wsSocket) { wsSocket.onclose = null; wsSocket.close(); } } catch(e){}
     wsSocket = new WebSocket(url);
@@ -537,6 +540,7 @@ function connectWS() {
                             existing.targetX = (p && typeof p.x === 'number') ? p.x : existing.targetX;
                             existing.targetY = (p && typeof p.y === 'number') ? p.y : existing.targetY;
                             existing.color = (p && p.color) || existing.color;
+                            existing.name = (p && p.name) || existing.name;
                             existing.level = (p && p.level) || existing.level;
                             existing.ts = (p && p.ts) || existing.ts;
                         } else {
@@ -546,6 +550,7 @@ function connectWS() {
                                 targetX: (p && p.x) || 0,
                                 targetY: (p && p.y) || 0,
                                 color: (p && p.color) || '#fff',
+                                name: (p && p.name) || ('player-' + pid.slice(0,6)),
                                 level: (p && p.level) || 1,
                                 ts: (p && p.ts) || Date.now()
                             };
@@ -572,7 +577,7 @@ function connectWS() {
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const player = { id: 'local-' + Date.now(), x: 0, y: 0, w: 32, h: 32, velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`, onGround: false, jumpCount: 0 };
+        const player = { id: 'local-' + Date.now(), name: 'Player', x: 0, y: 0, w: 32, h: 32, velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`, onGround: false, jumpCount: 0 };
         player.noclip = false;
         player.canFly = false;
         const otherPlayers = {};
@@ -596,7 +601,11 @@ function connectWS() {
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'flex';
             document.getElementById('user-agent-box').style.display = 'block';
-            if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+            if ("ontouchstart" in window) {
+                document.getElementById('touch-ui').style.display = 'flex';
+                const b1 = document.getElementById('btn-noclip'); if (b1) b1.style.display = 'flex';
+                const b2 = document.getElementById('btn-fly'); if (b2) b2.style.display = 'flex';
+            }
             document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
             if (db) setupMultiplayer(); else generateLevel(1);
         };
@@ -637,6 +646,7 @@ function connectWS() {
                             existing.targetX = d.x || existing.targetX;
                             existing.targetY = d.y || existing.targetY;
                             existing.color = d.color || existing.color;
+                            existing.name = d.name || existing.name;
                             existing.level = d.level || existing.level;
                             existing.ts = d.ts || existing.ts;
                         } else {
@@ -646,6 +656,7 @@ function connectWS() {
                                 targetX: d.x || 0,
                                 targetY: d.y || 0,
                                 color: d.color || '#fff',
+                                name: d.name || ('player-' + c.doc.id.substring(0,6)),
                                 level: d.level || 1,
                                 ts: d.ts || Date.now()
                             };
@@ -735,7 +746,7 @@ function connectWS() {
                 // If WS available, send heartbeat over WS (much cheaper than Firestore)
                 if (wsSocket && wsSocket.readyState === 1) {
                     try {
-                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
+                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, name: player.name, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
                         lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
                         return;
                     } catch (e) { /* fall back to Firestore below */ }
@@ -749,6 +760,7 @@ function connectWS() {
                         await setDoc(ref, {
                             x: currentX,
                             y: currentY,
+                            name: player.name,
                             color: player.color,
                             level: lobbyLevel,
                             ts: Date.now()
@@ -863,11 +875,25 @@ function connectWS() {
             // increase platform spawn probability for harder levels so they remain reachable
             const spawnProb = lvl >= 3 ? 0.35 : 0.45;
             for (let r = 0; r < H; r++) {
+                // collect columns added for this row so we can guarantee at least one gap
+                const addedCols = [];
                 for (let c = 0; c < W; c++) {
-                        if (c === 0 || c === W - 1 || r === H - 1) gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
-                        else if (r < H - 2 && r % 3 === 0 && rng.next() > spawnProb) {
+                    if (c === 0 || c === W - 1 || r === H - 1) {
                         gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
+                    } else if (r < H - 2 && r % 3 === 0 && rng.next() > spawnProb) {
+                        gameState.platforms.push({ x: c * T, y: r * T, w: T, h: T });
+                        addedCols.push(c);
                         if (rng.next() > 0.7) gameState.coins.push({ x: c * T + 20, y: r * T - 40, collected: false });
+                    }
+                }
+                // avoid creating a solid bar: if every interior column was filled, remove one column at center
+                const interiorCount = W - 2;
+                if (addedCols.length >= interiorCount) {
+                    const center = Math.floor(W/2);
+                    // remove platform at center column if present
+                    for (let i = gameState.platforms.length - 1; i >= 0; i--) {
+                        const p = gameState.platforms[i];
+                        if (p.y === r * T && p.x === center * T) { gameState.platforms.splice(i,1); break; }
                     }
                 }
             }
@@ -892,6 +918,37 @@ function connectWS() {
             el.addEventListener('touchend', e => { e.preventDefault(); touchState[key] = false; });
         };
         touchBind('btn-left', 'left'); touchBind('btn-right', 'right'); touchBind('btn-jump', null, handleJump);
+
+        // add noclip and fly touch buttons
+        const noclipBtn = document.createElement('div');
+        noclipBtn.id = 'btn-noclip';
+        noclipBtn.className = 'touch-btn';
+        noclipBtn.style.position = 'absolute';
+        noclipBtn.style.bottom = '120px';
+        noclipBtn.style.right = '20px';
+        noclipBtn.style.width = '56px';
+        noclipBtn.style.height = '56px';
+        noclipBtn.style.fontSize = '12px';
+        noclipBtn.style.display = 'none';
+        noclipBtn.style.cursor = 'pointer';
+        noclipBtn.innerText = 'NOC';
+        noclipBtn.addEventListener('touchstart', e => { e.preventDefault(); player.noclip = !player.noclip; noclipBtn.style.background = player.noclip ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.15)'; });
+        document.body.appendChild(noclipBtn);
+
+        const flyBtn = document.createElement('div');
+        flyBtn.id = 'btn-fly';
+        flyBtn.className = 'touch-btn';
+        flyBtn.style.position = 'absolute';
+        flyBtn.style.bottom = '120px';
+        flyBtn.style.right = '90px';
+        flyBtn.style.width = '56px';
+        flyBtn.style.height = '56px';
+        flyBtn.style.fontSize = '12px';
+        flyBtn.style.display = 'none';
+        flyBtn.style.cursor = 'pointer';
+        flyBtn.innerText = 'FLY';
+        flyBtn.addEventListener('touchstart', e => { e.preventDefault(); player.canFly = !player.canFly; flyBtn.style.background = player.canFly ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.15)'; });
+        document.body.appendChild(flyBtn);
 
         function update() {
             if (inMenu) return;
@@ -959,6 +1016,13 @@ function connectWS() {
                 ctx.globalAlpha = 0.6;
                 ctx.fillStyle = p.color || '#fff';
                 ctx.fillRect(p.renderX, p.renderY, 32, 32);
+                // draw player name above
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#fff';
+                ctx.font = '13px sans-serif';
+                ctx.textAlign = 'center';
+                const displayName = p.name || ('player-' + Math.random().toString(36).slice(2,6));
+                ctx.fillText(displayName, p.renderX + 16, p.renderY - 8);
             });
 
             // Draw local player with a subtle bob when airborne
@@ -968,7 +1032,12 @@ function connectWS() {
             ctx.translate(0, bob);
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.w, player.h);
-            ctx.restore();
+                // draw local player's name
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name || 'You', player.x + (player.w/2), player.y - 8);
+                ctx.restore();
             ctx.restore();
 
             // Position portal overlay
@@ -1053,6 +1122,15 @@ function connectWS() {
             // regenerate a local id
             player.id = 'local-' + Date.now();
             log('Account deleted / reset locally');
+        });
+
+        // set username button
+        document.getElementById('set-username').addEventListener('click', () => {
+            const v = document.getElementById('username-input').value.trim();
+            if (!v) return;
+            player.name = v.slice(0,20);
+            log('Name set: ' + player.name);
+            updateUserAgentBox();
         });
 
         // Priority: try WS first; if WS doesn't connect quickly, initialize Firebase (gimkit0/gimkit01)

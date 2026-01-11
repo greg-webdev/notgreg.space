@@ -18,7 +18,7 @@ try:
 except Exception:
     psutil = None
 
-PORT = int(os.environ.get('PORT', '3000'))
+PORT = int(os.environ.get('PORT', '2343'))
 BROADCAST_HZ = int(os.environ.get('BROADCAST_HZ', '100'))
 
 # In-memory lobbies: lobby_id -> {players: {id: {x,y,ts}}}
@@ -39,11 +39,11 @@ async def handler(ws, path):
             pid = data.get('id')
             if t == 'join' and pid:
                 l = lobbies[lobby]
-                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'name': data.get('name') or None, 'ts': data.get('ts') or asyncio.get_event_loop().time()}
                 ws_player_map[ws] = (lobby, pid)
             elif t == 'heartbeat' and pid:
                 l = lobbies[lobby]
-                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'name': data.get('name') or None, 'ts': data.get('ts') or asyncio.get_event_loop().time()}
                 ws_player_map[ws] = (lobby, pid)
             elif t == 'leave' and pid:
                 l = lobbies[lobby]

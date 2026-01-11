@@ -14,7 +14,7 @@ PY="$VENV/bin/python"
 PIP="$VENV/bin/pip"
 
 # defaults
-PORT_DEFAULT=6942
+PORT_DEFAULT=2343
 BROADCAST_HZ_DEFAULT=100
 
 if [ ! -d "$VENV" ]; then
