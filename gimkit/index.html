@@ -27,31 +27,35 @@
             right: 20px;
             pointer-events: auto;
             color: white;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            gap: 12px;
             z-index: 10;
-            transform: translateX(-100%);
-            animation: slideInLeft 0.5s ease-out forwards;
+            transform: translateX(0);
+            animation: slideInLeft 0.45s ease-out forwards;
+            padding: 8px;
+            background: rgba(0,0,0,0.28);
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.04);
+            backdrop-filter: blur(6px);
         }
         @keyframes slideInLeft {
             from { transform: translateX(-100%); }
             to { transform: translateX(0); }
         }
         .stat-card {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 10px 20px;
-            border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(4px);
-            margin-bottom: 10px;
+            background: rgba(255,255,255,0.03);
+            padding: 8px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.03);
+            backdrop-filter: blur(3px);
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
             gap: 10px;
             pointer-events: auto;
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 24px rgba(2,6,23,0.6);
+            transition: transform 200ms cubic-bezier(.2,.9,.2,1), opacity 200ms;
         }
         .touch-controls {
             position: absolute;
@@ -59,8 +63,8 @@
             left: 0;
             right: 0;
             display: flex;
-            justify-content: space-between;
-            padding: 0 5%;
+            justify-content: center;
+            padding: 0 6%;
             pointer-events: none;
             z-index: 50;
             transform: translateY(100%);
@@ -96,25 +100,22 @@
             animation: pulse 2s infinite;
         }
         .touch-btn {
-            width: 70px;
-            height: 70px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 30px;
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
             display: flex;
             align-items: center;
             justify-content: center;
             pointer-events: auto;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(4px);
             color: white;
-            font-weight: bold;
-            font-size: 20px;
-            transition: all 0.3s ease;
+            font-weight: 700;
+            font-size: 18px;
+            transition: all 0.18s ease;
         }
-        .touch-btn:active {
-            transform: scale(0.9);
-            background: rgba(255, 255, 255, 0.3);
-        }
+        .touch-btn:active { transform: scale(0.92); background: rgba(255,255,255,0.14); }
         #home-screen {
             position: fixed;
             inset: 0;
@@ -133,42 +134,41 @@
             to { opacity: 1; }
         }
         .menu-card {
-            background: rgba(0,0,0,0.6);
-            padding: 40px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.06);
-            backdrop-filter: blur(15px);
+            background: rgba(0,0,0,0.5);
+            padding: 28px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px);
             text-align: center;
-            max-width: 400px;
-            width: 90%;
-            transition: all 0.3s ease;
-            box-shadow: 0 14px 40px rgba(2,6,23,0.7);
+            max-width: 420px;
+            width: 92%;
+            transition: transform 220ms ease, opacity 220ms;
         }
         .primary-btn {
-            background: linear-gradient(180deg,#4f46e5,#3d5afe);
+            background: linear-gradient(180deg,#5561f7,#4650ff);
             color: white;
-            padding: 12px 30px;
-            border-radius: 28px;
-            font-weight: 700;
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-weight: 800;
             cursor: pointer;
-            transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms;
+            transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms;
             display: block;
             width: 100%;
             margin-top: 10px;
             border: none;
-            box-shadow: 0 6px 18px rgba(45,55,72,0.18);
+            box-shadow: 0 6px 18px rgba(20,28,80,0.16);
             pointer-events: auto;
         }
         .primary-btn:hover { transform: translateY(-4px); opacity: 0.98; }
         input {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 12px;
-            border-radius: 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 10px;
+            border-radius: 12px;
             color: white;
             width: 100%;
             margin-bottom: 10px;
-            transition: all 0.3s ease;
+            transition: box-shadow 140ms ease, transform 140ms ease;
         }
         input:focus {
             border-color: rgba(255,255,255,0.5);
@@ -178,14 +178,15 @@
             position: fixed;
             bottom: 10px;
             right: 10px;
-            background: rgba(0,0,0,0.8);
-            color: #0f0;
+            background: rgba(0,0,0,0.6);
+            color: #9ef0a6;
             font-family: monospace;
             font-size: 10px;
-            padding: 5px;
-            border-radius: 12px;
+            padding: 6px 8px;
+            border-radius: 10px;
             pointer-events: none;
             z-index: 200;
+            opacity: 0.9;
         }
     </style>
 </head>
@@ -497,7 +498,7 @@ function renderServerStatusUI() {
     container.appendChild(makeItem('gimkit01', 'gimkit01'));
 }
 function connectWS() {
-    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://' + window.location.hostname + ':2343');
+    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://165.173.23.252:2343');
     if (!url) return;
     try { if (wsSocket) { wsSocket.onclose = null; wsSocket.close(); } } catch(e){}
     wsSocket = new WebSocket(url);
