@@ -196,7 +196,10 @@
         <div class="menu-card">
             <h1 class="text-5xl font-black mb-2 tracking-tighter italic text-blue-400">SYNC TOWER</h1>
             <p class="opacity-50 mb-8" id="loading-text">Server Status: Authenticating...</p>
-            
+            <div id="server-status" style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;">
+                <!-- populated by JS: shows ws / gimkit0 / gimkit01 status and load -->
+            </div>
+
             <button id="join-btn" class="primary-btn text-lg" onclick="enterGame()">JOIN GLOBAL LOBBY</button>
             <button id="test-join-btn" class="primary-btn text-lg" style="display:none; margin-top:8px; background:#ff6b6b;" onclick="joinTestMode()">JOIN ALL SERVERS (TEST)</button>
             
@@ -404,6 +407,28 @@
             tryAuth();
         };
 
+        // Home-screen server status listeners: attach lightweight players-count listeners when Firestore apps are available
+        function setupStatusListeners() {
+            try {
+                if (dbGimkit0) {
+                    const pCol0 = collection(dbGimkit0, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players');
+                    onSnapshot(pCol0, (s) => {
+                        serverStatus.gimkit0.online = true;
+                        serverStatus.gimkit0.load = s.size || 0;
+                        renderServerStatusUI();
+                    }, (err) => { serverStatus.gimkit0.online = false; serverStatus.gimkit0.load = 0; renderServerStatusUI(); });
+                }
+                if (dbGimkit01) {
+                    const pCol1 = collection(dbGimkit01, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players');
+                    onSnapshot(pCol1, (s) => {
+                        serverStatus.gimkit01.online = true;
+                        serverStatus.gimkit01.load = s.size || 0;
+                        renderServerStatusUI();
+                    }, (err) => { serverStatus.gimkit01.online = false; serverStatus.gimkit01.load = 0; renderServerStatusUI(); });
+                }
+            } catch (e) { /* ignore */ }
+        }
+
 // Network status handling: if offline, run purely local; when online, try reconnecting services
 window.addEventListener('offline', () => {
     log('Network: offline');
@@ -425,8 +450,35 @@ let wsConnected = false;
 let firestoreSetupDone = false;
 let wsConnectTimer = null;
 let wsReconnectAttempts = 0;
+// Server status tracking
+const serverStatus = {
+    ws: { online: false, load: 0 },
+    gimkit0: { online: false, load: 0 },
+    gimkit01: { online: false, load: 0 }
+};
+
+function renderServerStatusUI() {
+    const container = document.getElementById('server-status');
+    if (!container) return;
+    container.innerHTML = '';
+    const makeItem = (key, label) => {
+        const s = serverStatus[key];
+        const el = document.createElement('div');
+        el.style.padding = '6px 10px';
+        el.style.borderRadius = '8px';
+        el.style.background = s.online ? 'rgba(16,185,129,0.12)' : 'rgba(220,38,38,0.08)';
+        el.style.color = s.online ? '#10b981' : '#dc2626';
+        el.style.fontSize = '12px';
+        el.style.border = '1px solid ' + (s.online ? 'rgba(16,185,129,0.2)' : 'rgba(220,38,38,0.12)');
+        el.innerText = `${label}: ${s.online ? 'online' : 'offline'}${(typeof s.load === 'number' && s.load > 0) ? ' ('+s.load+')' : ''}`;
+        return el;
+    };
+    container.appendChild(makeItem('ws', 'WS'));
+    container.appendChild(makeItem('gimkit0', 'gimkit0'));
+    container.appendChild(makeItem('gimkit01', 'gimkit01'));
+}
 function connectWS() {
-    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : null;
+    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://' + window.location.hostname + ':6942');
     if (!url) return;
     try { if (wsSocket) { wsSocket.onclose = null; wsSocket.close(); } } catch(e){}
     wsSocket = new WebSocket(url);
@@ -445,11 +497,17 @@ function connectWS() {
         wsReconnectAttempts = 0;
         if (wsConnectTimer) { clearTimeout(wsConnectTimer); wsConnectTimer = null; }
         log('WS: connected');
+        serverStatus.ws.online = true; renderServerStatusUI();
         try { wsSocket.send(JSON.stringify({ type: 'join', lobby: activeLobby, id: player.id, x: Math.round(player.x), y: Math.round(player.y), ts: Date.now() })); } catch(e){}
     };
     wsSocket.onmessage = (evt) => {
         try {
             const data = JSON.parse(evt.data);
+            if (data && data.type === 'snapshot' && data.lobbies) {
+                const players = data.lobbies[activeLobby] || [];
+                serverStatus.ws.load = Array.isArray(players) ? players.length : 0;
+                renderServerStatusUI();
+            }
             if (data && data.type === 'snapshot' && data.lobbies) {
                 const players = data.lobbies[activeLobby];
                 if (Array.isArray(players)) {
@@ -482,6 +540,7 @@ function connectWS() {
         wsConnected = false;
         log('WS: disconnected');
         wsSocket = null;
+        serverStatus.ws.online = false; serverStatus.ws.load = 0; renderServerStatusUI();
         wsReconnectAttempts++;
         if (wsReconnectAttempts <= 3) {
             setTimeout(connectWS, 500 * wsReconnectAttempts);
@@ -507,34 +566,23 @@ function connectWS() {
         window.enterGame = () => {
             const input = document.getElementById('lobby-code').value.trim();
             if (input) activeLobby = input.toLowerCase();
+            // If user typed 'test' — show server selection overlay and do not enter the game yet
+            if (input === 'test') {
+                showServerSelectOverlay();
+                return;
+            }
             inMenu = false;
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'flex';
             document.getElementById('user-agent-box').style.display = 'block';
             if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
             document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
-                if (input === 'test') {
-                    const tb = document.getElementById('test-join-btn');
-                    if (tb) tb.style.display = 'block';
-                    const el = document.getElementById('loading-text'); if (el) el.innerText = "Server Status: Test mode ready — click JOIN ALL SERVERS";
-                    return;
-                }
-                if (db) setupMultiplayer(); else generateLevel(1);
+            if (db) setupMultiplayer(); else generateLevel(1);
         };
 
             function joinTestMode() {
-                testMode = true;
-                currentServerLabel = 'gimkit0 + gimkit01 + ws';
-                updateUserAgentBox();
-                inMenu = false;
-                document.getElementById('home-screen').style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'flex';
-                document.getElementById('user-agent-box').style.display = 'block';
-                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
-                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase() + ' (TEST)';
-                // start listeners across all servers
-                setupMultiServerTest();
-                generateLevel(1);
+                // Show server selection overlay — do not join game automatically
+                showServerSelectOverlay();
             }
 
         function setupMultiplayer() {
@@ -585,51 +633,8 @@ function connectWS() {
                 });
             }, (err) => log("Player Sync Error: " + (err && err.code ? err.code : err)));
 
-            // Heartbeat update - prefers WebSocket if available, otherwise Firestore.
-            let lastUpdate = { x: 0, y: 0, level: 1 };
-            // ensure WS is connected if configured
-            try { connectWS(); } catch(e){}
-            setInterval(async () => {
-                if (inMenu) return;
-                const currentX = Math.round(player.x);
-                const currentY = Math.round(player.y);
-                if (Math.abs(currentX - lastUpdate.x) < 5 && Math.abs(currentY - lastUpdate.y) < 5 && lobbyLevel === lastUpdate.level) return;
-
-                // If WS available, send heartbeat over WS (much cheaper than Firestore)
-                if (wsSocket && wsSocket.readyState === 1) {
-                    try {
-                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
-                        lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
-                        return;
-                    } catch (e) { /* fall back to Firestore below */ }
-                }
-
-                // Fallback to Firestore when no WS
-                // In test mode, write to all configured Firestore projects so you appear across servers
-                const writeToFirestore = async (dbInstance) => {
-                    if (!dbInstance) return;
-                    try {
-                        const ref = doc(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
-                        await setDoc(ref, {
-                            x: currentX,
-                            y: currentY,
-                            color: player.color,
-                            level: lobbyLevel,
-                            ts: Date.now()
-                        }, { merge: true });
-                    } catch (e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
-                };
-
-                try {
-                    if (testMode) {
-                        await writeToFirestore(dbGimkit0);
-                        await writeToFirestore(dbGimkit01);
-                    } else {
-                        if (db) await writeToFirestore(db);
-                    }
-                    lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
-                } catch(e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
-            }, 250);
+            // Heartbeat is started separately by startHeartbeat(); this keeps setup idempotent
+            startHeartbeat();
         }
 
         // Attach listeners for a specific Firestore instance and merge players into the shared `otherPlayers`
@@ -690,6 +695,142 @@ function connectWS() {
             if (db && !firestoreSetupDone) setupMultiplayer();
             firestoreSetupDone = true;
             updateUserAgentBox();
+        }
+
+        // Heartbeat timer handle
+        let heartbeatTimer = null;
+
+        // Start the heartbeat loop (idempotent)
+        function startHeartbeat() {
+            if (heartbeatTimer) return;
+            let lastUpdate = { x: 0, y: 0, level: 1 };
+            try { connectWS(); } catch(e){}
+            heartbeatTimer = setInterval(async () => {
+                if (inMenu) return;
+                const currentX = Math.round(player.x);
+                const currentY = Math.round(player.y);
+                if (Math.abs(currentX - lastUpdate.x) < 5 && Math.abs(currentY - lastUpdate.y) < 5 && lobbyLevel === lastUpdate.level) return;
+
+                // If WS available, send heartbeat over WS (much cheaper than Firestore)
+                if (wsSocket && wsSocket.readyState === 1) {
+                    try {
+                        wsSocket.send(JSON.stringify({ type: 'heartbeat', lobby: activeLobby, id: player.id, x: currentX, y: currentY, ts: Date.now(), color: player.color, level: lobbyLevel }));
+                        lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
+                        return;
+                    } catch (e) { /* fall back to Firestore below */ }
+                }
+
+                // Fallback to Firestore when no WS
+                const writeToFirestore = async (dbInstance) => {
+                    if (!dbInstance) return;
+                    try {
+                        const ref = doc(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
+                        await setDoc(ref, {
+                            x: currentX,
+                            y: currentY,
+                            color: player.color,
+                            level: lobbyLevel,
+                            ts: Date.now()
+                        }, { merge: true });
+                    } catch (e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
+                };
+
+                try {
+                    if (testMode) {
+                        await writeToFirestore(dbGimkit0);
+                        await writeToFirestore(dbGimkit01);
+                    } else {
+                        if (db) await writeToFirestore(db);
+                    }
+                    lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
+                } catch(e) { log("Heartbeat Error: " + (e && e.code ? e.code : e)); }
+            }, 250);
+        }
+
+        // Remove the heartbeat loop if needed
+        function stopHeartbeat() {
+            if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        }
+
+        // Show a small overlay to let user pick which server to join for TEST
+        function showServerSelectOverlay() {
+            if (document.getElementById('server-select-overlay')) return;
+            const overlay = document.createElement('div');
+            overlay.id = 'server-select-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '16px';
+            overlay.style.left = '50%';
+            overlay.style.transform = 'translateX(-50%)';
+            overlay.style.zIndex = 9999;
+            overlay.style.display = 'flex';
+            overlay.style.gap = '8px';
+
+            const makeBtn = (label, sv) => {
+                const b = document.createElement('button');
+                b.innerText = label;
+                b.className = 'primary-btn';
+                b.style.padding = '8px 14px';
+                b.style.background = '#222';
+                b.onclick = () => { joinServer(sv); };
+                return b;
+            };
+
+            overlay.appendChild(makeBtn('Join gimkit0', 'gimkit0'));
+            overlay.appendChild(makeBtn('Join gimkit01', 'gimkit01'));
+            overlay.appendChild(makeBtn('Join WS', 'ws'));
+            const cancel = document.createElement('button');
+            cancel.innerText = 'Cancel';
+            cancel.className = 'primary-btn';
+            cancel.style.background = '#666';
+            cancel.onclick = () => { overlay.remove(); };
+            overlay.appendChild(cancel);
+
+            document.body.appendChild(overlay);
+        }
+
+        function joinServer(server) {
+            const overlay = document.getElementById('server-select-overlay');
+            if (overlay) overlay.remove();
+            if (server === 'gimkit0') {
+                if (!dbGimkit0) { log('gimkit0 not available'); return; }
+                db = dbGimkit0;
+                firestoreSetupDone = false;
+                currentServerLabel = 'gimkit0';
+                updateUserAgentBox();
+                inMenu = false;
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'flex';
+                document.getElementById('user-agent-box').style.display = 'block';
+                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
+                setupMultiplayer();
+            } else if (server === 'gimkit01') {
+                if (!dbGimkit01) { log('gimkit01 not available'); return; }
+                db = dbGimkit01;
+                firestoreSetupDone = false;
+                currentServerLabel = 'gimkit01';
+                updateUserAgentBox();
+                inMenu = false;
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'flex';
+                document.getElementById('user-agent-box').style.display = 'block';
+                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
+                setupMultiplayer();
+            } else if (server === 'ws') {
+                testMode = false;
+                currentServerLabel = 'ws';
+                updateUserAgentBox();
+                inMenu = false;
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'flex';
+                document.getElementById('user-agent-box').style.display = 'block';
+                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
+                try { connectWS(); } catch(e){}
+                startHeartbeat();
+                generateLevel(1);
+            }
         }
 
         function generateLevel(lvl) {
@@ -831,8 +972,20 @@ function connectWS() {
             gameState.zoom = gameState.zoom === 1 ? 0.5 : 1;
         });
 
-        initFirebase();
+        // Priority: try WS first; if WS doesn't connect quickly, initialize Firebase (gimkit0/gimkit01)
+        try { connectWS(); } catch(e){}
+        // wait briefly for WS to connect; otherwise init Firebase
+        setTimeout(() => {
+            if (!wsConnected) {
+                initFirebase();
+            } else {
+                // WS connected; still attach status listeners for Firestore if available
+                initFirebase();
+            }
+        }, 1200);
         generateLevel(1);
+        // after firebase init resolves, attach status listeners (they will no-op if DBs not present)
+        setTimeout(() => { setupStatusListeners(); renderServerStatusUI(); }, 1800);
         requestAnimationFrame(draw);
     </script>
 </body>
