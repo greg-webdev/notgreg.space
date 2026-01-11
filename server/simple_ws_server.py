@@ -113,6 +113,35 @@ async def handler(ws, path):
                             await asyncio.gather(*[c.send(notice) for c in list(clients) if not c.closed], return_exceptions=True)
                         except Exception:
                             pass
+            elif t == 'reset':
+                # admin-triggered reset: reset lobby level(s) to 1
+                target_lobby = data.get('lobby')
+                requester_email = None
+                if ws in ws_player_map:
+                    req_lobby, req_pid = ws_player_map[ws]
+                    req_player = lobbies.get(req_lobby, {}).get('players', {}).get(req_pid, {})
+                    requester_email = req_player.get('email')
+                if not requester_email:
+                    requester_email = data.get('by_email')
+                if requester_email == ADMIN_EMAIL:
+                    if target_lobby:
+                        l = lobbies.setdefault(target_lobby, {'players': {}, 'level': 1})
+                        l['level'] = 1
+                        try:
+                            notice = json.dumps({'type': 'reset', 'lobby': target_lobby, 'level': 1})
+                            await asyncio.gather(*[c.send(notice) for c in list(clients) if not c.closed], return_exceptions=True)
+                        except Exception:
+                            pass
+                    else:
+                        # reset all lobbies
+                        for lid, l in lobbies.items():
+                            l.setdefault('level', 1)
+                            l['level'] = 1
+                        try:
+                            notice = json.dumps({'type': 'reset', 'lobby': None, 'level': 1})
+                            await asyncio.gather(*[c.send(notice) for c in list(clients) if not c.closed], return_exceptions=True)
+                        except Exception:
+                            pass
             elif t == 'leave' and pid:
                 l = lobbies[lobby]
                 if pid in l['players']:

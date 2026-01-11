@@ -521,8 +521,8 @@ function connectWS() {
     };
     wsSocket.onmessage = (evt) => {
         try {
-            const data = JSON.parse(evt.data);
-            if (data && data.type === 'snapshot' && data.lobbies) {
+                const data = JSON.parse(evt.data);
+                if (data && data.type === 'snapshot' && data.lobbies) {
                 const players = data.lobbies[activeLobby] || [];
                 serverStatus.ws.load = Array.isArray(players) ? players.length : 0;
                 if (data.server) serverStatus.ws.metrics = data.server;
@@ -558,6 +558,20 @@ function connectWS() {
                     });
                 }
             }
+            else if (data && data.type === 'kicked') {
+                try { log('Server: kicked ' + (data.target || '')); } catch(e){}
+            }
+            else if (data && data.type === 'reset') {
+                try {
+                    const rl = data.lobby;
+                    const newLevel = data.level || 1;
+                    if (!rl || rl === activeLobby) {
+                        lobbyLevel = newLevel;
+                        generateLevel(lobbyLevel);
+                        log('Server reset: set level ' + lobbyLevel);
+                    }
+                } catch(e) {}
+            }
         } catch (e) { /* ignore parse errors */ }
     };
     wsSocket.onclose = () => {
@@ -588,6 +602,10 @@ function connectWS() {
         const GRAVITY = 0.45;
         const JUMP_FORCE = -14; // stronger upward impulse (more negative => higher jump)
         const DOUBLE_JUMP_FORCE = -13; // stronger double-jump
+        // camera smoothing (0.0 = instant, 1.0 = locked)
+        const CAMERA_LERP = 0.12;
+        // player corner radius for rounded rendering
+        const PLAYER_RADIUS = 8;
 
         window.enterGame = () => {
             const input = document.getElementById('lobby-code').value.trim();
@@ -982,8 +1000,11 @@ function connectWS() {
                 }
             }
 
-            gameState.camera.x += (player.x - (canvas.width/(2*gameState.zoom)) - gameState.camera.x) * 1;
-            gameState.camera.y += (player.y - (canvas.height/(2*gameState.zoom)) - gameState.camera.y) * 1;
+            // smooth camera with slight lookahead based on player velocity
+            const targetCamX = player.x - (canvas.width / (2 * gameState.zoom)) + (player.velX * 6);
+            const targetCamY = player.y - (canvas.height / (2 * gameState.zoom)) + (player.velY * 2);
+            gameState.camera.x += (targetCamX - gameState.camera.x) * CAMERA_LERP;
+            gameState.camera.y += (targetCamY - gameState.camera.y) * CAMERA_LERP;
         }
 
         function collide(dir) {
@@ -1004,6 +1025,19 @@ function connectWS() {
             ctx.fillStyle = '#2c2c38'; gameState.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
             ctx.fillStyle = '#ffd700'; gameState.coins.forEach(c => { if(!c.collected) { ctx.beginPath(); ctx.arc(c.x+16, c.y+16, 10, 0, Math.PI*2); ctx.fill(); }});
 
+            // helper: rounded rect
+            function drawRoundedRect(ctx, x, y, w, h, r) {
+                const radius = Math.min(r, w/2, h/2);
+                ctx.beginPath();
+                ctx.moveTo(x + radius, y);
+                ctx.arcTo(x + w, y, x + w, y + h, radius);
+                ctx.arcTo(x + w, y + h, x, y + h, radius);
+                ctx.arcTo(x, y + h, x, y, radius);
+                ctx.arcTo(x, y, x + w, y, radius);
+                ctx.closePath();
+                ctx.fill();
+            }
+
             // Smoothly interpolate and draw other players
             const smoothing = 0.2;
             Object.values(otherPlayers).forEach(p => {
@@ -1019,7 +1053,7 @@ function connectWS() {
                 p.renderY += (p.targetY - p.renderY) * smoothing;
                 ctx.globalAlpha = 0.6;
                 ctx.fillStyle = p.color || '#fff';
-                ctx.fillRect(p.renderX, p.renderY, 32, 32);
+                drawRoundedRect(ctx, p.renderX, p.renderY, 32, 32, 8);
                 // draw player name above
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = '#fff';
@@ -1035,13 +1069,13 @@ function connectWS() {
             const bob = player.onGround ? 0 : Math.sin(Date.now()/120) * 2;
             ctx.translate(0, bob);
             ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.w, player.h);
+            drawRoundedRect(ctx, player.x, player.y, player.w, player.h, PLAYER_RADIUS);
                 // draw local player's name
                 ctx.fillStyle = '#fff';
                 ctx.font = '14px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(player.name || 'You', player.x + (player.w/2), player.y - 8);
-                ctx.restore();
+            ctx.restore();
             ctx.restore();
 
             // Position portal overlay
