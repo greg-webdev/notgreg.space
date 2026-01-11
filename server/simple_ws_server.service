@@ -1,0 +1,17 @@
+[Unit]
+Description=Simple WebSocket Server (gimkit)
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/home/ubuntu/Documents/website/greg-webdev.github.io/server
+Environment=PORT=2343
+ExecStart=/home/ubuntu/Documents/website/greg-webdev.github.io/server/.venv/bin/python3 simple_ws_server.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=simple_ws_server
+
+[Install]
+WantedBy=multi-user.target

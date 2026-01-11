@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sync Tower Multiplayer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             margin: 0;
@@ -498,7 +497,10 @@ function renderServerStatusUI() {
     container.appendChild(makeItem('gimkit01', 'gimkit01'));
 }
 function connectWS() {
-    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : ('ws://165.173.23.252:2343');
+    // choose secure ws scheme when page is loaded over https
+    const proto = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+    const defaultServer = proto + '165.173.23.252:2343';
+    const url = (typeof __multiplayer_server !== 'undefined' && __multiplayer_server) ? __multiplayer_server : defaultServer;
     if (!url) return;
     try { if (wsSocket) { wsSocket.onclose = null; wsSocket.close(); } } catch(e){}
     wsSocket = new WebSocket(url);
@@ -1055,6 +1057,24 @@ function connectWS() {
                 ctx.globalAlpha = 0.6;
                 ctx.fillStyle = p.color || '#fff';
                 drawRoundedRect(ctx, p.renderX, p.renderY, 32, 32, 8);
+                // draw eyes that look toward movement direction
+                try {
+                    const lx = (p.targetX - p.renderX);
+                    const ly = (p.targetY - p.renderY);
+                    let len = Math.hypot(lx, ly);
+                    let nx = 0, ny = 0;
+                    if (len > 0.001) { nx = lx / len; ny = ly / len; } else { nx = 1; ny = 0; }
+                    const pupilMax = 3;
+                    const ex1 = p.renderX + 8, ey1 = p.renderY + 9;
+                    const ex2 = p.renderX + 24, ey2 = p.renderY + 9;
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(ex1, ey1, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(ex2, ey2, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#111';
+                    ctx.beginPath(); ctx.arc(ex1 + nx * pupilMax, ey1 + ny * (pupilMax*0.6), 1.6, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(ex2 + nx * pupilMax, ey2 + ny * (pupilMax*0.6), 1.6, 0, Math.PI*2); ctx.fill();
+                } catch(e) {}
                 // draw player name above
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = '#fff';
@@ -1071,6 +1091,23 @@ function connectWS() {
             ctx.translate(0, bob);
             ctx.fillStyle = player.color;
             drawRoundedRect(ctx, player.x, player.y, player.w, player.h, PLAYER_RADIUS);
+            // eyes for local player (look toward velocity)
+            try {
+                const lvx = player.velX || 0, lvy = player.velY || 0;
+                let llen = Math.hypot(lvx, lvy);
+                let lnx = 0, lny = 0;
+                if (llen > 0.001) { lnx = lvx / llen; lny = lvy / llen; } else { lnx = 1; lny = 0; }
+                const pMax = 3;
+                const lx1 = player.x + 8, ly1 = player.y + 9;
+                const lx2 = player.x + 24, ly2 = player.y + 9;
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(lx1, ly1, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(lx2, ly2, 3, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#111';
+                ctx.beginPath(); ctx.arc(lx1 + lnx * pMax, ly1 + lny * (pMax*0.6), 1.6, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(lx2 + lnx * pMax, ly2 + lny * (pMax*0.6), 1.6, 0, Math.PI*2); ctx.fill();
+            } catch(e) {}
                 // draw local player's name
                 ctx.fillStyle = '#fff';
                 ctx.font = '14px sans-serif';
