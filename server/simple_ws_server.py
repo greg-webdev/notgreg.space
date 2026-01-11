@@ -24,6 +24,7 @@ BROADCAST_HZ = int(os.environ.get('BROADCAST_HZ', '100'))
 # In-memory lobbies: lobby_id -> {players: {id: {x,y,ts}}}
 lobbies = defaultdict(lambda: {'players': {}})
 clients = set()
+ws_player_map = {}  # websocket -> (lobby, pid)
 
 async def handler(ws, path):
     clients.add(ws)
@@ -39,15 +40,29 @@ async def handler(ws, path):
             if t == 'join' and pid:
                 l = lobbies[lobby]
                 l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                ws_player_map[ws] = (lobby, pid)
             elif t == 'heartbeat' and pid:
                 l = lobbies[lobby]
                 l['players'][pid] = {'x': data.get('x',0), 'y': data.get('y',0), 'ts': data.get('ts') or asyncio.get_event_loop().time()}
+                ws_player_map[ws] = (lobby, pid)
             elif t == 'leave' and pid:
                 l = lobbies[lobby]
                 if pid in l['players']:
                     del l['players'][pid]
+                    # clear mapping for this websocket if it matches
+                    if ws in ws_player_map and ws_player_map[ws][1] == pid:
+                        del ws_player_map[ws]
     finally:
+        # on disconnect, remove associated player from lobby if any
         clients.discard(ws)
+        if ws in ws_player_map:
+            lobby, pid = ws_player_map.pop(ws)
+            l = lobbies.get(lobby)
+            if l and pid in l['players']:
+                try:
+                    del l['players'][pid]
+                except Exception:
+                    pass
 
 async def broadcaster():
     interval = 1.0 / max(1, BROADCAST_HZ)

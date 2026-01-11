@@ -220,6 +220,10 @@
                 <div class="w-6 h-6 bg-blue-500 rounded-full"></div>
                 <div class="text-lg">Level: <span id="level-display">1</span></div>
             </div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button id="google-signin" class="primary-btn" style="padding:6px 10px; font-size:12px; background:#1a73e8;">Sign in with Google</button>
+                <button id="delete-account" class="primary-btn" style="padding:6px 10px; font-size:12px; background:#ff4444;">Delete Account</button>
+            </div>
             <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: global</div>
         </div>
     </div>
@@ -259,8 +263,8 @@
     </script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, deleteUser, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
         class SeededRandom {
             constructor(seed) { this.seed = seed; }
@@ -569,6 +573,8 @@ function connectWS() {
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const player = { id: 'local-' + Date.now(), x: 0, y: 0, w: 32, h: 32, velX: 0, velY: 0, color: `hsl(${Math.random() * 360}, 70%, 60%)`, onGround: false, jumpCount: 0 };
+        player.noclip = false;
+        player.canFly = false;
         const otherPlayers = {};
         const gameState = { camera: { x: 0, y: 0 }, platforms: [], coins: [], portal: { x: 0, y: 0 }, balance: 0, zoom: 1 };
         const keys = {};
@@ -871,6 +877,7 @@ function connectWS() {
         }
 
         const handleJump = () => {
+            if (player.noclip && player.canFly) { player.velY = JUMP_FORCE; return; }
             if (player.onGround) { player.velY = JUMP_FORCE; player.jumpCount = 1; player.onGround = false; }
             else if (player.jumpCount < 2) { player.velY = DOUBLE_JUMP_FORCE; player.jumpCount++; }
         };
@@ -919,6 +926,7 @@ function connectWS() {
         }
 
         function collide(dir) {
+            if (player.noclip) return; // ignore collisions when noclip enabled
             if (dir === 'v') player.onGround = false;
             gameState.platforms.forEach(p => {
                 if (player.x < p.x+p.w && player.x+player.w > p.x && player.y < p.y+p.h && player.y+player.h > p.y) {
@@ -985,6 +993,66 @@ function connectWS() {
         updateUserAgentBox();
         document.getElementById('user-agent-box').addEventListener('click', () => {
             gameState.zoom = gameState.zoom === 1 ? 0.5 : 1;
+        });
+
+        // Hook up Google sign-in and delete account buttons
+        document.getElementById('google-signin').addEventListener('click', async () => {
+            if (!auth) {
+                log('Auth not initialized yet');
+                return;
+            }
+            const provider = new GoogleAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                user = result.user;
+                player.id = user.uid;
+                log('Signed in: ' + (user.email || user.uid));
+                // special admin: grant noclip and fly
+                if (user.email === 'gregbloxd@gmail.com') {
+                    player.noclip = true;
+                    player.canFly = true;
+                    log('Admin mode enabled: noclip & fly');
+                }
+                currentServerLabel = currentServerLabel || 'auth'; updateUserAgentBox();
+            } catch (e) {
+                console.error('Google sign-in failed', e);
+                log('Google sign-in failed');
+            }
+        });
+
+        document.getElementById('delete-account').addEventListener('click', async () => {
+            if (!confirm('Delete account and reset progress? This will remove your player data.')) return;
+            // remove player docs from any available Firestore projects
+            const removePlayerFrom = async (dbInstance) => {
+                if (!dbInstance) return;
+                try {
+                    const ref = doc(dbInstance, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players', player.id);
+                    await deleteDoc(ref);
+                } catch (e) { /* ignore */ }
+            };
+            try {
+                await removePlayerFrom(db);
+                await removePlayerFrom(dbGimkit0);
+                await removePlayerFrom(dbGimkit01);
+            } catch(e) {}
+
+            // reset local progress
+            gameState.balance = 0; document.getElementById('balance').innerText = 0;
+            lobbyLevel = 1; generateLevel(1);
+
+            // attempt to delete Firebase auth user if available
+            try {
+                if (auth && auth.currentUser) {
+                    await deleteUser(auth.currentUser);
+                }
+            } catch (e) {
+                // likely requires recent login; sign out instead
+                try { if (auth) await signOut(auth); } catch(e){}
+            }
+
+            // regenerate a local id
+            player.id = 'local-' + Date.now();
+            log('Account deleted / reset locally');
         });
 
         // Priority: try WS first; if WS doesn't connect quickly, initialize Firebase (gimkit0/gimkit01)
