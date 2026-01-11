@@ -77,6 +77,15 @@
         .coin-bounce {
             animation: bounce 1s infinite;
         }
+
+        /* Smooth UI animations */
+        .stat-card { transition: transform 220ms cubic-bezier(.2,.9,.2,1), opacity 220ms; }
+        .menu-card { transform-origin: center; transition: transform 300ms ease, opacity 300ms; }
+        .primary-btn { transition: transform 160ms ease, box-shadow 160ms ease; }
+        input { transition: box-shadow 160ms ease, transform 160ms ease; }
+        .touch-btn { transition: transform 120ms ease, background 120ms ease; }
+        #portal-overlay { transition: left 220ms linear, top 220ms linear, width 220ms linear, height 220ms linear, opacity 220ms; opacity: 0.9; }
+        #gameCanvas { transition: filter 300ms ease; }
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -227,12 +236,12 @@
 
     <script>
         window.__firebase_config = JSON.stringify({
-            apiKey: "AIzaSyCyZymZUXSf-5JKT30sVX5DoAUgU6QlieY",
-            authDomain: "gimkit1.firebaseapp.com",
-            projectId: "gimkit1",
-            storageBucket: "gimkit1.firebasestorage.app",
-            messagingSenderId: "552582099200",
-            appId: "1:552582099200:web:c1d44b8028e662c88403e5"
+            apiKey: "AIzaSyCk8NXW0C0mnthR_KnRf1KYINQ2O-FJuJ8",
+            authDomain: "gimkit0.firebaseapp.com",
+            projectId: "gimkit0",
+            storageBucket: "gimkit0.firebasestorage.app",
+            messagingSenderId: "20630047761",
+            appId: "1:20630047761:web:5e64c8d07d9a6b6b1435b0"
         });
     </script>
     <script type="module">
@@ -353,14 +362,34 @@
             const pCol = collection(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby, 'players');
             onSnapshot(pCol, (s) => {
                 s.docChanges().forEach(c => {
-                    if (c.doc.id !== player.id) {
-                        if (c.type === "removed") delete otherPlayers[c.doc.id];
-                        else otherPlayers[c.doc.id] = c.doc.data();
+                    if (c.doc.id === player.id) return;
+                    if (c.type === "removed") {
+                        delete otherPlayers[c.doc.id];
+                    } else {
+                        const d = c.doc.data();
+                        const existing = otherPlayers[c.doc.id];
+                        if (existing) {
+                            existing.targetX = d.x || existing.targetX;
+                            existing.targetY = d.y || existing.targetY;
+                            existing.color = d.color || existing.color;
+                            existing.level = d.level || existing.level;
+                            existing.ts = d.ts || existing.ts;
+                        } else {
+                            otherPlayers[c.doc.id] = {
+                                renderX: d.x || 0,
+                                renderY: d.y || 0,
+                                targetX: d.x || 0,
+                                targetY: d.y || 0,
+                                color: d.color || '#fff',
+                                level: d.level || 1,
+                                ts: d.ts || Date.now()
+                            };
+                        }
                     }
                 });
-            }, (err) => log("Player Sync Error: " + err.code));
+            }, (err) => log("Player Sync Error: " + (err && err.code ? err.code : err)));
 
-            // Heartbeat update - reduced frequency to avoid quota limits
+            // Heartbeat update - 2x faster (more frequent)
             let lastUpdate = { x: 0, y: 0, level: 1 };
             setInterval(async () => {
                 if (inMenu) return;
@@ -380,7 +409,7 @@
                     }, { merge: true });
                     lastUpdate = { x: currentX, y: currentY, level: lobbyLevel };
                 } catch(e) { log("Heartbeat Error: " + e.code); }
-            }, 500);
+            }, 250);
         }
 
         function generateLevel(lvl) {
@@ -461,8 +490,33 @@
             ctx.fillStyle = '#7c4dff'; ctx.beginPath(); ctx.ellipse(gameState.portal.x+32, gameState.portal.y+32, 40, 50, 0, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = '#2c2c38'; gameState.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
             ctx.fillStyle = '#ffd700'; gameState.coins.forEach(c => { if(!c.collected) { ctx.beginPath(); ctx.arc(c.x+16, c.y+16, 10, 0, Math.PI*2); ctx.fill(); }});
-            Object.values(otherPlayers).forEach(p => { if(p.level === lobbyLevel) { ctx.globalAlpha = 0.5; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 32, 32); }});
-            ctx.globalAlpha = 1; ctx.fillStyle = player.color; ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            // Smoothly interpolate and draw other players
+            const smoothing = 0.2;
+            Object.values(otherPlayers).forEach(p => {
+                if (p.level !== lobbyLevel) return;
+                if (typeof p.renderX === 'undefined') {
+                    // support legacy payloads
+                    p.renderX = (p.x !== undefined) ? p.x : (p.targetX || 0);
+                    p.renderY = (p.y !== undefined) ? p.y : (p.targetY || 0);
+                    p.targetX = (p.x !== undefined) ? p.x : (p.targetX || p.renderX);
+                    p.targetY = (p.y !== undefined) ? p.y : (p.targetY || p.renderY);
+                }
+                p.renderX += (p.targetX - p.renderX) * smoothing;
+                p.renderY += (p.targetY - p.renderY) * smoothing;
+                ctx.globalAlpha = 0.6;
+                ctx.fillStyle = p.color || '#fff';
+                ctx.fillRect(p.renderX, p.renderY, 32, 32);
+            });
+
+            // Draw local player with a subtle bob when airborne
+            ctx.globalAlpha = 1;
+            ctx.save();
+            const bob = player.onGround ? 0 : Math.sin(Date.now()/120) * 2;
+            ctx.translate(0, bob);
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.restore();
             ctx.restore();
 
             // Position portal overlay
