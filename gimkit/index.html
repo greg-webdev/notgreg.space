@@ -187,6 +187,8 @@
             z-index: 200;
             opacity: 0.9;
         }
+        /* utility hidden class used in several places */
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -280,6 +282,7 @@
         const log = (msg) => { document.getElementById('debug-log').innerText = "System: " + msg; };
 
         let db, auth, user;
+        let isAdmin = false;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'gimkit-tower-v2';
         let activeLobby = "global";
         let lobbyLevel = 1;
@@ -602,6 +605,16 @@ function connectWS() {
         const keys = {};
         const touchState = { left: false, right: false };
 
+        // Robust touch-device detection. Avoid relying solely on "ontouchstart" which
+        // can be present on some desktops and cause the touch UI to always show.
+        const isTouchDevice = () => {
+            try {
+                if (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) return true;
+                if (navigator.userAgent && /Mobi|Android|iPhone|iPad|Tablet/i.test(navigator.userAgent)) return true;
+                return ('ontouchstart' in window) && (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+            } catch (e) { return false; }
+        };
+
         const GRAVITY = 0.45;
         const JUMP_FORCE = -14; // stronger upward impulse (more negative => higher jump)
         const DOUBLE_JUMP_FORCE = -13; // stronger double-jump
@@ -622,7 +635,7 @@ function connectWS() {
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'flex';
             document.getElementById('user-agent-box').style.display = 'block';
-            if ("ontouchstart" in window) {
+            if (isTouchDevice()) {
                 document.getElementById('touch-ui').style.display = 'flex';
                 const b = document.getElementById('btn-fly-noclip'); if (b) b.style.display = 'flex';
             }
@@ -854,7 +867,7 @@ function connectWS() {
                 document.getElementById('home-screen').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'flex';
                 document.getElementById('user-agent-box').style.display = 'block';
-                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
                 setupMultiplayer();
             } else if (server === 'gimkit01') {
@@ -867,7 +880,7 @@ function connectWS() {
                 document.getElementById('home-screen').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'flex';
                 document.getElementById('user-agent-box').style.display = 'block';
-                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
                 setupMultiplayer();
             } else if (server === 'ws') {
@@ -878,7 +891,7 @@ function connectWS() {
                 document.getElementById('home-screen').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'flex';
                 document.getElementById('user-agent-box').style.display = 'block';
-                if ("ontouchstart" in window) document.getElementById('touch-ui').style.display = 'flex';
+                if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
                 try { connectWS(); } catch(e){}
                 startHeartbeat();
@@ -932,11 +945,14 @@ function connectWS() {
             keys[e.code] = true;
             if (e.code === 'Space' || e.code === 'ArrowUp') handleJump();
             if (e.code === 'KeyF') {
-                // toggle both fly and noclip together
+                // toggle both fly and noclip together; ensure keyboard handling works even when inputs are present
+                try { e.preventDefault(); } catch(e){}
                 player.canFly = !player.canFly;
                 player.noclip = !player.noclip;
                 const b = document.getElementById('btn-fly-noclip');
-                if (b) b.style.background = (player.canFly && player.noclip) ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.12)';
+                if (b) {
+                    try { b.style.background = (player.canFly && player.noclip) ? 'rgba(80,200,120,0.25)' : 'rgba(255,255,255,0.12)'; } catch(e){}
+                }
             }
         });
         window.addEventListener('keyup', e => keys[e.code] = false);
@@ -972,6 +988,7 @@ function connectWS() {
             log('Fly: ' + player.canFly + ' Noclip: ' + player.noclip);
         };
         flyNocBtn.addEventListener('touchstart', e => { e.preventDefault(); toggleFlyNoclip(); });
+        flyNocBtn.tabIndex = -1;
         document.body.appendChild(flyNocBtn);
         updateFlyNocBtn();
 
@@ -1156,7 +1173,49 @@ function connectWS() {
                 if (user.email === 'gregbloxd@gmail.com') {
                     player.noclip = true;
                     player.canFly = true;
+                    isAdmin = true;
                     log('Admin mode enabled: noclip & fly');
+                    // show an admin reset button in the UI
+                    setTimeout(() => {
+                        try {
+                            let adminBox = document.getElementById('admin-controls');
+                            if (!adminBox) {
+                                adminBox = document.createElement('div');
+                                adminBox.id = 'admin-controls';
+                                adminBox.style.display = 'flex';
+                                adminBox.style.flexDirection = 'column';
+                                adminBox.style.gap = '6px';
+                                const resetBtn = document.createElement('button');
+                                resetBtn.id = 'admin-reset-btn';
+                                resetBtn.className = 'primary-btn';
+                                resetBtn.style.background = '#ff8b59';
+                                resetBtn.style.padding = '6px 10px';
+                                resetBtn.innerText = 'ADMIN: Reset Lobby to Level 1';
+                                resetBtn.onclick = async () => {
+                                    try {
+                                        // Update Firestore lobby docs to level 1
+                                        if (db) {
+                                            try {
+                                                const lobbyRef = doc(db, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby);
+                                                await setDoc(lobbyRef, { level: 1 }, { merge: true });
+                                            } catch (e) { console.warn('Firestore reset failed', e); }
+                                        }
+                                        // Also try other known DB instances used in test mode
+                                        if (dbGimkit0) { try { const r = doc(dbGimkit0, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby); await setDoc(r, { level: 1 }, { merge: true }); } catch(e){} }
+                                        if (dbGimkit01) { try { const r = doc(dbGimkit01, 'artifacts', appId, 'public', 'data', 'lobbies', activeLobby); await setDoc(r, { level: 1 }, { merge: true }); } catch(e){} }
+                                        // Send WS reset if connected
+                                        try { if (wsSocket && wsSocket.readyState === 1) wsSocket.send(JSON.stringify({ type: 'reset', lobby: activeLobby, level: 1 })); } catch(e){}
+                                        // Locally apply reset as fallback
+                                        lobbyLevel = 1; generateLevel(1);
+                                        log('Admin: lobby reset to level 1');
+                                    } catch (e) { console.error('Admin reset error', e); log('Admin reset failed'); }
+                                };
+                                adminBox.appendChild(resetBtn);
+                                const uiLayer = document.getElementById('ui-layer');
+                                if (uiLayer) uiLayer.appendChild(adminBox);
+                            }
+                        } catch(e) {}
+                    }, 100);
                 }
                 currentServerLabel = currentServerLabel || 'auth'; updateUserAgentBox();
             } catch (e) {
