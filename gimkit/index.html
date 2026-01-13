@@ -23,21 +23,24 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            right: 20px;
+            right: auto;
+            width: auto;
+            max-width: 360px;
             pointer-events: auto;
             color: white;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: flex-start;
-            gap: 12px;
-            z-index: 10;
+            gap: 10px;
+            z-index: 110;
             transform: translateX(0);
             animation: slideInLeft 0.45s ease-out forwards;
-            padding: 8px;
+            padding: 10px;
             background: rgba(0,0,0,0.28);
-            border-radius: 14px;
+            border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.04);
             backdrop-filter: blur(6px);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.35);
         }
         @keyframes slideInLeft {
             from { transform: translateX(-100%); }
@@ -189,6 +192,9 @@
         }
         /* utility hidden class used in several places */
         .hidden { display: none !important; }
+        /* persistent auth button shown bottom-left on all screens */
+        #global-signin { position: fixed; left: 14px; bottom: 14px; z-index: 220; }
+        #global-signin .primary-btn { padding: 8px 12px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -226,11 +232,15 @@
                 <div class="text-lg">Level: <span id="level-display">1</span></div>
             </div>
             <div style="display:flex; gap:8px; margin-top:8px;">
-                <button id="google-signin" class="primary-btn" style="padding:6px 10px; font-size:12px; background:#1a73e8;">Sign in with Google</button>
                 <button id="delete-account" class="primary-btn" style="padding:6px 10px; font-size:12px; background:#ff4444;">Delete Account</button>
             </div>
             <div id="connection-status" class="text-xs opacity-50 mt-1">Lobby: global</div>
         </div>
+    </div>
+
+    <!-- Persistent sign-in button (visible on home screen and in-game) -->
+    <div id="global-signin">
+        <button id="google-signin" class="primary-btn" style="background:#1a73e8;">Sign in with Google</button>
     </div>
 
     <div id="user-agent-box" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 8px; color: white; font-size: 10px; cursor: pointer; backdrop-filter: blur(4px); display: none; z-index: 100;"></div>
@@ -633,7 +643,7 @@ function connectWS() {
             }
             inMenu = false;
             document.getElementById('home-screen').style.display = 'none';
-            document.getElementById('ui-layer').style.display = 'flex';
+            const uiLayer = document.getElementById('ui-layer'); if (uiLayer) { uiLayer.classList.remove('hidden'); uiLayer.style.display = 'flex'; }
             document.getElementById('user-agent-box').style.display = 'block';
             if (isTouchDevice()) {
                 document.getElementById('touch-ui').style.display = 'flex';
@@ -865,7 +875,7 @@ function connectWS() {
                 updateUserAgentBox();
                 inMenu = false;
                 document.getElementById('home-screen').style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'flex';
+                const uiLayer = document.getElementById('ui-layer'); if (uiLayer) { uiLayer.classList.remove('hidden'); uiLayer.style.display = 'flex'; }
                 document.getElementById('user-agent-box').style.display = 'block';
                 if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
@@ -878,7 +888,7 @@ function connectWS() {
                 updateUserAgentBox();
                 inMenu = false;
                 document.getElementById('home-screen').style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'flex';
+                const uiLayer = document.getElementById('ui-layer'); if (uiLayer) { uiLayer.classList.remove('hidden'); uiLayer.style.display = 'flex'; }
                 document.getElementById('user-agent-box').style.display = 'block';
                 if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
@@ -889,7 +899,7 @@ function connectWS() {
                 updateUserAgentBox();
                 inMenu = false;
                 document.getElementById('home-screen').style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'flex';
+                const uiLayer = document.getElementById('ui-layer'); if (uiLayer) { uiLayer.classList.remove('hidden'); uiLayer.style.display = 'flex'; }
                 document.getElementById('user-agent-box').style.display = 'block';
                 if (isTouchDevice()) document.getElementById('touch-ui').style.display = 'flex';
                 document.getElementById('connection-status').innerText = "Lobby: " + activeLobby.toUpperCase();
