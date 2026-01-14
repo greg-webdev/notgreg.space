@@ -193,37 +193,7 @@
             <h1 class="text-4xl font-bold text-gray-800 mb-8 text-center animated-title">Gregs projects</h1>
 
             <!-- Buttons container - Using flex-wrap for better responsiveness -->
-            <div class="flex flex-wrap justify-center gap-4 w-full px-4">
-                <!-- Button 1: Album -->
-                <button class="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io">
-                    <i class="fa-solid fa-image mr-2"></i>
-                    Album
-                </button>
-
-                <!-- Button 2: Game -->
-                <button class="w-full sm:w-auto px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/game">
-                    <i class="fa-solid fa-gamepad mr-2"></i>
-                    Game
-                </button>
-
-                <!-- Button 3: Minecraft -->
-                <button class="w-full sm:w-auto px-6 py-3 bg-orange-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/minecraft">
-                    <i class="fa-solid fa-cube mr-2"></i>
-                    Minecraft
-                </button>
-
-                <!-- Button 4: FPSTest -->
-                <button class="w-full sm:w-auto px-6 py-3 bg-red-500 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 flex items-center justify-center" data-url="https://greg-webdev.github.io/fpstest">
-                    <i class="fa-solid fa-crosshairs mr-2"></i>
-                    FPSTest
-                </button>
-
-                <!-- New Button 5: Satisfying Animations -->
-                <button id="satisfyingAnimationsButton" class="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-75 transition duration-300 ease-in-out flex items-center justify-center">
-                    <i class="fa-solid fa-sparkles mr-2"></i>
-                    Satisfying Animations
-                </button>
-            </div>
+            <div id="linksContainer" class="flex flex-wrap justify-center gap-4 w-full px-4"></div>
         </div>
 
         <!-- Animation View -->
@@ -649,16 +619,69 @@
             });
         }
 
+        const projects = [
+            { name: 'Album', url: '/' },
+            { name: 'Actions', url: '/actions/' },
+            { name: 'AI', url: '/ai/' },
+            { name: 'Ballgame', url: '/ballgame/' },
+            { name: 'Chat', url: '/chat/' },
+            { name: 'Chess', url: '/chess/' },
+            { name: 'FPSTest', url: '/fpstest/' },
+            { name: 'FTP', url: '/ftp/' },
+            { name: 'Fun', url: '/fun/' },
+            { name: 'Game', url: '/game/' },
+            { name: 'Gimkit', url: '/gimkit/' },
+            { name: 'Hole', url: '/hole/' },
+            { name: 'Homepage for Browser', url: '/homepageforbrowser/' },
+            { name: 'Infos', url: '/infos/' },
+            { name: 'Jar', url: '/jar/' },
+            { name: 'Links', url: '/links/' },
+            { name: 'Minecraft', url: '/minecraft/' },
+            { name: 'Monitor', url: '/monitor.html' },
+            { name: 'Opticals', url: '/opticals/' },
+            { name: 'Padlet', url: '/padlet/' },
+            { name: 'Paper', url: '/paper/' },
+            { name: 'Plotter', url: '/plotter/' },
+            { name: 'Shop', url: '/shop/' },
+            { name: 'Shutdown Command', url: '/shutdowncommand/' },
+            { name: 'Software', url: '/software/' },
+            { name: 'Soundboard', url: '/soundboard/' },
+            { name: 'Super Long Sentence', url: '/superduperidioticallylongsentence/' },
+            { name: 'Super PC Crasher', url: '/superpccrasher/' },
+            { name: 'Texture Pack', url: '/texturepack/' },
+            { name: 'Texture Pack 2', url: '/texturepack2/' },
+            { name: 'WebPC', url: '/webpc/' },
+            { name: 'WebPC Touch', url: '/webpctouch/' },
+            { name: 'Website', url: '/website.html' },
+            { name: 'Worm', url: '/worm/' },
+            { name: 'Satisfying Animations', url: null, special: 'animations' }
+        ];
+
+        function renderProjects() {
+            const container = document.getElementById('linksContainer');
+            container.innerHTML = '';
+
+            projects.forEach(project => {
+                const button = document.createElement('button');
+                button.className = 'w-full sm:w-auto px-6 py-3 bg-slate-800 text-white font-semibold rounded-lg shadow-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-600 focus:ring-opacity-75 transition duration-200 flex items-center justify-center';
+                button.innerHTML = `<i class="fa-solid fa-link mr-2"></i>${project.name}`;
+
+                if (project.special === 'animations') {
+                    button.id = 'satisfyingAnimationsButton';
+                    button.addEventListener('click', showAnimationView);
+                } else {
+                    button.dataset.url = project.url;
+                    button.addEventListener('click', () => window.open(project.url, '_blank'));
+                }
+
+                container.appendChild(button);
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             mainView.style.display = 'flex';
             animationView.style.display = 'none';
-
-            document.querySelectorAll('.main-view button:not(#satisfyingAnimationsButton)').forEach(button => {
-                button.onclick = function() {
-                    window.open(this.dataset.url, '_blank');
-                };
-            });
-            document.getElementById('satisfyingAnimationsButton').onclick = showAnimationView;
+            renderProjects();
         });
     </script>
 </body>
