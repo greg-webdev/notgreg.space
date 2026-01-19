@@ -70,6 +70,24 @@
             box-shadow: 0 4px 16px 0 rgba(255, 255, 255, 0.1);
         }
 
+        /* Liquid Glass Enabled Styles */
+        .sound-btn.glass-enabled {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.2), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+        .sound-btn.glass-enabled:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.25) 100%) !important;
+            box-shadow: 0 12px 48px 0 rgba(255, 255, 255, 0.35), inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+            transform: translateY(-3px);
+        }
+        .sound-btn.glass-enabled:active {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 rgba(255, 255, 255, 0.25), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
         /* Unique button colors with glass effect */
         .btn-1 { background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0.15) 100%); }
         .btn-2 { background: linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.15) 100%); }
@@ -80,12 +98,48 @@
         .btn-7 { background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(6, 182, 212, 0.15) 100%); }
         .btn-8 { background: linear-gradient(135deg, rgba(236, 72, 153, 0.3) 0%, rgba(236, 72, 153, 0.15) 100%); }
         .btn-9 { background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.15) 100%); }
+
+        /* Toggle Button */
+        .glass-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            color: #0f172a;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .glass-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        .glass-toggle.active {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.15) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.25);
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>Sound Board</h1>
+        <button 
+            class="glass-toggle"
+            id="glassToggle"
+            onclick="toggleGlass()"
+        >
+            🔵 Glass OFF
+        </button>
         <div class="button-grid">
             <button class="sound-btn btn-1" onclick="playSound('can-i-haz-chezburger-plz')">Can I Haz Chezburger</button>
             <button class="sound-btn btn-2" onclick="playSound('mmmm-chezburger')">Mmmm Chezburger</button>
@@ -101,6 +155,7 @@
 
     <script>
         let currentAudio = null;
+        let glassEnabled = false;
 
         function playSound(name) {
             // Stop and reset current audio if it exists
@@ -112,6 +167,19 @@
             const url = `https://www.myinstants.com/media/sounds/${name}.mp3`;
             currentAudio = new Audio(url);
             currentAudio.play().catch(e => console.error("Playback failed:", e));
+        }
+
+        function toggleGlass() {
+            glassEnabled = !glassEnabled;
+            const toggle = document.getElementById('glassToggle');
+            const buttons = document.querySelectorAll('.sound-btn');
+            
+            toggle.classList.toggle('active');
+            toggle.textContent = glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF';
+            
+            buttons.forEach(btn => {
+                btn.classList.toggle('glass-enabled');
+            });
         }
     </script>
 </body>

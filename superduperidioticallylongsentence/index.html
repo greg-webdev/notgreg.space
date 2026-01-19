@@ -15,21 +15,63 @@
         }
         /* Liquid Glass Button Styles */
         .btn-custom-blue {
-            background: linear-gradient(135deg, rgba(42, 111, 139, 0.4) 0%, rgba(42, 111, 139, 0.2) 100%);
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.3) 0%, rgba(42, 111, 139, 0.15) 100%);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(42, 111, 139, 0.3);
             color: white;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 32px 0 rgba(42, 111, 139, 0.25);
+            box-shadow: 0 4px 15px rgba(42, 111, 139, 0.2);
         }
         .btn-custom-blue:hover {
-            background: linear-gradient(135deg, rgba(42, 111, 139, 0.5) 0%, rgba(42, 111, 139, 0.3) 100%);
-            box-shadow: 0 12px 48px 0 rgba(42, 111, 139, 0.4);
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.4) 0%, rgba(42, 111, 139, 0.2) 100%);
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(42, 111, 139, 0.3);
         }
         .btn-custom-blue:active {
             transform: translateY(0);
-            box-shadow: 0 4px 16px 0 rgba(42, 111, 139, 0.2);
+            box-shadow: 0 2px 10px rgba(42, 111, 139, 0.15);
+        }
+
+        /* Glass Enabled State */
+        .btn-custom-blue.glass-enabled {
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.5) 0%, rgba(42, 111, 139, 0.3) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(42, 111, 139, 0.4) !important;
+            box-shadow: 0 8px 32px 0 rgba(42, 111, 139, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        .btn-custom-blue.glass-enabled:hover {
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.6) 0%, rgba(42, 111, 139, 0.4) 100%) !important;
+            box-shadow: 0 12px 48px 0 rgba(42, 111, 139, 0.4), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        /* Toggle Button */
+        .glass-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid rgba(42, 111, 139, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .glass-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .glass-toggle.active {
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.3) 0%, rgba(42, 111, 139, 0.15) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(42, 111, 139, 0.4);
+            color: white;
+            box-shadow: 0 8px 32px 0 rgba(42, 111, 139, 0.25);
         }
     </style>
 </head>
@@ -39,6 +81,14 @@
         Main Container - Now full width and top-aligned. 
     -->
     <div class="w-full bg-white shadow-md p-6">
+        <button 
+            class="glass-toggle"
+            id="glassToggle"
+            onclick="toggleGlass()"
+        >
+            🔵 Glass OFF
+        </button>
+        
         <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">
             Greg's Projects
         </h1>
@@ -88,46 +138,50 @@
     </div>
 
     <script>
+        let glassEnabled = false;
+
         // Base URL for redirection
         const BASE_URL = "https://greg-webdev.github.io/";
 
         // Map button text (keys) to the corresponding sitename (values)
-        // Note: I've used the function names from your image/request.
         const featureMap = {
-            "WebPc for TouchScreen": "webpctouch", // Explicitly requested
-            "ANciEnt ChiNa CiViLliSAtIoN": "infos", // Best guess: infos
+            "WebPc for TouchScreen": "webpctouch",
+            "ANciEnt ChiNa CiViLliSAtIoN": "infos",
             "Minecraft 1.0 release": "infos/tominecon.7z", 
             "links (4 features)": "links",
             "minecraft (2 features)": "minecraft",
             "chess": "chess",
             "FPS test": "fpstest",
             "random software": "software",
-            "nice slideshow": "superpccrasher", // Using an unused name from the list for a simple feature
+            "nice slideshow": "superpccrasher",
             "Opticals": "opticals",
             "chat": "chat",
             "FileTransfer": "ftp"
         };
         
-        /**
-         * Constructs the target URL and handles the click event, immediately redirecting.
-         * @param {HTMLButtonElement} button - The button element that was clicked.
-         */
+        function toggleGlass() {
+            glassEnabled = !glassEnabled;
+            const toggle = document.getElementById('glassToggle');
+            const buttons = document.querySelectorAll('.menu-btn');
+            
+            toggle.classList.toggle('active');
+            toggle.textContent = glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF';
+            
+            buttons.forEach(btn => {
+                btn.classList.toggle('glass-enabled');
+            });
+        }
+
         function handleClick(button) {
             const buttonText = button.textContent.trim();
-            
-            // Look up the sitename using the button's exact text
             const sitename = featureMap[buttonText];
 
             if (!sitename) {
-                // If a destination is not defined, log an error silently.
                 console.error(`Error: No destination defined for button: ${buttonText}`);
                 return; 
             }
             
             const url = BASE_URL + sitename;
-
-            // Instantly "teleport" the user to the calculated URL as requested.
-            // This will navigate the current window away from this page.
             window.location.href = url;
         }
     </script>

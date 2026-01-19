@@ -17,94 +17,152 @@
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
-        /* Liquid Glass Button Styles */
-        .liquid-glass-btn {
+        /* Toggle Button */
+        .glass-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .glass-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .glass-toggle.active {
             background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.15) 100%);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(59, 130, 246, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(59, 130, 246, 0.4);
+            color: #1e40af;
+            box-shadow: 0 8px 32px 0 rgba(59, 130, 246, 0.25);
+        }
+        /* Liquid Glass Button Styles - Glass Enabled */
+        .liquid-glass-btn.glass-enabled {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.25) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(59, 130, 246, 0.4) !important;
+            box-shadow: 0 8px 32px 0 rgba(59, 130, 246, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        .liquid-glass-btn.glass-enabled:hover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.55) 0%, rgba(59, 130, 246, 0.35) 100%) !important;
+            box-shadow: 0 12px 48px 0 rgba(59, 130, 246, 0.45), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+            transform: translateY(-3px);
+        }
+        .liquid-glass-btn.glass-enabled:active {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Regular Button Styles */
+        .liquid-glass-btn {
+            background-color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.5);
             border-radius: 12px;
             padding: 12px 24px;
             font-size: 14px;
             font-weight: 600;
             color: white;
-            background-color: #3b82f6;
             cursor: pointer;
             overflow: hidden;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 32px 0 rgba(59, 130, 246, 0.37);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
         }
         .liquid-glass-btn:hover {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.4) 0%, rgba(59, 130, 246, 0.25) 100%);
-            box-shadow: 0 12px 48px 0 rgba(59, 130, 246, 0.5);
+            background-color: #2563eb;
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
             transform: translateY(-2px);
         }
         .liquid-glass-btn:active {
             transform: translateY(0);
-            box-shadow: 0 4px 16px 0 rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 10px rgba(59, 130, 246, 0.2);
         }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4" id="root">
 
-    <!-- Main container for the downloads page -->
-    <div class="bg-white p-8 md:p-12 rounded-2xl shadow-xl w-full max-w-2xl text-center">
-        <!-- Title section -->
-        <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-6">Software Downloads</h1>
+    <script type="text/babel">
+        function App() {
+            const [glassEnabled, setGlassEnabled] = React.useState(false);
 
-        <!-- Description -->
-        <p class="text-lg text-gray-600 mb-8">
-            Find and download the software you need. Click the button below to get started.
-        </p>
+            return (
+                <>
+                    {/* Toggle Button */}
+                    <button 
+                        className={`glass-toggle ${glassEnabled ? 'active' : ''}`}
+                        onClick={() => setGlassEnabled(!glassEnabled)}
+                    >
+                        {glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF'}
+                    </button>
 
-        <!-- Download item card for Adobe Photoshop -->
-        <div class="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-md mb-4">
-            <div class="flex flex-col md:flex-row items-center justify-between">
-                <div class="flex items-center mb-4 md:mb-0">
-                    <!-- Placeholder icon for Adobe Photoshop -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500 mr-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M5 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"></path>
-                        <path d="M12 12a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"></path>
-                        <path d="M12 12v-4"></path>
-                        <path d="M16 12h-4"></path>
-                    </svg>
-                    <div>
-                        <h2 class="text-2xl font-semibold text-gray-800">Adobe Photoshop</h2>
-                        <p class="text-sm text-gray-500">Image editing software</p>
+                    {/* Main container for the downloads page */}
+                    <div className="bg-white p-8 md:p-12 rounded-2xl shadow-xl w-full max-w-2xl text-center">
+                        {/* Title section */}
+                        <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-6">Software Downloads</h1>
+
+                        {/* Description */}
+                        <p className="text-lg text-gray-600 mb-8">
+                            Find and download the software you need. Click the button below to get started.
+                        </p>
+
+                        {/* Download item card for Adobe Photoshop */}
+                        <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-md mb-4">
+                            <div className="flex flex-col md:flex-row items-center justify-between">
+                                <div className="flex items-center mb-4 md:mb-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-blue-500 mr-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M5 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"></path>
+                                        <path d="M12 12a4 4 0 1 0 0 8a4 4 0 0 0 0-8z"></path>
+                                        <path d="M12 12v-4"></path>
+                                        <path d="M16 12h-4"></path>
+                                    </svg>
+                                    <div>
+                                        <h2 className="text-2xl font-semibold text-gray-800">Adobe Photoshop</h2>
+                                        <p className="text-sm text-gray-500">Image editing software</p>
+                                    </div>
+                                </div>
+                                <button className={`liquid-glass-btn ${glassEnabled ? 'glass-enabled' : ''}`} onClick={() => window.location.href='adobe-installer.exe'}>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Download item card for Useful app */}
+                        <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-md">
+                            <div className="flex flex-col md:flex-row items-center justify-between">
+                                <div className="flex items-center mb-4 md:mb-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500 mr-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20v2a2 2 0 0 1-2 2H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+                                        <path d="M10 2a2 2 0 0 0-2 2v10"></path>
+                                        <path d="M14 2a2 2 0 0 1 2 2v10"></path>
+                                        <path d="M8 20.5V17"></path>
+                                        <path d="M16 20.5V17"></path>
+                                        <line x1="8" y1="4" x2="16" y2="4"></line>
+                                    </svg>
+                                    <div>
+                                        <h2 className="text-2xl font-semibold text-gray-800">Useful App</h2>
+                                        <p className="text-sm text-gray-500">Useful app</p>
+                                    </div>
+                                </div>
+                                <button className={`liquid-glass-btn ${glassEnabled ? 'glass-enabled' : ''}`} onClick={() => window.location.href='openme.msi'}>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <!-- Download button for Adobe Photoshop -->
-                <button class="liquid-glass-btn" onclick="window.location.href='adobe-installer.exe'">
-                    Download
-                </button>
-            </div>
-        </div>
+                </>
+            );
+        }
 
-        <!-- Download item card for Useful app -->
-        <div class="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 shadow-md">
-            <div class="flex flex-col md:flex-row items-center justify-between">
-                <div class="flex items-center mb-4 md:mb-0">
-                    <!-- Placeholder icon for a generic app -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-500 mr-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20v2a2 2 0 0 1-2 2H6.5a2.5 2.5 0 0 1 0-5H20"></path>
-                        <path d="M10 2a2 2 0 0 0-2 2v10"></path>
-                        <path d="M14 2a2 2 0 0 1 2 2v10"></path>
-                        <path d="M8 20.5V17"></path>
-                        <path d="M16 20.5V17"></path>
-                        <line x1="8" y1="4" x2="16" y2="4"></line>
-                    </svg>
-                    <div>
-                        <h2 class="text-2xl font-semibold text-gray-800">Useful App</h2>
-                        <p class="text-sm text-gray-500">Useful app</p>
-                    </div>
-                </div>
-                <!-- Download button for Useful app -->
-                <button class="liquid-glass-btn" onclick="window.location.href='openme.msi'">
-                    Download
-                </button>
-            </div>
-        </div>
-
-    </div>
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
 
 </body>
 </html>

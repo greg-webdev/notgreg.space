@@ -54,13 +54,66 @@
             transform: translateY(0);
             box-shadow: 0 4px 16px 0 rgba(74, 222, 128, 0.2);
         }
-    </style>
+
+        /* Glass Enabled State */
+        .minecraft-btn.glass-enabled {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 8px 32px 0 rgba(74, 222, 128, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+        .minecraft-btn.glass-enabled:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.25) 100%) !important;
+            box-shadow: 0 12px 48px 0 rgba(74, 222, 128, 0.5), inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+            transform: translateY(-3px);
+        }
+        .minecraft-btn.glass-enabled:active {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px 0 rgba(74, 222, 128, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        /* Toggle Button */
+        .glass-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid rgba(74, 222, 128, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .glass-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .glass-toggle.active {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(74, 222, 128, 0.1) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(74, 222, 128, 0.3);
+            color: #22c55e;
+            box-shadow: 0 8px 32px 0 rgba(74, 222, 128, 0.25);
+        }
 </head>
 <body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-4 space-y-8">
     <!-- Title -->
     <h1 class="text-4xl font-extrabold text-center text-green-400 tracking-wide animate-text-breathe">
         Minecraft Launcher
     </h1>
+
+    <button 
+        class="glass-toggle"
+        id="glassToggle"
+        onclick="toggleGlass()"
+    >
+        🔵 Glass OFF
+    </button>
 
     <div class="space-y-6 w-full max-w-xs">
         <!-- Link for 1.8 (Multiplayer) -->
@@ -77,5 +130,22 @@
             1.12 (Singleplayer)
         </a>
     </div>
+
+    <script>
+        let glassEnabled = false;
+
+        function toggleGlass() {
+            glassEnabled = !glassEnabled;
+            const toggle = document.getElementById('glassToggle');
+            const buttons = document.querySelectorAll('.minecraft-btn');
+            
+            toggle.classList.toggle('active');
+            toggle.textContent = glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF';
+            
+            buttons.forEach(btn => {
+                btn.classList.toggle('glass-enabled');
+            });
+        }
+    </script>
 </body>
 </html>
