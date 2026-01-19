@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Happy Birthday Dad!</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -13,6 +16,14 @@
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        html {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
 
         body {
@@ -26,6 +37,14 @@
             background-size: 400% 400%;
             animation: gradientShift 8s ease infinite;
             overflow: hidden;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         @keyframes gradientShift {
@@ -52,6 +71,12 @@
             animation: bounce 2s infinite, colorShift 4s infinite, wobble 0.3s infinite;
             letter-spacing: 3px;
             word-spacing: 0.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .title:hover {
+            transform: scale(1.05);
         }
 
         @keyframes bounce {
@@ -78,28 +103,102 @@
         .emoji-container {
             margin-top: 2rem;
             margin-bottom: 1rem;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
         .emoji {
             font-size: 4rem;
             display: inline-block;
-            margin: 0 15px;
             animation: bounce 2s infinite;
+            cursor: pointer;
+            transition: transform 0.3s ease;
         }
 
-        .emoji:nth-child(1) { animation-delay: 0s; }
-        .emoji:nth-child(2) { animation-delay: 0.2s; }
-        .emoji:nth-child(3) { animation-delay: 0.4s; }
-        .emoji:nth-child(4) { animation-delay: 0.6s; }
-        .emoji:nth-child(5) { animation-delay: 0.8s; }
-        .emoji:nth-child(6) { animation-delay: 1s; }
+        .emoji:hover {
+            transform: scale(1.3) rotate(360deg);
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) translateX(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-200px) translateX(50px) scale(0.3);
+            }
+        }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        .confetti {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1;
+            border-radius: 2px;
+        }
+
+        .spark {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .particle {
+            position: fixed;
+            font-size: 1.5rem;
+            pointer-events: none;
+            z-index: 3;
+            animation: floatUp 2s ease-out forwards;
+        }
+
+        .button-container {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 20, 147, 0.8);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
 
         .subtitle {
             font-size: 2.5rem;
             color: white;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3),
                          0 0 15px rgba(0, 255, 255, 0.8);
-            animation: scaleIn 1.5s ease-in-out infinite, shimmer 3s infinite;
+            animation: scaleIn 1.5s ease-in-out infinite;
             font-weight: bold;
         }
 
@@ -108,609 +207,531 @@
             50% { transform: scale(1.15); }
         }
 
-        @keyframes shimmer {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        .confetti {
+        .balloon {
             position: fixed;
-            width: 10px;
-            height: 10px;
+            border-radius: 50%;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
             pointer-events: none;
             z-index: 1;
         }
 
-        .confetti.rect {
-            width: 8px;
-            height: 6px;
-        }
-
-        .balloon {
-            position: absolute;
-            border-radius: 50%;
-            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
-            50% { transform: translateY(-150px) translateX(80px) rotate(15deg); opacity: 0.8; }
-            100% { transform: translateY(-300px) translateX(0) rotate(360deg); opacity: 0; }
-        }
-
-        .balloon {
-            animation: float 8s infinite ease-in-out;
-        }
-
-        .glow {
-            animation: glow 2s ease-in-out infinite;
-        }
-
-        @keyframes glow {
-            0%, 100% { 
-                text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3),
-                             0 0 20px rgba(255, 20, 147, 0.8),
-                             0 0 40px rgba(0, 255, 255, 0.5);
-            }
-            50% { 
-                text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3),
-                             0 0 40px rgba(255, 20, 147, 1),
-                             0 0 80px rgba(0, 255, 255, 0.8);
-            }
-        }
-
-        .spark {
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            border-radius: 50%;
-        }
-
-        .stars {
+        .ribbon {
             position: fixed;
-            width: 2px;
-            height: 2px;
-            background: white;
-            border-radius: 50%;
+            width: 100%;
+            height: 3px;
             pointer-events: none;
-            z-index: 2;
-            animation: twinkle 1.5s infinite;
+            z-index: 1;
+            opacity: 0.6;
+            animation: ribbonFlow 4s linear infinite;
         }
 
-        @keyframes twinkle {
-            0%, 100% { opacity: 0; }
-            50% { opacity: 1; }
+        @keyframes ribbonFlow {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
-        .pulse-ring {
-            position: absolute;
-            border: 2px solid;
-            border-radius: 50%;
-            animation: pulse-expand 1.5s ease-out forwards;
-        }
-
-        @keyframes pulse-expand {
-            0% {
-                width: 20px;
-                height: 20px;
-                opacity: 1;
-            }
-            100% {
-                width: 300px;
-                height: 300px;
-                opacity: 0;
-            }
-        }
-
-        .stream {
+        .interactive-counter {
             position: fixed;
-            pointer-events: none;
-            font-size: 2rem;
-            animation: stream-fall 3s linear forwards;
-        }
-
-        @keyframes stream-fall {
-            0% {
-                opacity: 1;
-                transform: translateY(0) translateX(0) rotate(0deg);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(100vh) translateX(100px) rotate(720deg);
-            }
-        }
-
-        .burst {
-            position: fixed;
-            animation: burst-out 2s ease-out forwards;
-            pointer-events: none;
-        }
-
-        @keyframes burst-out {
-            0% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            100% {
-                opacity: 0;
-                transform: scale(0);
-            }
-        }
-
-        .cursor-follower {
-            position: fixed;
-            width: 30px;
-            height: 30px;
-            border: 2px solid;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 20;
-            mix-blend-mode: screen;
-        }
-
-        .floating-text {
-            position: fixed;
-            font-size: 1.5rem;
-            pointer-events: none;
-            animation: float-up 2s ease-out forwards;
-        }
-
-        @keyframes float-up {
-            0% {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-100px) scale(0.5);
-            }
-        }
-
-        .shake {
-            animation: shake 0.5s;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
-        }
-
-        body.rainbow-mode {
-            animation: rainbowShift 0.5s;
-        }
-
-        @keyframes rainbowShift {
-            0% { filter: hue-rotate(0deg); }
-            100% { filter: hue-rotate(360deg); }
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 20, 147, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="title glow">HAPPY BIRTHDAY DAD!!!!</h1>
-        <div class="emoji-container">
-            <span class="emoji">🎉</span>
-            <span class="emoji">🎂</span>
-            <span class="emoji">🎈</span>
-            <span class="emoji">🥳</span>
-            <span class="emoji">⭐</span>
-            <span class="emoji">✨</span>
-        </div>
-        <p class="subtitle">Hope you have an AMAZING day!</p>
-    </div>
+    <div id="root"></div>
 
-    <script>
-        // Color palette for effects
-        const colors = ['#ff1493', '#00ff00', '#00bfff', '#ffd700', '#ff69b4', '#ff4500', '#00ffff', '#ff00ff', '#32cd32'];
-        const emojis = ['🎉', '🎂', '🎈', '🥳', '⭐', '✨', '🎊', '🍰', '🎁'];
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-        // Create confetti effect
-        function createConfetti() {
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti';
-            if (Math.random() > 0.5) confetti.classList.add('rect');
-            
-            confetti.style.left = Math.random() * window.innerWidth + 'px';
-            confetti.style.top = '-10px';
-            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            confetti.style.animation = `fall ${2 + Math.random() * 2}s linear forwards`;
-            confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
-            document.body.appendChild(confetti);
+        // Colors and emojis
+        const COLORS = ['#ff1493', '#00ff00', '#00bfff', '#ffd700', '#ff69b4', '#ff4500', '#00ffff', '#ff00ff', '#32cd32'];
+        const EMOJIS = ['🎉', '🎂', '🎈', '🥳', '⭐', '✨', '🎊', '🍰', '🎁'];
 
-            setTimeout(() => confetti.remove(), 4000);
-        }
+        // Confetti Component
+        function Confetti({ id }) {
+            const [style, setStyle] = useState(() => ({
+                left: Math.random() * window.innerWidth + 'px',
+                top: '-10px',
+                backgroundColor: COLORS[Math.floor(Math.random() * COLORS.length)],
+                width: Math.random() > 0.5 ? '8px' : '10px',
+                height: Math.random() > 0.5 ? '6px' : '10px',
+            }));
 
-        // Add fall animation to stylesheet
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fall {
-                to {
-                    transform: translateY(${window.innerHeight + 100}px) rotate(720deg);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
+            useEffect(() => {
+                const duration = 2 + Math.random() * 2;
+                const startTime = Date.now();
+                let animationId;
 
-        // Create confetti CONSTANTLY
-        setInterval(() => {
-            for (let i = 0; i < 5; i++) {
-                createConfetti();
-            }
-        }, 300);
+                const animate = () => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const progress = elapsed / duration;
 
-        // Create floating balloons
-        function createBalloon() {
-            const balloon = document.createElement('div');
-            balloon.className = 'balloon';
-            const size = 40 + Math.random() * 50;
-            balloon.style.width = size + 'px';
-            balloon.style.height = size + 'px';
-            balloon.style.left = Math.random() * window.innerWidth + 'px';
-            balloon.style.top = window.innerHeight + 50 + 'px';
-            balloon.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            balloon.style.animationDuration = (6 + Math.random() * 6) + 's';
-            document.body.appendChild(balloon);
-
-            setTimeout(() => balloon.remove(), 13000);
-        }
-
-        // Create balloons
-        for (let i = 0; i < 15; i++) {
-            setTimeout(createBalloon, i * 200);
-        }
-        setInterval(createBalloon, 1000);
-
-        // Create twinkling stars
-        function createStar() {
-            const star = document.createElement('div');
-            star.className = 'stars';
-            star.style.left = Math.random() * window.innerWidth + 'px';
-            star.style.top = Math.random() * window.innerHeight + 'px';
-            star.style.animationDuration = (1 + Math.random() * 2) + 's';
-            document.body.appendChild(star);
-            setTimeout(() => star.remove(), 5000);
-        }
-
-        setInterval(createStar, 200);
-
-        // Create emoji streams
-        function createStream(x, y) {
-            const stream = document.createElement('div');
-            stream.className = 'stream';
-            stream.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-            stream.style.left = x + 'px';
-            stream.style.top = y + 'px';
-            document.body.appendChild(stream);
-            setTimeout(() => stream.remove(), 3000);
-        }
-
-        // Create fireworks with rings and sparks
-        function createFireworks(e) {
-            const x = e.clientX;
-            const y = e.clientY;
-
-            // Create pulse ring
-            const ring = document.createElement('div');
-            ring.className = 'pulse-ring';
-            ring.style.left = x + 'px';
-            ring.style.top = y + 'px';
-            ring.style.borderColor = colors[Math.floor(Math.random() * colors.length)];
-            ring.style.transform = 'translate(-50%, -50%)';
-            document.body.appendChild(ring);
-            setTimeout(() => ring.remove(), 1500);
-
-            // Create sparks
-            for (let i = 0; i < 30; i++) {
-                const spark = document.createElement('div');
-                spark.className = 'spark';
-                spark.style.left = x + 'px';
-                spark.style.top = y + 'px';
-                spark.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                spark.style.boxShadow = `0 0 10px ${spark.style.backgroundColor}`;
-                document.body.appendChild(spark);
-
-                const angle = (Math.PI * 2 * i) / 30;
-                const velocity = 6 + Math.random() * 8;
-                const vx = Math.cos(angle) * velocity;
-                const vy = Math.sin(angle) * velocity;
-                let vely = vy - 0.5;
-
-                let px = x;
-                let py = y;
-                let opacity = 1;
-
-                const animateSpark = () => {
-                    px += vx;
-                    py += vely;
-                    vely += 0.2;
-                    spark.style.left = px + 'px';
-                    spark.style.top = py + 'px';
-                    opacity -= 0.03;
-                    spark.style.opacity = opacity;
-
-                    if (opacity > 0) {
-                        requestAnimationFrame(animateSpark);
-                    } else {
-                        spark.remove();
+                    if (progress < 1) {
+                        setStyle(prev => ({
+                            ...prev,
+                            top: (window.innerHeight * progress) + 'px',
+                            opacity: 1 - progress,
+                            transform: `rotate(${progress * 720}deg)`,
+                        }));
+                        animationId = requestAnimationFrame(animate);
                     }
                 };
 
-                animateSpark();
-            }
+                animationId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(animationId);
+            }, []);
 
-            // Create emoji bursts
-            for (let i = 0; i < 8; i++) {
-                createStream(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 100);
-            }
+            return <div className="confetti" style={style} />;
         }
 
-        // Create random bursts of emojis
-        function randomBurst() {
-            const randomX = Math.random() * window.innerWidth;
-            const randomY = Math.random() * window.innerHeight;
-            
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => {
-                    createStream(randomX + (Math.random() - 0.5) * 200, randomY + (Math.random() - 0.5) * 200);
-                }, i * 100);
-            }
+        // Spark Component
+        function Spark({ id, x, y, color }) {
+            const [pos, setPos] = useState({ x, y });
+            const [opacity, setOpacity] = useState(1);
+            const velocityRef = useRef({
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+            });
+
+            useEffect(() => {
+                let animationId;
+                const startTime = Date.now();
+
+                const animate = () => {
+                    const elapsed = Date.now() - startTime;
+                    if (elapsed > 1000) return;
+
+                    setPos(prev => ({
+                        x: prev.x + velocityRef.current.vx,
+                        y: prev.y + velocityRef.current.vy,
+                    }));
+                    velocityRef.current.vy += 0.2;
+                    setOpacity(Math.max(0, 1 - elapsed / 1000));
+
+                    animationId = requestAnimationFrame(animate);
+                };
+
+                animationId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(animationId);
+            }, []);
+
+            return (
+                <div
+                    className="spark"
+                    style={{
+                        left: pos.x + 'px',
+                        top: pos.y + 'px',
+                        backgroundColor: color,
+                        boxShadow: `0 0 10px ${color}`,
+                        opacity,
+                    }}
+                />
+            );
         }
 
-        setInterval(randomBurst, 2000);
+        // Enhanced Fireworks Component
+        function Fireworks({ id, x, y, burstType = 'starburst' }) {
+            const [fireworkParticles, setFireworkParticles] = useState([]);
 
-        // Click for fireworks
-        document.addEventListener('click', createFireworks);
-
-        // Auto fireworks every 5 seconds
-        setInterval(() => {
-            const randomX = Math.random() * window.innerWidth;
-            const randomY = Math.random() * (window.innerHeight * 0.6) + 100;
-            createFireworks({ clientX: randomX, clientY: randomY });
-        }, 5000);
-
-        // Keyboard interaction - press space for mega fireworks
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                for (let i = 0; i < 10; i++) {
-                    setTimeout(() => {
-                        createFireworks({
-                            clientX: Math.random() * window.innerWidth,
-                            clientY: Math.random() * window.innerHeight
-                        });
-                    }, i * 100);
-                }
-            }
-        });
-
-        // Devicemotion for mobile interaction
-        if (window.DeviceMotionEvent !== undefined) {
-            window.addEventListener('devicemotion', (event) => {
-                const accel = event.acceleration;
-                const threshold = 30;
+            useEffect(() => {
+                const particles = [];
+                const burstCount = burstType === 'ring' ? 60 : burstType === 'cascade' ? 30 : 50;
                 
-                if (Math.abs(accel.x) > threshold || Math.abs(accel.y) > threshold || Math.abs(accel.z) > threshold) {
-                    createFireworks({
-                        clientX: Math.random() * window.innerWidth,
-                        clientY: Math.random() * window.innerHeight
-                    });
-                }
-            }, true);
-        }
-
-        // Mouse follower circles
-        let mouseX = 0;
-        let mouseY = 0;
-
-        document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-
-            // Create trailing circles
-            const follower = document.createElement('div');
-            follower.className = 'cursor-follower';
-            follower.style.left = mouseX + 'px';
-            follower.style.top = mouseY + 'px';
-            follower.style.borderColor = colors[Math.floor(Math.random() * colors.length)];
-            document.body.appendChild(follower);
-
-            setTimeout(() => {
-                follower.style.width = '0px';
-                follower.style.height = '0px';
-                follower.style.opacity = '0';
-                follower.style.transition = 'all 0.3s ease-out';
-            }, 10);
-
-            setTimeout(() => follower.remove(), 400);
-        });
-
-        // Double click for mega burst
-        document.addEventListener('dblclick', (e) => {
-            e.preventDefault();
-            document.body.classList.add('shake');
-            setTimeout(() => document.body.classList.remove('shake'), 500);
-
-            // Create massive burst
-            for (let i = 0; i < 20; i++) {
-                setTimeout(() => {
-                    createFireworks({
-                        clientX: e.clientX + (Math.random() - 0.5) * 200,
-                        clientY: e.clientY + (Math.random() - 0.5) * 200
-                    });
-                }, i * 50);
-            }
-
-            // Floating text
-            const texts = ['AWESOME!', '🎉', 'WOOHOO!', 'YES!', '🥳', 'PARTY!'];
-            for (let i = 0; i < 8; i++) {
-                const floatingText = document.createElement('div');
-                floatingText.className = 'floating-text';
-                floatingText.textContent = texts[Math.floor(Math.random() * texts.length)];
-                floatingText.style.left = e.clientX + (Math.random() - 0.5) * 150 + 'px';
-                floatingText.style.top = e.clientY + (Math.random() - 0.5) * 150 + 'px';
-                floatingText.style.color = colors[Math.floor(Math.random() * colors.length)];
-                floatingText.style.fontSize = (1 + Math.random()) + 'rem';
-                floatingText.style.fontWeight = 'bold';
-                floatingText.style.textShadow = '0 0 10px currentColor';
-                document.body.appendChild(floatingText);
-                setTimeout(() => floatingText.remove(), 2000);
-            }
-        });
-
-        // Triple click for rainbow mode
-        let clickCount = 0;
-        let clickTimer;
-
-        document.addEventListener('click', () => {
-            clickCount++;
-            clearTimeout(clickTimer);
-
-            if (clickCount === 3) {
-                // Rainbow mode!
-                document.body.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
-                clickCount = 0;
-
-                // Create text explosion
-                const rainbowText = document.createElement('div');
-                rainbowText.textContent = '🌈 RAINBOW MODE 🌈';
-                rainbowText.style.position = 'fixed';
-                rainbowText.style.left = '50%';
-                rainbowText.style.top = '50%';
-                rainbowText.style.transform = 'translate(-50%, -50%)';
-                rainbowText.style.fontSize = '2rem';
-                rainbowText.style.fontWeight = 'bold';
-                rainbowText.style.zIndex = '1000';
-                rainbowText.style.pointerEvents = 'none';
-                rainbowText.style.animation = 'bounce 1s ease-out forwards';
-                document.body.appendChild(rainbowText);
-                setTimeout(() => rainbowText.remove(), 1000);
-            }
-
-            clickTimer = setTimeout(() => {
-                clickCount = 0;
-            }, 500);
-        });
-
-        // Hover effects on emojis
-        const emojiElements = document.querySelectorAll('.emoji');
-        emojiElements.forEach(emoji => {
-            emoji.addEventListener('mouseenter', () => {
-                emoji.style.transform = 'scale(1.5) rotate(360deg)';
-                emoji.style.transition = 'transform 0.5s ease';
-
-                // Create burst around emoji
-                const rect = emoji.getBoundingClientRect();
-                for (let i = 0; i < 12; i++) {
-                    const spark = document.createElement('div');
-                    spark.className = 'spark';
-                    spark.style.left = (rect.left + rect.width / 2) + 'px';
-                    spark.style.top = (rect.top + rect.height / 2) + 'px';
-                    spark.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                    document.body.appendChild(spark);
-
-                    const angle = (Math.PI * 2 * i) / 12;
-                    const velocity = 3 + Math.random() * 4;
+                for (let i = 0; i < burstCount; i++) {
+                    let angle, velocity;
+                    
+                    if (burstType === 'ring') {
+                        angle = (Math.PI * 2 * i) / burstCount;
+                        velocity = 6;
+                    } else if (burstType === 'cascade') {
+                        angle = (Math.PI / 2) + (Math.random() - 0.5) * (Math.PI / 3);
+                        velocity = 4 + Math.random() * 3;
+                    } else {
+                        angle = (Math.PI * 2 * i) / burstCount + (Math.random() - 0.5) * 0.5;
+                        velocity = 5 + Math.random() * 5;
+                    }
+                    
                     const vx = Math.cos(angle) * velocity;
-                    const vy = Math.sin(angle) * velocity;
-
-                    let px = rect.left + rect.width / 2;
-                    let py = rect.top + rect.height / 2;
-                    let opacity = 1;
-
-                    const animateSpark = () => {
-                        px += vx;
-                        py += vy;
-                        spark.style.left = px + 'px';
-                        spark.style.top = py + 'px';
-                        opacity -= 0.05;
-                        spark.style.opacity = opacity;
-
-                        if (opacity > 0) {
-                            requestAnimationFrame(animateSpark);
-                        } else {
-                            spark.remove();
-                        }
-                    };
-                    animateSpark();
+                    const vy = Math.sin(angle) * velocity - (burstType === 'cascade' ? 3 : 1);
+                    
+                    particles.push({
+                        id: i,
+                        vx,
+                        vy,
+                        x,
+                        y,
+                        life: 1,
+                        color: COLORS[Math.floor(Math.random() * COLORS.length)]
+                    });
                 }
-            });
 
-            emoji.addEventListener('mouseleave', () => {
-                emoji.style.transform = 'scale(1) rotate(0deg)';
-            });
-        });
+                setFireworkParticles(particles);
 
-        // Title interaction
-        const title = document.querySelector('.title');
-        if (title) {
-            title.addEventListener('click', () => {
-                title.style.animation = 'none';
-                setTimeout(() => {
-                    title.style.animation = 'bounce 2s infinite, colorShift 4s infinite, wobble 0.3s infinite';
-                }, 10);
+                const startTime = Date.now();
+                let animationId;
 
-                // Create text particles
-                for (let i = 0; i < 15; i++) {
-                    const particle = document.createElement('div');
-                    particle.textContent = '✨';
-                    particle.style.position = 'fixed';
-                    particle.style.left = (Math.random() * window.innerWidth) + 'px';
-                    particle.style.top = '50px';
-                    particle.style.fontSize = '2rem';
-                    particle.style.pointerEvents = 'none';
-                    particle.style.opacity = '1';
-                    particle.style.zIndex = '5';
-                    document.body.appendChild(particle);
+                const animate = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(1, elapsed / 1500);
 
-                    const vx = (Math.random() - 0.5) * 8;
-                    const vy = Math.random() * 5 + 2;
-                    let px = parseFloat(particle.style.left);
-                    let py = 50;
-                    let op = 1;
+                    setFireworkParticles(prev => 
+                        prev.map(p => ({
+                            ...p,
+                            x: p.x + p.vx,
+                            y: p.y + p.vy + (burstType === 'cascade' ? 0.3 : 0.15) * progress,
+                            vy: p.vy + (burstType === 'cascade' ? 0.25 : 0.15),
+                            life: Math.max(0, 1 - progress)
+                        })).filter(p => p.life > 0)
+                    );
 
-                    const animate = () => {
-                        px += vx;
-                        py += vy;
-                        op -= 0.02;
-                        particle.style.left = px + 'px';
-                        particle.style.top = py + 'px';
-                        particle.style.opacity = op;
+                    if (progress < 1) {
+                        animationId = requestAnimationFrame(animate);
+                    }
+                };
 
-                        if (op > 0) {
-                            requestAnimationFrame(animate);
-                        } else {
-                            particle.remove();
-                        }
-                    };
-                    animate();
-                }
-            });
+                animationId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(animationId);
+            }, []);
+
+            return (
+                <>
+                    {fireworkParticles.map(p => (
+                        <div
+                            key={p.id}
+                            className="spark"
+                            style={{
+                                left: p.x + 'px',
+                                top: p.y + 'px',
+                                backgroundColor: p.color,
+                                boxShadow: `0 0 15px ${p.color}`,
+                                opacity: p.life,
+                                width: '6px',
+                                height: '6px'
+                            }}
+                        />
+                    ))}
+                </>
+            );
         }
 
-        // Right-click surprise
-        document.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            const surpriseText = ['YOU FOUND THE SECRET!', '🎁 SURPRISE! 🎁', 'PLOT TWIST!', '👀 SNEAKY!'];
-            
-            const surprise = document.createElement('div');
-            surprise.textContent = surpriseText[Math.floor(Math.random() * surpriseText.length)];
-            surprise.style.position = 'fixed';
-            surprise.style.left = e.clientX + 'px';
-            surprise.style.top = e.clientY + 'px';
-            surprise.style.fontSize = '1.5rem';
-            surprise.style.fontWeight = 'bold';
-            surprise.style.color = colors[Math.floor(Math.random() * colors.length)];
-            surprise.style.pointerEvents = 'none';
-            surprise.style.textShadow = '0 0 10px currentColor';
-            surprise.style.animation = 'float-up 2s ease-out forwards';
-            document.body.appendChild(surprise);
+        // Particle Component
+        function Particle({ text, x, y, color }) {
+            return (
+                <div
+                    className="particle"
+                    style={{
+                        left: x + 'px',
+                        top: y + 'px',
+                        color: color,
+                        fontSize: (1 + Math.random()) + 'rem',
+                        fontWeight: 'bold',
+                        textShadow: `0 0 10px ${color}`,
+                    }}
+                >
+                    {text}
+                </div>
+            );
+        }
 
-            setTimeout(() => surprise.remove(), 2000);
+        // Balloon Component
+        function Balloon({ id }) {
+            const size = 40 + Math.random() * 50;
+            const [pos, setPos] = useState({
+                left: Math.random() * window.innerWidth,
+                top: window.innerHeight + 50,
+            });
+            const [opacity, setOpacity] = useState(1);
 
-            // Create small burst
-            createFireworks(e);
-        });
+            useEffect(() => {
+                const duration = 6 + Math.random() * 6;
+                const startTime = Date.now();
+                let animationId;
+
+                const animate = () => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const progress = elapsed / duration;
+
+                    if (progress < 1) {
+                        setPos({
+                            left: window.innerWidth / 2 + (Math.sin(progress * Math.PI) * 100),
+                            top: window.innerHeight - progress * (window.innerHeight + 100),
+                        });
+                        setOpacity(1 - progress);
+                        animationId = requestAnimationFrame(animate);
+                    }
+                };
+
+                animationId = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(animationId);
+            }, []);
+
+            return (
+                <div
+                    className="balloon"
+                    style={{
+                        width: size + 'px',
+                        height: size + 'px',
+                        left: pos.left + 'px',
+                        top: pos.top + 'px',
+                        backgroundColor: COLORS[Math.floor(Math.random() * COLORS.length)],
+                        opacity,
+                    }}
+                />
+            );
+        }
+
+        // Main Birthday Component
+        function BirthdayPage() {
+            const [confetti, setConfetti] = useState([]);
+            const [sparks, setSparks] = useState([]);
+            const [fireworks, setFireworks] = useState([]);
+            const [particles, setParticles] = useState([]);
+            const [balloons, setBalloons] = useState([1, 2, 3, 4, 5]);
+            const [ribbons, setRibbons] = useState([]);
+            const [clicks, setClicks] = useState(0);
+            const [interactions, setInteractions] = useState(0);
+            const clickTimerRef = useRef(null);
+            const konamiIndexRef = useRef(0);
+
+            // Confetti generator
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setConfetti(prev => [...prev.slice(-20), { id: Math.random() }]);
+                }, 300);
+                return () => clearInterval(interval);
+            }, []);
+
+            // Balloon generator
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setBalloons(prev => [...prev.slice(-15), Math.random()]);
+                }, 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            // Ribbon generator
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    if (Math.random() > 0.7) {
+                        const id = Math.random();
+                        setRibbons(prev => [...prev, id]);
+                        setTimeout(() => {
+                            setRibbons(prev => prev.filter(r => r !== id));
+                        }, 8000);
+                    }
+                }, 2000);
+                return () => clearInterval(interval);
+            }, []);
+
+            // Create fireworks
+            const createFireworks = (x, y, burstType = 'starburst') => {
+                // Create enhanced fireworks burst
+                setFireworks(prev => [...prev, {
+                    id: Math.random(),
+                    x,
+                    y,
+                    burstType
+                }]);
+
+                // Create particles
+                for (let i = 0; i < 5; i++) {
+                    setParticles(prev => [...prev, {
+                        id: Math.random(),
+                        text: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
+                        x: x + (Math.random() - 0.5) * 150,
+                        y: y + (Math.random() - 0.5) * 150,
+                        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                    }]);
+                }
+
+                setInteractions(prev => prev + 1);
+            };
+
+            // Click handler
+            const handleClick = (e) => {
+                setClicks(c => c + 1);
+                clearTimeout(clickTimerRef.current);
+
+                const burstTypes = ['starburst', 'ring', 'cascade'];
+                createFireworks(e.clientX, e.clientY, burstTypes[clicks % burstTypes.length]);
+
+                if (clicks === 2) {
+                    // Triple click - massive celebration with mixed burst types
+                    for (let i = 0; i < 20; i++) {
+                        setTimeout(() => {
+                            createFireworks(
+                                Math.random() * window.innerWidth,
+                                Math.random() * window.innerHeight,
+                                burstTypes[i % burstTypes.length]
+                            );
+                        }, i * 50);
+                    }
+                    setClicks(0);
+                    return;
+                }
+
+                clickTimerRef.current = setTimeout(() => {
+                    setClicks(0);
+                }, 500);
+            };
+
+            // Keyboard handler for Konami code
+            const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === KONAMI[konamiIndexRef.current]) {
+                        konamiIndexRef.current++;
+                        if (konamiIndexRef.current === KONAMI.length) {
+                            // Mega celebration
+                            for (let i = 0; i < 100; i++) {
+                                setTimeout(() => {
+                                    createFireworks(
+                                        Math.random() * window.innerWidth,
+                                        Math.random() * window.innerHeight
+                                    );
+                                }, i * 50);
+                            }
+                            konamiIndexRef.current = 0;
+                        }
+                    } else {
+                        konamiIndexRef.current = 0;
+                    }
+
+                    // Space for mega fireworks - mix burst types
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        const burstTypes = ['starburst', 'ring', 'cascade'];
+                        for (let i = 0; i < 30; i++) {
+                            setTimeout(() => {
+                                createFireworks(
+                                    Math.random() * window.innerWidth,
+                                    Math.random() * window.innerHeight,
+                                    burstTypes[i % burstTypes.length]
+                                );
+                            }, i * 100);
+                        }
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, []);
+
+            // Auto fireworks every 5 seconds with random burst types
+            useEffect(() => {
+                const burstTypes = ['starburst', 'ring', 'cascade'];
+                const interval = setInterval(() => {
+                    createFireworks(
+                        Math.random() * window.innerWidth,
+                        Math.random() * (window.innerHeight * 0.6) + 100,
+                        burstTypes[Math.floor(Math.random() * burstTypes.length)]
+                    );
+                }, 5000);
+                return () => clearInterval(interval);
+            }, [createFireworks]);
+
+            // Emoji click handlers
+            const handleEmojiClick = (index) => {
+                createFireworks(
+                    Math.random() * window.innerWidth,
+                    Math.random() * window.innerHeight
+                );
+            };
+
+            // Button handlers
+            const handleCelebrate = () => {
+                for (let i = 0; i < 50; i++) {
+                    setTimeout(() => {
+                        createFireworks(
+                            Math.random() * window.innerWidth,
+                            Math.random() * window.innerHeight
+                        );
+                    }, i * 50);
+                }
+            };
+
+            const handlePartyMode = () => {
+                document.body.style.filter = `hue-rotate(${Math.random() * 360}deg)`;
+            };
+
+            // Clean up sparks and particles
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    setSparks(prev => prev.slice(-100));
+                    setParticles(prev => prev.slice(-50));
+                }, 100);
+                return () => clearTimeout(timer);
+            }, [sparks, particles]);
+
+            return (
+                <div className="container" onClick={handleClick}>
+                    <h1 className="title">HAPPY BIRTHDAY DAD!!!!</h1>
+                    
+                    <div className="emoji-container">
+                        {EMOJIS.map((emoji, i) => (
+                            <span
+                                key={i}
+                                className="emoji"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEmojiClick(i);
+                                }}
+                            >
+                                {emoji}
+                            </span>
+                        ))}
+                    </div>
+
+                    <p className="subtitle">Hope you have an AMAZING day! 🎉</p>
+
+                    <div className="button-container">
+                        <button onClick={handleCelebrate}>🎊 CELEBRATE!</button>
+                        <button onClick={handlePartyMode}>🌈 PARTY MODE</button>
+                    </div>
+
+                    <div className="interactive-counter">
+                        Interactions: {interactions}
+                    </div>
+
+                    {/* Confetti */}
+                    {confetti.map(c => <Confetti key={c.id} id={c.id} />)}
+
+                    {/* Enhanced Fireworks */}
+                    {fireworks.map(fw => <Fireworks key={fw.id} {...fw} />)}
+
+                    {/* Sparks */}
+                    {sparks.map(s => <Spark key={s.id} {...s} />)}
+
+                    {/* Particles */}
+                    {particles.map(p => <Particle key={p.id} {...p} />)}
+
+                    {/* Balloons */}
+                    {balloons.map((b, i) => <Balloon key={i} id={b} />)}
+
+                    {/* Ribbons */}
+                    {ribbons.map(r => (
+                        <div
+                            key={r}
+                            className="ribbon"
+                            style={{
+                                top: Math.random() * window.innerHeight + 'px',
+                                backgroundColor: COLORS[Math.floor(Math.random() * COLORS.length)],
+                            }}
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<BirthdayPage />, document.getElementById('root'));
+    </script>
 </body>
 </html>
