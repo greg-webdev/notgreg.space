@@ -35,12 +35,13 @@
       .infographic-text {
         @apply text-lg leading-relaxed text-justify text-gray-800;
       }
-      /* Liquid Glass Button Styles */
-      .liquid-glass-btn {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.12) 100%);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 12px;
+      /* Liquid Glass Button Styles - Active State */
+      .liquid-glass-btn.glass-enabled {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 16px;
         padding: 12px 24px;
         font-size: 14px;
         font-weight: 600;
@@ -48,16 +49,68 @@
         cursor: pointer;
         overflow: hidden;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.2), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+        position: relative;
+      }
+      .liquid-glass-btn.glass-enabled:hover {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.25) 100%) !important;
+        box-shadow: 0 12px 48px 0 rgba(255, 255, 255, 0.35), inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+        transform: translateY(-3px);
+      }
+      .liquid-glass-btn.glass-enabled:active {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px 0 rgba(255, 255, 255, 0.25), inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+      }
+
+      /* Regular Button Styles */
+      .liquid-glass-btn {
+        background-color: rgba(59, 130, 246, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.5);
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
       }
       .liquid-glass-btn:hover {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.22) 100%);
-        box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.5);
+        background-color: rgba(59, 130, 246, 1);
         transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
       }
       .liquid-glass-btn:active {
         transform: translateY(0);
-        box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.3);
+        box-shadow: 0 2px 10px rgba(59, 130, 246, 0.2);
+      }
+
+      /* Toggle Button */
+      .glass-toggle {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 2px solid rgba(247, 193, 4, 0.3);
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        z-index: 1000;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+      .glass-toggle:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      }
+      .glass-toggle.active {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.2) 100%);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.3);
       }
     </style>
 </head>
@@ -115,44 +168,71 @@
 
     <script type="text/babel">
       function App() {
+        const [glassEnabled, setGlassEnabled] = React.useState(false);
+
         return (
-          <div className="container mx-auto p-4 md:p-8 w-[800px] flex-grow">
-            {/* Title Section */}
-            <header className="text-center mb-16">
-              <h1 className="decorative-font text-5xl md:text-6xl font-extrabold tracking-tight text-[#F9C104] drop-shadow-lg">Ancient Chinese Inventions</h1>
-              <p className="text-xl md:text-2xl text-white mt-4 decorative-font">Innovations that shaped the world</p>
-            </header>
+          <>
+            {/* Toggle Button */}
+            <button 
+              className={`glass-toggle ${glassEnabled ? 'active' : ''}`}
+              onClick={() => setGlassEnabled(!glassEnabled)}
+            >
+              {glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF'}
+            </button>
 
-            {/* Sections Container */}
-            <div className="flex flex-col gap-12">
-              {/* Silk Section */}
-              <div className="infographic-section">
-                <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Silk</h2>
-                <p className="infographic-text">
-                  Silk, a luxurious and valuable textile, was first produced in Neolithic China. Discovered around 6000 BCE, the intricate process of raising silkworms and weaving their threads was a closely guarded secret for centuries. This monopoly on silk production gave China a significant economic advantage and was a cornerstone of the ancient Silk Road trade routes, connecting the East and West. Silk was not just a fabric; it was a form of currency, a symbol of status, and a testament to Chinese ingenuity.
-                </p>
-                <button className="liquid-glass-btn mt-4" onClick={() => alert('Silk trading details coming soon!')}>Learn More</button>
-              </div>
+            <div className="container mx-auto p-4 md:p-8 w-[800px] flex-grow">
+              {/* Title Section */}
+              <header className="text-center mb-16">
+                <h1 className="decorative-font text-5xl md:text-6xl font-extrabold tracking-tight text-[#F9C104] drop-shadow-lg">Ancient Chinese Inventions</h1>
+                <p className="text-xl md:text-2xl text-white mt-4 decorative-font">Innovations that shaped the world</p>
+              </header>
 
-              {/* Gunpowder Section */}
-              <div className="infographic-section">
-                <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Gunpowder</h2>
-                <p className="infographic-text">
-                  Gunpowder was an accidental discovery by Chinese alchemists in the 9th century, who were searching for an elixir of immortality. Initially, it was used for fireworks and signaling. Its explosive and propulsive properties, however, were soon realized, leading to its application in warfare. The invention of gunpowder-based weapons like cannons and bombs revolutionized military technology worldwide, fundamentally changing the nature of warfare and statecraft across continents.
-                </p>
-                <button className="liquid-glass-btn mt-4" onClick={() => alert('Gunpowder history details coming soon!')}>Learn More</button>
-              </div>
+              {/* Sections Container */}
+              <div className="flex flex-col gap-12">
+                {/* Silk Section */}
+                <div className="infographic-section">
+                  <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Silk</h2>
+                  <p className="infographic-text">
+                    Silk, a luxurious and valuable textile, was first produced in Neolithic China. Discovered around 6000 BCE, the intricate process of raising silkworms and weaving their threads was a closely guarded secret for centuries. This monopoly on silk production gave China a significant economic advantage and was a cornerstone of the ancient Silk Road trade routes, connecting the East and West. Silk was not just a fabric; it was a form of currency, a symbol of status, and a testament to Chinese ingenuity.
+                  </p>
+                  <button 
+                    className={`liquid-glass-btn mt-4 ${glassEnabled ? 'glass-enabled' : ''}`}
+                    onClick={() => alert('Silk trading details coming soon!')}
+                  >
+                    Learn More
+                  </button>
+                </div>
 
-              {/* Porcelain Section */}
-              <div className="infographic-section">
-                <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Porcelain</h2>
-                <p className="infographic-text">
-                  Porcelain, a type of ceramic known for its delicate beauty and durability, was perfected in China during the Tang dynasty. Unlike other ceramics, true porcelain is fired at extremely high temperatures, giving it its characteristic white color, translucence, and resilience. Chinese porcelain became a highly sought-after commodity globally, often referred to in america as "china," and was a significant part of the country's export trade. Its creation involved a masterful blend of artistry and scientific knowledge.
-                </p>
-                <button className="liquid-glass-btn mt-4" onClick={() => alert('Porcelain craftsmanship details coming soon!')}>Learn More</button>
+                {/* Gunpowder Section */}
+                <div className="infographic-section">
+                  <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Gunpowder</h2>
+                  <p className="infographic-text">
+                    Gunpowder was an accidental discovery by Chinese alchemists in the 9th century, who were searching for an elixir of immortality. Initially, it was used for fireworks and signaling. Its explosive and propulsive properties, however, were soon realized, leading to its application in warfare. The invention of gunpowder-based weapons like cannons and bombs revolutionized military technology worldwide, fundamentally changing the nature of warfare and statecraft across continents.
+                  </p>
+                  <button 
+                    className={`liquid-glass-btn mt-4 ${glassEnabled ? 'glass-enabled' : ''}`}
+                    onClick={() => alert('Gunpowder history details coming soon!')}
+                  >
+                    Learn More
+                  </button>
+                </div>
+
+                {/* Porcelain Section */}
+                <div className="infographic-section">
+                  <h2 className="decorative-font text-4xl font-bold text-gray-800 mb-6">Porcelain</h2>
+                  <p className="infographic-text">
+                    Porcelain, a type of ceramic known for its delicate beauty and durability, was perfected in China during the Tang dynasty. Unlike other ceramics, true porcelain is fired at extremely high temperatures, giving it its characteristic white color, translucence, and resilience. Chinese porcelain became a highly sought-after commodity globally, often referred to in america as "china," and was a significant part of the country's export trade. Its creation involved a masterful blend of artistry and scientific knowledge.
+                  </p>
+                  <button 
+                    className={`liquid-glass-btn mt-4 ${glassEnabled ? 'glass-enabled' : ''}`}
+                    onClick={() => alert('Porcelain craftsmanship details coming soon!')}
+                  >
+                    Learn More
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </>
         );
       }
 
