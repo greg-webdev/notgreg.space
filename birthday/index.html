@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday Dad!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        body {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            text-align: center;
+            position: relative;
+            z-index: 10;
+            filter: drop-shadow(0 0 30px rgba(255, 20, 147, 0.5));
+        }
+
+        .title {
+            font-size: 5rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3),
+                         0 0 30px rgba(255, 20, 147, 0.8),
+                         0 0 60px rgba(0, 255, 255, 0.6);
+            margin-bottom: 1rem;
+            animation: bounce 2s infinite, colorShift 4s infinite, wobble 0.3s infinite;
+            letter-spacing: 3px;
+            word-spacing: 0.2em;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-40px); }
+        }
+
+        @keyframes wobble {
+            0%, 100% { transform: skewX(0deg); }
+            25% { transform: skewX(1deg); }
+            75% { transform: skewX(-1deg); }
+        }
+
+        @keyframes colorShift {
+            0% { color: #ff1493; }
+            16% { color: #ff00ff; }
+            33% { color: #00ff00; }
+            50% { color: #00bfff; }
+            66% { color: #ffd700; }
+            83% { color: #ff69b4; }
+            100% { color: #ff1493; }
+        }
+
+        .emoji-container {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .emoji {
+            font-size: 4rem;
+            display: inline-block;
+            margin: 0 15px;
+            animation: bounce 2s infinite;
+        }
+
+        .emoji:nth-child(1) { animation-delay: 0s; }
+        .emoji:nth-child(2) { animation-delay: 0.2s; }
+        .emoji:nth-child(3) { animation-delay: 0.4s; }
+        .emoji:nth-child(4) { animation-delay: 0.6s; }
+        .emoji:nth-child(5) { animation-delay: 0.8s; }
+        .emoji:nth-child(6) { animation-delay: 1s; }
+
+        .subtitle {
+            font-size: 2.5rem;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3),
+                         0 0 15px rgba(0, 255, 255, 0.8);
+            animation: scaleIn 1.5s ease-in-out infinite, shimmer 3s infinite;
+            font-weight: bold;
+        }
+
+        @keyframes scaleIn {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        @keyframes shimmer {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .confetti.rect {
+            width: 8px;
+            height: 6px;
+        }
+
+        .balloon {
+            position: absolute;
+            border-radius: 50%;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
+            50% { transform: translateY(-150px) translateX(80px) rotate(15deg); opacity: 0.8; }
+            100% { transform: translateY(-300px) translateX(0) rotate(360deg); opacity: 0; }
+        }
+
+        .balloon {
+            animation: float 8s infinite ease-in-out;
+        }
+
+        .glow {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { 
+                text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3),
+                             0 0 20px rgba(255, 20, 147, 0.8),
+                             0 0 40px rgba(0, 255, 255, 0.5);
+            }
+            50% { 
+                text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3),
+                             0 0 40px rgba(255, 20, 147, 1),
+                             0 0 80px rgba(0, 255, 255, 0.8);
+            }
+        }
+
+        .spark {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+        }
+
+        .stars {
+            position: fixed;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 2;
+            animation: twinkle 1.5s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        .pulse-ring {
+            position: absolute;
+            border: 2px solid;
+            border-radius: 50%;
+            animation: pulse-expand 1.5s ease-out forwards;
+        }
+
+        @keyframes pulse-expand {
+            0% {
+                width: 20px;
+                height: 20px;
+                opacity: 1;
+            }
+            100% {
+                width: 300px;
+                height: 300px;
+                opacity: 0;
+            }
+        }
+
+        .stream {
+            position: fixed;
+            pointer-events: none;
+            font-size: 2rem;
+            animation: stream-fall 3s linear forwards;
+        }
+
+        @keyframes stream-fall {
+            0% {
+                opacity: 1;
+                transform: translateY(0) translateX(0) rotate(0deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(100vh) translateX(100px) rotate(720deg);
+            }
+        }
+
+        .burst {
+            position: fixed;
+            animation: burst-out 2s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes burst-out {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title glow">HAPPY BIRTHDAY DAD!!!!</h1>
+        <div class="emoji-container">
+            <span class="emoji">🎉</span>
+            <span class="emoji">🎂</span>
+            <span class="emoji">🎈</span>
+            <span class="emoji">🥳</span>
+            <span class="emoji">⭐</span>
+            <span class="emoji">✨</span>
+        </div>
+        <p class="subtitle">Hope you have an AMAZING day!</p>
+    </div>
+
+    <script>
+        // Color palette for effects
+        const colors = ['#ff1493', '#00ff00', '#00bfff', '#ffd700', '#ff69b4', '#ff4500', '#00ffff', '#ff00ff', '#32cd32'];
+        const emojis = ['🎉', '🎂', '🎈', '🥳', '⭐', '✨', '🎊', '🍰', '🎁'];
+
+        // Create confetti effect
+        function createConfetti() {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            if (Math.random() > 0.5) confetti.classList.add('rect');
+            
+            confetti.style.left = Math.random() * window.innerWidth + 'px';
+            confetti.style.top = '-10px';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.animation = `fall ${2 + Math.random() * 2}s linear forwards`;
+            confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+            document.body.appendChild(confetti);
+
+            setTimeout(() => confetti.remove(), 4000);
+        }
+
+        // Add fall animation to stylesheet
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fall {
+                to {
+                    transform: translateY(${window.innerHeight + 100}px) rotate(720deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Create confetti CONSTANTLY
+        setInterval(() => {
+            for (let i = 0; i < 5; i++) {
+                createConfetti();
+            }
+        }, 300);
+
+        // Create floating balloons
+        function createBalloon() {
+            const balloon = document.createElement('div');
+            balloon.className = 'balloon';
+            const size = 40 + Math.random() * 50;
+            balloon.style.width = size + 'px';
+            balloon.style.height = size + 'px';
+            balloon.style.left = Math.random() * window.innerWidth + 'px';
+            balloon.style.top = window.innerHeight + 50 + 'px';
+            balloon.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            balloon.style.animationDuration = (6 + Math.random() * 6) + 's';
+            document.body.appendChild(balloon);
+
+            setTimeout(() => balloon.remove(), 13000);
+        }
+
+        // Create balloons
+        for (let i = 0; i < 15; i++) {
+            setTimeout(createBalloon, i * 200);
+        }
+        setInterval(createBalloon, 1000);
+
+        // Create twinkling stars
+        function createStar() {
+            const star = document.createElement('div');
+            star.className = 'stars';
+            star.style.left = Math.random() * window.innerWidth + 'px';
+            star.style.top = Math.random() * window.innerHeight + 'px';
+            star.style.animationDuration = (1 + Math.random() * 2) + 's';
+            document.body.appendChild(star);
+            setTimeout(() => star.remove(), 5000);
+        }
+
+        setInterval(createStar, 200);
+
+        // Create emoji streams
+        function createStream(x, y) {
+            const stream = document.createElement('div');
+            stream.className = 'stream';
+            stream.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            stream.style.left = x + 'px';
+            stream.style.top = y + 'px';
+            document.body.appendChild(stream);
+            setTimeout(() => stream.remove(), 3000);
+        }
+
+        // Create fireworks with rings and sparks
+        function createFireworks(e) {
+            const x = e.clientX;
+            const y = e.clientY;
+
+            // Create pulse ring
+            const ring = document.createElement('div');
+            ring.className = 'pulse-ring';
+            ring.style.left = x + 'px';
+            ring.style.top = y + 'px';
+            ring.style.borderColor = colors[Math.floor(Math.random() * colors.length)];
+            ring.style.transform = 'translate(-50%, -50%)';
+            document.body.appendChild(ring);
+            setTimeout(() => ring.remove(), 1500);
+
+            // Create sparks
+            for (let i = 0; i < 30; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'spark';
+                spark.style.left = x + 'px';
+                spark.style.top = y + 'px';
+                spark.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                spark.style.boxShadow = `0 0 10px ${spark.style.backgroundColor}`;
+                document.body.appendChild(spark);
+
+                const angle = (Math.PI * 2 * i) / 30;
+                const velocity = 6 + Math.random() * 8;
+                const vx = Math.cos(angle) * velocity;
+                const vy = Math.sin(angle) * velocity;
+                let vely = vy - 0.5;
+
+                let px = x;
+                let py = y;
+                let opacity = 1;
+
+                const animateSpark = () => {
+                    px += vx;
+                    py += vely;
+                    vely += 0.2;
+                    spark.style.left = px + 'px';
+                    spark.style.top = py + 'px';
+                    opacity -= 0.03;
+                    spark.style.opacity = opacity;
+
+                    if (opacity > 0) {
+                        requestAnimationFrame(animateSpark);
+                    } else {
+                        spark.remove();
+                    }
+                };
+
+                animateSpark();
+            }
+
+            // Create emoji bursts
+            for (let i = 0; i < 8; i++) {
+                createStream(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 100);
+            }
+        }
+
+        // Create random bursts of emojis
+        function randomBurst() {
+            const randomX = Math.random() * window.innerWidth;
+            const randomY = Math.random() * window.innerHeight;
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    createStream(randomX + (Math.random() - 0.5) * 200, randomY + (Math.random() - 0.5) * 200);
+                }, i * 100);
+            }
+        }
+
+        setInterval(randomBurst, 2000);
+
+        // Click for fireworks
+        document.addEventListener('click', createFireworks);
+
+        // Auto fireworks every 5 seconds
+        setInterval(() => {
+            const randomX = Math.random() * window.innerWidth;
+            const randomY = Math.random() * (window.innerHeight * 0.6) + 100;
+            createFireworks({ clientX: randomX, clientY: randomY });
+        }, 5000);
+
+        // Keyboard interaction - press space for mega fireworks
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        createFireworks({
+                            clientX: Math.random() * window.innerWidth,
+                            clientY: Math.random() * window.innerHeight
+                        });
+                    }, i * 100);
+                }
+            }
+        });
+
+        // Devicemotion for mobile interaction
+        if (window.DeviceMotionEvent !== undefined) {
+            window.addEventListener('devicemotion', (event) => {
+                const accel = event.acceleration;
+                const threshold = 30;
+                
+                if (Math.abs(accel.x) > threshold || Math.abs(accel.y) > threshold || Math.abs(accel.z) > threshold) {
+                    createFireworks({
+                        clientX: Math.random() * window.innerWidth,
+                        clientY: Math.random() * window.innerHeight
+                    });
+                }
+            }, true);
+        }
+    </script>
+</body>
+</html>
