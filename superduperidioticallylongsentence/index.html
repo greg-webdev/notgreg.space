@@ -13,12 +13,23 @@
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8; /* Light gray background */
         }
-        /* Custom styles for the blue button color found in the images */
+        /* Liquid Glass Button Styles */
         .btn-custom-blue {
-            background-color: #2a6f8b; /* A deep teal/blue */
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.4) 0%, rgba(42, 111, 139, 0.2) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(42, 111, 139, 0.3);
+            color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px 0 rgba(42, 111, 139, 0.25);
         }
         .btn-custom-blue:hover {
-            background-color: #3b8aa6; /* Slightly lighter on hover */
+            background: linear-gradient(135deg, rgba(42, 111, 139, 0.5) 0%, rgba(42, 111, 139, 0.3) 100%);
+            box-shadow: 0 12px 48px 0 rgba(42, 111, 139, 0.4);
+            transform: translateY(-2px);
+        }
+        .btn-custom-blue:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 16px 0 rgba(42, 111, 139, 0.2);
         }
     </style>
 </head>

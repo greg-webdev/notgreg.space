@@ -72,10 +72,10 @@
             flex-wrap: wrap;
         }
 
+        /* Liquid Glass Shortcut Button Styles */
         .shortcut {
             width: 50px;
             height: 50px;
-            background-color: var(--search-bg);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -83,12 +83,23 @@
             text-decoration: none;
             color: var(--text-color);
             font-size: 12px;
-            transition: transform 0.2s;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.20);
         }
 
         .shortcut:hover {
             transform: translateY(-2px);
-            background-color: var(--accent-color);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.12) 100%);
+            box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.35);
+        }
+
+        .shortcut:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.15);
         }
     </style>
 </head>
@@ -104,10 +115,10 @@
         </div>
 
         <div class="shortcuts">
-            <a href="https://notgreg.space" class="shortcut">NG</a>
-            <a href="https://youtube.com" class="shortcut">YT</a>
-            <a href="https://notgreg.space/opticals" class="shortcut">OP</a>
-            <a href="https://eelslap.com" class="shortcut">EEL</a>
+            <a href="https://notgreg.space" class="shortcut" title="NotGreg">NG</a>
+            <a href="https://youtube.com" class="shortcut" title="YouTube">YT</a>
+            <a href="https://notgreg.space/opticals" class="shortcut" title="Opticals">OP</a>
+            <a href="https://eelslap.com" class="shortcut" title="Eelslap">EEL</a>
         </div>
     </div>
 
