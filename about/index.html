@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Greg's Web Dev</title>
+    <!-- React and Babel CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Colorful Text Animation */
+        .colorful-char {
+            display: inline-block;
+            animation: colorfulBounce 0.5s ease-in-out;
+            font-weight: 700;
+        }
+
+        @keyframes colorfulBounce {
+            0%, 100% { transform: translateY(0) scale(1); filter: blur(0px); opacity: 1; }
+            50% { transform: translateY(-3px) scale(1.01); filter: blur(5px); opacity: 0.8; }
+        }
+
+        .color-0 { color: rgb(131, 179, 32); }
+        .color-1 { color: rgb(47, 195, 106); }
+        .color-2 { color: rgb(42, 169, 210); }
+        .color-3 { color: rgb(4, 112, 202); }
+        .color-4 { color: rgb(107, 10, 255); }
+        .color-5 { color: rgb(183, 0, 218); }
+        .color-6 { color: rgb(218, 0, 171); }
+        .color-7 { color: rgb(230, 64, 92); }
+        .color-8 { color: rgb(232, 98, 63); }
+        .color-9 { color: rgb(249, 129, 47); }
+
+        /* Liquid Glass Styles */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.12) 100%);
+            box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.35);
+            transform: translateY(-4px);
+        }
+
+        /* Liquid Glass Button Styles */
+        .liquid-glass-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .liquid-glass-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%);
+            box-shadow: 0 12px 48px 0 rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .liquid-glass-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 16px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        /* Glass Enabled State */
+        .liquid-glass-btn.glass-enabled {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+        }
+        .liquid-glass-btn.glass-enabled:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.25) 100%) !important;
+            box-shadow: 0 12px 48px 0 rgba(255, 255, 255, 0.4), inset 1px 1px 0 rgba(255, 255, 255, 0.5);
+            transform: translateY(-3px);
+        }
+
+        /* Toggle Button */
+        .glass-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-weight: 600;
+            color: #667eea;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .glass-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .glass-toggle.active {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.15) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .glass-card.glass-enabled {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.12) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 8px 32px 0 rgba(255, 255, 255, 0.3), inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+        }
+
+        /* LayoutTextFlip Animation */
+        .text-flip-container {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+
+        .text-flip-word {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            border-radius: 8px;
+            background: white;
+            padding: 8px 16px;
+            color: black;
+            font-weight: bold;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .text-flip-word span {
+            display: block;
+            animation: wordFlip 0.5s ease-in-out;
+        }
+
+        @keyframes wordFlip {
+            from {
+                transform: translateY(-40px);
+                filter: blur(10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                filter: blur(0px);
+                opacity: 1;
+            }
+        }
+
+        /* Silk Canvas */
+        .silk-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 32px;
+        }
+
+        .silk-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body class="min-h-screen py-16 px-4">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        function ColourfulText({ text }) {
+            const colors = [
+                "rgb(131, 179, 32)",
+                "rgb(47, 195, 106)",
+                "rgb(42, 169, 210)",
+                "rgb(4, 112, 202)",
+                "rgb(107, 10, 255)",
+                "rgb(183, 0, 218)",
+                "rgb(218, 0, 171)",
+                "rgb(230, 64, 92)",
+                "rgb(232, 98, 63)",
+                "rgb(249, 129, 47)",
+            ];
+
+            const [currentColors, setCurrentColors] = React.useState(colors);
+            const [, setCount] = React.useState(0);
+
+            React.useEffect(() => {
+                const interval = setInterval(() => {
+                    const shuffled = [...colors].sort(() => Math.random() - 0.5);
+                    setCurrentColors(shuffled);
+                    setCount((prev) => prev + 1);
+                }, 5000);
+
+                return () => clearInterval(interval);
+            }, []);
+
+            return text.split("").map((char, index) => (
+                <span
+                    key={`${char}-${index}`}
+                    className="colorful-char inline-block whitespace-pre"
+                    style={{
+                        color: currentColors[index % currentColors.length],
+                        animationDelay: `${index * 0.05}s`,
+                    }}
+                >
+                    {char}
+                </span>
+            ));
+        }
+
+        function LayoutTextFlip({ text = "Build Amazing", words = ["Landing Pages", "Component Blocks", "Page Sections", "3D Shaders"], duration = 3000 }) {
+            const [currentIndex, setCurrentIndex] = React.useState(0);
+
+            React.useEffect(() => {
+                const interval = setInterval(() => {
+                    setCurrentIndex((prevIndex) => (prevIndex + 1) % words.length);
+                }, duration);
+                return () => clearInterval(interval);
+            }, [words.length, duration]);
+
+            return (
+                <div className="text-flip-container">
+                    <span className="text-2xl font-bold tracking-tight drop-shadow-lg md:text-4xl text-white">
+                        {text}
+                    </span>
+                    <div className="text-flip-word">
+                        <span key={currentIndex}>{words[currentIndex]}</span>
+                    </div>
+                </div>
+            );
+        }
+
+        function SilkCanvas({ speed = 5, scale = 1, color = "#7B7481", noiseIntensity = 1.5, rotation = 0 }) {
+            const canvasRef = React.useRef();
+
+            React.useEffect(() => {
+                if (!canvasRef.current) return;
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let animationId;
+                let time = 0;
+
+                const resize = () => {
+                    canvas.width = canvas.offsetWidth;
+                    canvas.height = canvas.offsetHeight;
+                };
+
+                const noise = (x, y) => {
+                    return Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+                };
+
+                const draw = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    ctx.globalAlpha = 0.8;
+                    
+                    for (let i = 0; i < 15; i++) {
+                        const x = (Math.sin(time * speed * 0.001 + i) + 1) * (canvas.width / 2);
+                        const y = (Math.cos(time * speed * 0.0008 + i * 0.7) + 1) * (canvas.height / 2);
+                        
+                        const gradient = ctx.createLinearGradient(x - 100, y - 100, x + 100, y + 100);
+                        gradient.addColorStop(0, color + '00');
+                        gradient.addColorStop(0.5, color + '80');
+                        gradient.addColorStop(1, color + '00');
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 80 + Math.sin(time * 0.001 + i) * 40, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    time += 16;
+                    animationId = requestAnimationFrame(draw);
+                };
+
+                resize();
+                window.addEventListener('resize', resize);
+                draw();
+
+                return () => {
+                    cancelAnimationFrame(animationId);
+                    window.removeEventListener('resize', resize);
+                };
+            }, [speed, color, noiseIntensity]);
+
+            return <canvas ref={canvasRef} className="silk-canvas" />;
+        }
+
+        function AboutPage() {
+            const [glassEnabled, setGlassEnabled] = React.useState(false);
+
+            return (
+                <>
+                    {/* Toggle Button */}
+                    <button
+                        className={`glass-toggle ${glassEnabled ? 'active' : ''}`}
+                        onClick={() => setGlassEnabled(!glassEnabled)}
+                    >
+                        {glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF'}
+                    </button>
+
+                    <div className="max-w-3xl mx-auto">
+                        {/* Hero Section */}
+                        <div className="mb-8 text-center">
+                            <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
+                                <ColourfulText text="About This Site" />
+                            </h1>
+                            <p className="text-lg text-white opacity-90">
+                                Explore the creative projects and ideas of Greg, a passionate developer
+                            </p>
+                        </div>
+
+                        {/* About Site Section */}
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-4">📍 About This Website</h2>
+                            <div className="silk-container mb-6">
+                                <SilkCanvas speed={3} color="#667eea" />
+                            </div>
+                            <p className="text-white opacity-90 leading-relaxed mb-4">
+                                This is a personal portfolio and project showcase created to demonstrate various web development skills and creative ideas. The site features:
+                            </p>
+                            <ul className="text-white opacity-90 space-y-2 mb-4 ml-4">
+                                <li>✨ <strong>Interactive Games & Visualizations</strong> - From 3D physics simulations to creative animations</li>
+                                <li>🎮 <strong>Multiplayer Experiences</strong> - Real-time collaborative gameplay using modern web technologies</li>
+                                <li>🎨 <strong>Design Experiments</strong> - Exploring glassmorphism, animations, and modern UI patterns</li>
+                                <li>💻 <strong>Full Stack Projects</strong> - Server-side solutions, WebSocket integration, and cloud deployment</li>
+                                <li>🚀 <strong>Cutting-Edge Features</strong> - React, Three.js, Canvas APIs, and more</li>
+                            </ul>
+                            <p className="text-white opacity-90">
+                                Each project represents a learning journey and exploration of what's possible on the web.
+                            </p>
+                        </div>
+
+                        {/* About Greg Section */}
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-4">👨‍💻 About Greg</h2>
+                            <p className="text-white opacity-90 leading-relaxed mb-4">
+                                Hi! I'm Greg, a developer who loves building things just for the fun of it. It's my passion. I get genuinely excited about solving problems, experimenting with new technologies, and pushing the boundaries of what web applications can do.
+                            </p>
+                            <p className="text-white opacity-90 leading-relaxed mb-4">
+                                <strong>What drives me:</strong>
+                            </p>
+                            <ul className="text-white opacity-90 space-y-2 mb-4 ml-4">
+                                <li>🎯 <strong>Creative Problem Solving</strong> - Finding elegant solutions to complex challenges</li>
+                                <li>🔬 <strong>Experimentation</strong> - Always testing new libraries, frameworks, and techniques</li>
+                                <li>🌈 <strong>Beautiful UX</strong> - Creating interfaces that are both functional and delightful</li>
+                                <li>🚀 <strong>Performance & Innovation</strong> - Optimizing code and implementing cutting-edge features</li>
+                                <li>🎓 <strong>Continuous Learning</strong> - Staying updated with the latest web development trends</li>
+                            </ul>
+                            <p className="text-white opacity-90">
+                                Every project here represents my journey of exploration and self-improvement. I build because I love it—that's the real motivation.
+                            </p>
+                        </div>
+
+                        {/* Skills Section */}
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-4">🛠️ Technologies & Skills</h2>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {['React', 'JavaScript', 'Three.js', 'Canvas API', 'WebSockets', 'Tailwind CSS', 'Node.js', 'Python', 'Firebase'].map((tech) => (
+                                    <div key={tech} className="bg-white/10 backdrop-blur-sm rounded-lg p-3 text-center text-white font-semibold hover:bg-white/20 transition">
+                                        {tech}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* CTA Section */}
+                        <div className="text-center">
+                            <h2 className="text-3xl font-bold text-white mb-6">
+                                <LayoutTextFlip 
+                                    text="Explore" 
+                                    words={["More", "Projects", "Ideas", "Code"]} 
+                                    duration={3000} 
+                                />
+                            </h2>
+                            <p className="text-white opacity-90 mb-6">
+                                Check out the various projects and experiences available on the site. Each one tells a story of curiosity and creativity.
+                            </p>
+                            <a
+                                href="https://greg-webdev.github.io/"
+                                className={`liquid-glass-btn ${glassEnabled ? 'glass-enabled' : ''} inline-block mb-4`}
+                            >
+                                ← Back to Home
+                            </a>
+                            <p className="text-white/70 text-sm">
+                                Made with ❤️ by Greg · © 2026
+                            </p>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<AboutPage />);
+    </script>
+</body>
+</html>
