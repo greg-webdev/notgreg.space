@@ -1,0 +1,23 @@
+# Firebase Rules - Quick Setup
+
+## Copy & Paste to Firebase Console
+
+Go to: **Firebase Console** → **aiai0** → **Firestore Database** → **Rules**
+
+Then replace all content with:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/chats/{chatId} {
+      allow read, write: if request.auth.uid == userId;
+      match /messages/{messageId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+  }
+}
+```
+
+Click **Publish** and you're done!

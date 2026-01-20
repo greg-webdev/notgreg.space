@@ -115,9 +115,12 @@
 
             <div class="flex items-center space-x-2 mb-4">
                 <p id="user-id" class="text-xs text-gray-400 truncate flex-grow">.</p>
-                <!-- Google Sign In/Out Button -->
-                <button id="google-sign-in-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled style="display: none;">
+                <!-- Sign In Button for Firebase -->
+                <button id="new-firebase-sign-in-btn" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" disabled style="display: none;">
                     Sign In
+                </button>
+                <button id="sign-out-btn" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-full shadow-sm transition duration-150" style="display: none;">
+                    Sign Out
                 </button>
             </div>
 
@@ -233,10 +236,8 @@
 
         // --- FIREBASE SETUP AND STATE ---
         
-        // PASTE YOUR NEW FIREBASE CONFIG OBJECT HERE 
-        // (From your new project's Firebase Console > Project settings > Web App)
-        // Ensure you enable Google, Anonymous, and Custom Authentication in the new Firebase project!
-        const FALLBACK_FIREBASE_CONFIG = {
+        // Firebase config for aiai0 project
+        const FIREBASE_CONFIG = {
             apiKey: "AIzaSyDZS7wgBGnmtKSzo5WjyiWo7ryXc15JbSU",
             authDomain: "aiai0-f06f1.firebaseapp.com",
             projectId: "aiai0-f06f1",
@@ -245,20 +246,8 @@
             appId: "1:1022045633401:web:3be544a3a546346fed0da8"
         };
         
-        // Old Firebase config for reading historical chats
-        const OLD_FIREBASE_CONFIG = {
-            apiKey: "AIzaSyCrvPO2dNU-eUlTDwDDqUtwyFVMdCWVgmE",
-            authDomain: "aiai-84c07.firebaseapp.com",
-            projectId: "aiai-84c07",
-            storageBucket: "aiai-84c07.firebasestorage.app",
-            messagingSenderId: "427824814550",
-            appId: "1:427824814550:web:53c88be21f4f04633e2c77"
-        };
-        
         let app;
-        let oldApp;
         let db;
-        let oldDb;
         let auth;
         let userId = null;
         let currentChatId = null;
@@ -271,11 +260,8 @@
         // --- API KEY STATE (Now loaded from fetch) ---
         let API_KEY = null; 
         
-        // Use the environment's __app_id for Firestore paths, falling back to the projectId from the config.
-        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : FALLBACK_FIREBASE_CONFIG.projectId; 
-        
-        // Use the environment's config, falling back to the user-provided hardcoded config.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : FALLBACK_FIREBASE_CONFIG;
+        // Use the environment's config, falling back to the single Firebase config.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : FIREBASE_CONFIG;
         
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
@@ -408,7 +394,8 @@
         const chatListEl = document.getElementById('chat-list');
         const chatStatusEl = document.getElementById('chat-status');
         const authStatusEl = document.getElementById('auth-status');
-        const googleSignInBtn = document.getElementById('google-sign-in-btn');
+        const signInBtn = document.getElementById('new-firebase-sign-in-btn');
+        const signOutBtn = document.getElementById('sign-out-btn');
         const newChatBtn = document.getElementById('new-chat-btn');
         const chatTitleEl = document.getElementById('chat-title');
         const renameBtnEl = document.getElementById('rename-btn');
@@ -428,6 +415,21 @@
 
 
         // --- UTILITY FUNCTIONS ---
+
+        /**
+         * Update button visibility based on authentication states
+         */
+        function updateAuthButtonVisibility() {
+            if (isAuthenticated) {
+                // User is signed in - show sign out button only
+                signOutBtn.style.display = 'inline-block';
+                signInBtn.style.display = 'none';
+            } else {
+                // User is not signed in - show sign in button, hide sign out
+                signInBtn.style.display = 'inline-block';
+                signOutBtn.style.display = 'none';
+            }
+        }
 
         /**
          * Custom modal for user interaction (alerts, prompts, confirmations).
@@ -862,8 +864,8 @@
                 return;
             }
 
-            // Use oldDb to read historical chats from old Firebase, oldDb is always initialized
-            const chatsRef = collection(oldDb, `artifacts/${OLD_FIREBASE_CONFIG.projectId}/users/${userId}/chats`);
+            // Use db to read chats from Firebase
+            const chatsRef = collection(db, `users/${userId}/chats`);
             const q = query(chatsRef, orderBy('createdAt', 'desc'), limit(50));
             
             unsubscribeChats = onSnapshot(q, (snapshot) => {
@@ -898,8 +900,8 @@
             
             setChatUIEnabled(true);
             
-            // Read messages from old Firebase for historical chats
-            const messagesRef = collection(oldDb, `artifacts/${OLD_FIREBASE_CONFIG.projectId}/users/${userId}/chats`, chatId, 'messages');
+            // Read messages from Firebase
+            const messagesRef = collection(db, `users/${userId}/chats`, chatId, 'messages');
             const q = query(messagesRef, orderBy('createdAt', 'asc'));
             
             unsubscribeMessages = onSnapshot(q, (snapshot) => {
@@ -1175,25 +1177,22 @@
         // --- GOOGLE SIGN IN/OUT FUNCTIONS ---
 
         /**
-         * Initiates the Google Sign-In flow using a popup.
+         * Sign in with Google
          */
         async function signInWithGoogle() {
             const provider = new GoogleAuthProvider();
             try {
-                // Force prompt for account selection every time
                 provider.setCustomParameters({ prompt: 'select_account' }); 
-                
-                googleSignInBtn.disabled = true;
-                googleSignInBtn.textContent = 'Signing in...';
+                signInBtn.disabled = true;
+                signInBtn.textContent = 'Signing in...';
 
                 await signInWithPopup(auth, provider);
-                // onAuthStateChanged listener handles UI update on success
                 
             } catch (error) {
-                console.error("Google Sign-In Error:", error);
-                showAlert('PRESS OK', `press ok to sign in`);
-                googleSignInBtn.disabled = false;
-                googleSignInBtn.textContent = 'Sign In';
+                console.error("Sign-In Error:", error);
+                showAlert('Sign-In Error', `Failed to sign in: ${error.message}`);
+                signInBtn.disabled = false;
+                signInBtn.textContent = 'Sign In';
             }
         }
         
@@ -1302,14 +1301,9 @@
         menuToggleEl.addEventListener('click', toggleSidebar);
         menuToggleMobileEl.addEventListener('click', toggleSidebar);
 
-        // Assign the Google Sign-in/out logic
-        googleSignInBtn.addEventListener('click', async () => {
-            // Logic is dynamically assigned in onAuthStateChanged
-            const handler = googleSignInBtn.onclick;
-            if (handler) {
-                await handler();
-            }
-        });
+        // Sign in/out button listeners
+        signInBtn.addEventListener('click', signInWithGoogle);
+        signOutBtn.addEventListener('click', signOutUser);
 
 
         // --- FIREBASE INITIALIZATION ---
@@ -1321,17 +1315,11 @@
             authStatusEl.textContent = ' ';
             
             try {
-                // Initialize new app for authentication
+                // Initialize Firebase app
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
+                db = getFirestore(app);
                 
-                // Initialize old app for reading historical chats
-                oldApp = initializeApp(OLD_FIREBASE_CONFIG, 'oldApp');
-                oldDb = getFirestore(oldApp);
-                
-                // For authenticated users, we'll write to new Firestore (db will be set when authenticated)
-                // For now, db will only be set if user is authenticated
-
                 // Set auth persistence to browser localStorage so user stays signed in
                 await setPersistence(auth, browserLocalPersistence);
                 
@@ -1344,58 +1332,31 @@
                     }
                 } 
 
-                // 2. Set up the state listener and rely on it for UI updates
+                // 2. Set up the state listener for Firebase auth
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // --- User IS authenticated (Google or Custom) ---
-                        // Note: Anonymous users are now blocked from this path.
+                        // --- User IS authenticated ---
                         
-                        // Check if the user is anonymous (which shouldn't happen with the new logic, but is a safe guard)
-                        if (user.isAnonymous) {
-                            // Immediately sign out to prevent anonymous use, forcing Google sign-in
-                            await signOut(auth);
-                            // Fall through to the 'else' block below
-                            user = null; 
-                        }
+                        userId = user.uid;
+                        isAuthenticated = true;
                         
-                        if (user) {
-                            // Initialize Firestore for the new app only when authenticated
-                            db = getFirestore(app);
-                            
-                            userId = user.uid;
-                            isAuthenticated = true;
-                            
-                            // Determine the user name for display
-                            const userName = user.displayName || user.email || 'Authenticated User';
-                            userIdEl.textContent = `User: ${userName}`;
-                            
-                            // Set button state to Sign Out
-                            googleSignInBtn.textContent = 'Sign Out';
-                            googleSignInBtn.onclick = signOutUser;
-                            googleSignInBtn.style.display = 'inline-block';
-                            
-                            authStatusEl.textContent = 'Firebase Ready (Signed In)';
-                            authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
-                            authStatusEl.classList.add('text-green-400');
-                            
-                            startChatListListener(); // Start listening for chats
-                            
-                        }
-                    } 
-                    
-                    if (!user) {
-                        // --- User IS NOT authenticated (or was blocked anonymous) ---
+                        // Determine the user name for display
+                        const userName = user.displayName || user.email || 'Authenticated User';
+                        userIdEl.textContent = `User: ${userName}`;
+                        
+                        authStatusEl.textContent = 'Firebase Ready (Signed In)';
+                        authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
+                        authStatusEl.classList.add('text-green-400');
+                        
+                        startChatListListener(); // Start listening for chats
+                    } else {
+                        // --- User is NOT authenticated ---
                         
                         // Set up local fallback mode for non-authenticated users
                         userId = getOrCreateClientId(); // Set the client-side fallback ID
                         isAuthenticated = false;
 
                         handleAuthFailure(null);
-                        
-                        // Set button state to Sign In 
-                        googleSignInBtn.textContent = 'Sign In';
-                        googleSignInBtn.onclick = signInWithGoogle;
-                        googleSignInBtn.style.display = 'inline-block';
                         
                         // Stop chat listeners if they were running
                         if (unsubscribeChats) unsubscribeChats(); 
@@ -1405,8 +1366,11 @@
                         loadLocalChats();
                     }
                     
-                    // Final state update, common to both branches
-                    googleSignInBtn.disabled = false;
+                    // Update button visibility based on auth state
+                    updateAuthButtonVisibility();
+                    
+                    // Final state update
+                    signInBtn.disabled = false;
                     loadApiKeyFromFile(); 
                     setChatUIEnabled(true);
                 });
@@ -1431,12 +1395,6 @@
             authStatusEl.textContent = `Ready to chat`;
             authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
             authStatusEl.classList.add('text-green-400');
-            
-            // --- Optionally show sign-in button for authenticated features ---
-            googleSignInBtn.textContent = 'Sign In (Optional)';
-            googleSignInBtn.onclick = signInWithGoogle;
-            googleSignInBtn.style.display = 'inline-block'; 
-            googleSignInBtn.disabled = false; // Ensure it's clickable
 
             // Continue with API key loading and enabling chat UI with the fallback ID
             loadApiKeyFromFile();
