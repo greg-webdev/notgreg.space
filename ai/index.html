@@ -210,7 +210,7 @@
             signInWithPopup,
             signOut,
             setPersistence,
-            inMemoryPersistence
+            browserLocalPersistence
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
@@ -237,6 +237,16 @@
         // (From your new project's Firebase Console > Project settings > Web App)
         // Ensure you enable Google, Anonymous, and Custom Authentication in the new Firebase project!
         const FALLBACK_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDZS7wgBGnmtKSzo5WjyiWo7ryXc15JbSU",
+            authDomain: "aiai0-f06f1.firebaseapp.com",
+            projectId: "aiai0-f06f1",
+            storageBucket: "aiai0-f06f1.firebasestorage.app",
+            messagingSenderId: "1022045633401",
+            appId: "1:1022045633401:web:3be544a3a546346fed0da8"
+        };
+        
+        // Old Firebase config for reading historical chats
+        const OLD_FIREBASE_CONFIG = {
             apiKey: "AIzaSyCrvPO2dNU-eUlTDwDDqUtwyFVMdCWVgmE",
             authDomain: "aiai-84c07.firebaseapp.com",
             projectId: "aiai-84c07",
@@ -246,7 +256,9 @@
         };
         
         let app;
+        let oldApp;
         let db;
+        let oldDb;
         let auth;
         let userId = null;
         let currentChatId = null;
@@ -254,6 +266,7 @@
         let unsubscribeChats = null; // Listener for chat list
         let isSending = false;
         let chatHistory = [];
+        let isAuthenticated = false; // Track if user is actually signed in to Firebase
         
         // --- API KEY STATE (Now loaded from fetch) ---
         let API_KEY = null; 
@@ -295,6 +308,97 @@
                 localStorage.setItem('__ngs_client_id', clientId);
             }
             return 'anon-client-' + clientId; // Prefix to distinguish from Firebase UIDs
+        }
+
+        // --- LOCAL STORAGE FUNCTIONS (for non-authenticated users) ---
+
+        /**
+         * Load chats from local storage for non-authenticated users
+         */
+        function loadLocalChats() {
+            const chats = JSON.parse(localStorage.getItem(`__ngs_chats_${userId}`) || '[]');
+            
+            chatListEl.innerHTML = '';
+            if (chats.length === 0) {
+                chatListEl.innerHTML = '<li class="text-gray-500 text-sm p-2">No chats yet</li>';
+            } else {
+                chats.forEach(chat => {
+                    const li = document.createElement('li');
+                    li.className = 'p-2 cursor-pointer hover:bg-gray-700 rounded text-sm truncate';
+                    li.textContent = chat.title;
+                    li.dataset.chatId = chat.id;
+                    li.onclick = () => selectChat(chat.id);
+                    chatListEl.appendChild(li);
+                });
+            }
+        }
+
+        /**
+         * Save a message to local storage
+         */
+        function saveLocalMessage(chatId, message) {
+            const messages = JSON.parse(localStorage.getItem(`__ngs_messages_${chatId}`) || '[]');
+            messages.push(message);
+            localStorage.setItem(`__ngs_messages_${chatId}`, JSON.stringify(messages));
+            
+            // Update chat history for display
+            chatHistory.push(message);
+            displayMessage(message.text, message.role, new Date(message.createdAt));
+        }
+
+        /**
+         * Load messages from local storage
+         */
+        function loadLocalMessages(chatId) {
+            const messages = JSON.parse(localStorage.getItem(`__ngs_messages_${chatId}`) || '[]');
+            chatHistory = messages;
+            
+            chatMessagesEl.innerHTML = '';
+            messages.forEach(msg => displayMessage(msg.text, msg.role, new Date(msg.createdAt)));
+        }
+
+        /**
+         * Create a new chat in local storage
+         */
+        function createLocalChat(title = 'New Chat') {
+            const chatId = generateUUID();
+            const chat = {
+                id: chatId,
+                title: title,
+                createdAt: new Date().toISOString(),
+                userId: userId
+            };
+            
+            const chats = JSON.parse(localStorage.getItem(`__ngs_chats_${userId}`) || '[]');
+            chats.push(chat);
+            localStorage.setItem(`__ngs_chats_${userId}`, JSON.stringify(chats));
+            
+            // Initialize empty messages array
+            localStorage.setItem(`__ngs_messages_${chatId}`, JSON.stringify([]));
+            
+            return chatId;
+        }
+
+        /**
+         * Update chat title in local storage
+         */
+        function updateLocalChatTitle(chatId, newTitle) {
+            const chats = JSON.parse(localStorage.getItem(`__ngs_chats_${userId}`) || '[]');
+            const chat = chats.find(c => c.id === chatId);
+            if (chat) {
+                chat.title = newTitle;
+                localStorage.setItem(`__ngs_chats_${userId}`, JSON.stringify(chats));
+            }
+        }
+
+        /**
+         * Delete a chat from local storage
+         */
+        function deleteLocalChat(chatId) {
+            const chats = JSON.parse(localStorage.getItem(`__ngs_chats_${userId}`) || '[]');
+            const filtered = chats.filter(c => c.id !== chatId);
+            localStorage.setItem(`__ngs_chats_${userId}`, JSON.stringify(filtered));
+            localStorage.removeItem(`__ngs_messages_${chatId}`);
         }
 
         // --- DOM ELEMENTS ---
@@ -425,11 +529,10 @@
             }
             
             newChatBtn.disabled = !isUserReady || !isApiKeyReady;
-            // Disable rename/delete if using fallback ID OR if not properly signed in (only Google-signed-in users can rename/delete)
-            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-            renameBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isGoogleUser; 
-            deleteBtnEl.disabled = !isUserReady || !currentChatId || isFallback || !isGoogleUser; 
-            chatActionsEl.style.display = (currentChatId && !isFallback && isGoogleUser) ? 'flex' : 'none';
+            // Enable rename/delete for both authenticated and local users
+            renameBtnEl.disabled = !isUserReady || !currentChatId; 
+            deleteBtnEl.disabled = !isUserReady || !currentChatId; 
+            chatActionsEl.style.display = (currentChatId) ? 'flex' : 'none';
 
 
             // Update placeholder to prompt action if needed
@@ -759,7 +862,8 @@
                 return;
             }
 
-            const chatsRef = collection(db, getUserCollectionPath('chats'));
+            // Use oldDb to read historical chats from old Firebase, oldDb is always initialized
+            const chatsRef = collection(oldDb, `artifacts/${OLD_FIREBASE_CONFIG.projectId}/users/${userId}/chats`);
             const q = query(chatsRef, orderBy('createdAt', 'desc'), limit(50));
             
             unsubscribeChats = onSnapshot(q, (snapshot) => {
@@ -794,7 +898,8 @@
             
             setChatUIEnabled(true);
             
-            const messagesRef = collection(db, getUserCollectionPath('chats'), chatId, 'messages');
+            // Read messages from old Firebase for historical chats
+            const messagesRef = collection(oldDb, `artifacts/${OLD_FIREBASE_CONFIG.projectId}/users/${userId}/chats`, chatId, 'messages');
             const q = query(messagesRef, orderBy('createdAt', 'asc'));
             
             unsubscribeMessages = onSnapshot(q, (snapshot) => {
@@ -847,35 +952,57 @@
             if (!chatId) {
                 // Create New Chat
                 try {
-                    const chatsRef = collection(db, getUserCollectionPath('chats'));
-                    const newChat = {
-                        title: 'New Chat',
-                        createdAt: serverTimestamp(),
-                        userId: userId,
-                    };
-                    const docRef = await addDoc(chatsRef, newChat);
-                    
-                    // Automatically select the newly created chat
-                    startMessageListener(docRef.id, newChat.title);
+                    if (isAuthenticated) {
+                        const chatsRef = collection(db, getUserCollectionPath('chats'));
+                        const newChat = {
+                            title: 'New Chat',
+                            createdAt: serverTimestamp(),
+                            userId: userId,
+                        };
+                        const docRef = await addDoc(chatsRef, newChat);
+                        
+                        // Automatically select the newly created chat
+                        startMessageListener(docRef.id, newChat.title);
+                    } else {
+                        // Create chat in local storage
+                        const newChatId = createLocalChat('New Chat');
+                        currentChatId = newChatId;
+                        chatTitleEl.textContent = 'New Chat';
+                        chatMessagesEl.innerHTML = '';
+                        chatActionsEl.style.display = 'flex';
+                        chatHistory = [];
+                        setChatUIEnabled(true);
+                        
+                        // Reload chat list to show new chat
+                        loadLocalChats();
+                    }
 
                 } catch (error) {
                     console.error("Error creating chat:", error);
-                    // Use a specific error message if the failure is due to the fallback ID
-                    const errorMessage = userId.startsWith('anon-client-') 
-                        ? "it wont work you have to sign in"
-                        : `Failed to create new chat: ${error.message}`;
-                        
-                    showAlert('Error', errorMessage);
+                    showAlert('Error', `Failed to create new chat: ${error.message}`);
                 }
             } else {
                 // Select Existing Chat
                 if (chatId === currentChatId) return; // Already selected
                 
-                // Find chat title from the list (it's often faster than a separate fetch)
-                const chatItem = chatListEl.querySelector(`[data-chat-id="${chatId}"]`);
-                const chatTitle = chatItem ? chatItem.textContent : 'Loading...';
-                
-                startMessageListener(chatId, chatTitle);
+                if (isAuthenticated) {
+                    // Find chat title from the list (it's often faster than a separate fetch)
+                    const chatItem = chatListEl.querySelector(`[data-chat-id="${chatId}"]`);
+                    const chatTitle = chatItem ? chatItem.textContent : 'Loading...';
+                    
+                    startMessageListener(chatId, chatTitle);
+                } else {
+                    // Load from local storage
+                    const chats = JSON.parse(localStorage.getItem(`__ngs_chats_${userId}`) || '[]');
+                    const chat = chats.find(c => c.id === chatId);
+                    if (chat) {
+                        currentChatId = chatId;
+                        chatTitleEl.textContent = chat.title;
+                        chatActionsEl.style.display = 'flex';
+                        loadLocalMessages(chatId);
+                        setChatUIEnabled(true);
+                    }
+                }
             }
         }
         
@@ -889,15 +1016,13 @@
             chatMessagesEl.innerHTML = `
                 <div class="text-center text-gray-500 mt-20">
                     <p class="text-3xl mb-2">👋 Welcome to NOTGREG.SPACE/AI</p>
-                    <p>1. Sign in</p>
-                    <p>2. Start a new chat!</p>
+                    <p>1. Start a new chat!</p>
+                    <p style="font-size: 0.875rem; color: #9ca3af; margin-top: 1rem;">(Sign in to save chats)</p>
                 </div>
             `;
             chatActionsEl.style.display = 'none';
             chatHistory = [];
             setChatUIEnabled(true);
-            // Re-render chat list to un-highlight
-            startChatListListener();
         }
 
         /**
@@ -908,15 +1033,21 @@
             if (!API_KEY || !currentChatId || isSending) return;
             isSending = true;
             
-            // 1. Add user message to Firestore (and UI via listener)
+            // 1. Add user message to storage (Firestore if authenticated, local if not)
             const userMessage = {
                 text: prompt,
                 role: 'user',
-                createdAt: serverTimestamp(),
+                createdAt: new Date().toISOString(),
             };
             try {
-                const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
-                await addDoc(messagesRef, userMessage);
+                if (isAuthenticated) {
+                    // Firestore path
+                    const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
+                    await addDoc(messagesRef, userMessage);
+                } else {
+                    // Local storage path
+                    saveLocalMessage(currentChatId, userMessage);
+                }
             } catch (error) {
                 console.error("Error saving user message:", error);
                 chatStatusEl.textContent = `Error saving message: ${error.message}`;
@@ -938,7 +1069,7 @@
                 contents: contents,
                 tools: [{ "google_search": {} }],
                 systemInstruction: {
-                    parts: [{ text: "You are a friendly and helpful AI assistant made by greg, an expert in coding and creative tasks. If the user asks about ng.s or anything similar, it stands for notgreg.space. NEVER mention that you were made by google or are related to gemini You respond concisely and accurately. If you generate an HTML file, you MUST include the '@###' marker before the content to signal the start and the '###@' marker after the content to signal the end of the file block for parsing. If the user asks you about other notgreg.space pages or similar give them this list: ballgame, chat, chess, fpstest, ftp, game, haha, hole, infos, links, minecraft, opticals, padlet, plotter, server, shop, shutdowncommand, software, superpccrasher, webpc, webpctouch" }]
+                    parts: [{ text: "You are a friendly and helpful AI assistant made by greg, an expert in coding and creative tasks. If the user asks about ng.s or anything similar, it stands for notgreg.space. NEVER mention that you were made by google or are related to gemini. You respond concisely and accurately. Do NOT use ** or markdown bold formatting in your responses. If you generate an HTML file, you MUST include the '@###' marker before the content to signal the start and the '###@' marker after the content to signal the end of the file block for parsing. If the user asks you about other notgreg.space pages or similar give them this list: ballgame, chat, chess, fpstest, ftp, fun, game, gimkit, hole, infos, jar, links, minecraft, opticals, padlet, paper, plotter, shop, software, soundboard, webpc, webpctouch" }]
                 }
             };
             
@@ -998,23 +1129,36 @@
 
             showTypingIndicator(false);
             
-            // 4. Save model response to Firestore
+            // 4. Save model response to storage (Firestore if authenticated, local if not)
             const modelMessage = {
                 text: modelResponseText,
                 role: 'model',
-                createdAt: serverTimestamp(),
+                createdAt: new Date().toISOString(),
             };
             
             try {
-                const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
-                await addDoc(messagesRef, modelMessage);
+                if (isAuthenticated) {
+                    // Firestore path
+                    const messagesRef = collection(db, getUserCollectionPath('chats'), currentChatId, 'messages');
+                    await addDoc(messagesRef, modelMessage);
 
-                // Check if the chat is still "New Chat" and try to rename it based on the first user message
-                if (chatTitleEl.textContent === 'New Chat') {
-                    const newTitle = prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt;
-                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
-                    await updateDoc(chatDocRef, { title: newTitle });
-                    chatTitleEl.textContent = newTitle;
+                    // Check if the chat is still "New Chat" and try to rename it based on the first user message
+                    if (chatTitleEl.textContent === 'New Chat') {
+                        const newTitle = prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt;
+                        const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                        await updateDoc(chatDocRef, { title: newTitle });
+                        chatTitleEl.textContent = newTitle;
+                    }
+                } else {
+                    // Local storage path
+                    saveLocalMessage(currentChatId, modelMessage);
+                    
+                    // Update chat title in local storage if it's still "New Chat"
+                    if (chatTitleEl.textContent === 'New Chat') {
+                        const newTitle = prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt;
+                        updateLocalChatTitle(currentChatId, newTitle);
+                        chatTitleEl.textContent = newTitle;
+                    }
                 }
                 
                 chatStatusEl.textContent = ''; // Clear status on success
@@ -1102,19 +1246,25 @@
         });
         
         renameBtnEl.addEventListener('click', async () => {
-            // Check if user is authenticated and is a Google user
-            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-            if (!currentChatId || !isGoogleUser) return;
+            if (!currentChatId) return;
             
             const currentTitle = chatTitleEl.textContent;
             const newTitle = await showModal('Rename Chat', 'Enter a new title for this chat:', true, 'Rename', currentTitle);
             
             if (newTitle && newTitle !== currentTitle) {
                 try {
-                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
-                    await updateDoc(chatDocRef, { title: newTitle });
-                    chatTitleEl.textContent = newTitle;
-                    // startChatListListener will refresh the sidebar title
+                    if (isAuthenticated) {
+                        // Firestore path
+                        const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                        await updateDoc(chatDocRef, { title: newTitle });
+                        chatTitleEl.textContent = newTitle;
+                        // startChatListListener will refresh the sidebar title
+                    } else {
+                        // Local storage path
+                        updateLocalChatTitle(currentChatId, newTitle);
+                        chatTitleEl.textContent = newTitle;
+                        loadLocalChats(); // Refresh sidebar
+                    }
                 } catch (error) {
                     console.error("Error renaming chat:", error);
                     showAlert('Rename Error', `Failed to rename chat: ${error.message}`);
@@ -1123,19 +1273,20 @@
         });
         
         deleteBtnEl.addEventListener('click', async () => {
-            // Check if user is authenticated and is a Google user
-            const isGoogleUser = auth.currentUser && auth.currentUser.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-            if (!currentChatId || !isGoogleUser) return;
+            if (!currentChatId) return;
 
             const confirmDelete = await showModal('Delete Chat', 'Are you sure you want to permanently delete this chat and all its messages? This cannot be undone.', false, 'Delete');
             
             if (confirmDelete) {
                 try {
-                    // Note: Deleting the parent document (chat) typically requires cascade rules 
-                    // or manual deletion of sub-collections (messages) in the client/server.
-                    // We delete the chat document.
-                    const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
-                    await deleteDoc(chatDocRef);
+                    if (isAuthenticated) {
+                        // Firestore path
+                        const chatDocRef = doc(db, getUserCollectionPath('chats'), currentChatId);
+                        await deleteDoc(chatDocRef);
+                    } else {
+                        // Local storage path
+                        deleteLocalChat(currentChatId);
+                    }
                     resetChatView(); // Reset UI immediately
                 } catch (error) {
                     console.error("Error deleting chat:", error);
@@ -1170,12 +1321,19 @@
             authStatusEl.textContent = ' ';
             
             try {
+                // Initialize new app for authentication
                 app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
                 auth = getAuth(app);
+                
+                // Initialize old app for reading historical chats
+                oldApp = initializeApp(OLD_FIREBASE_CONFIG, 'oldApp');
+                oldDb = getFirestore(oldApp);
+                
+                // For authenticated users, we'll write to new Firestore (db will be set when authenticated)
+                // For now, db will only be set if user is authenticated
 
-                // Set auth persistence to in-memory since the iframe resets often
-                await setPersistence(auth, inMemoryPersistence);
+                // Set auth persistence to browser localStorage so user stays signed in
+                await setPersistence(auth, browserLocalPersistence);
                 
                 // 1. Attempt custom token sign-in first (if provided by canvas environment)
                 if (initialAuthToken) {
@@ -1201,7 +1359,11 @@
                         }
                         
                         if (user) {
+                            // Initialize Firestore for the new app only when authenticated
+                            db = getFirestore(app);
+                            
                             userId = user.uid;
+                            isAuthenticated = true;
                             
                             // Determine the user name for display
                             const userName = user.displayName || user.email || 'Authenticated User';
@@ -1224,13 +1386,11 @@
                     if (!user) {
                         // --- User IS NOT authenticated (or was blocked anonymous) ---
                         
-                        // Bypass anonymous sign-in and immediately fall back to local UUID/Google Sign-In prompt.
-                        let authError = new Error("Not authenticated.");
-                        if (!initialAuthToken) {
-                            authError = new Error("No sign-in token provided.");
-                        }
+                        // Set up local fallback mode for non-authenticated users
+                        userId = getOrCreateClientId(); // Set the client-side fallback ID
+                        isAuthenticated = false;
 
-                        handleAuthFailure(authError);
+                        handleAuthFailure(null);
                         
                         // Set button state to Sign In 
                         googleSignInBtn.textContent = 'Sign In';
@@ -1240,6 +1400,9 @@
                         // Stop chat listeners if they were running
                         if (unsubscribeChats) unsubscribeChats(); 
                         if (unsubscribeMessages) unsubscribeMessages();
+                        
+                        // Load local chats instead of Firebase
+                        loadLocalChats();
                     }
                     
                     // Final state update, common to both branches
@@ -1262,22 +1425,15 @@
         function handleAuthFailure(error, customMessage) {
             userId = getOrCreateClientId(); // Set the client-side fallback ID
             
-            userIdEl.classList.remove('text-gray-400', 'text-green-400');
-            userIdEl.classList.add('text-red-400');
+            userIdEl.classList.remove('text-gray-400', 'text-red-400');
+            userIdEl.classList.add('text-gray-400');
 
-            const errorMessage = customMessage || `You have to sign in to use this AI `;
-            
-            authStatusEl.textContent = `Working, probably.`;
-            authStatusEl.classList.remove('text-yellow-400', 'text-green-400');
+            authStatusEl.textContent = `Ready to chat`;
+            authStatusEl.classList.remove('text-yellow-400', 'text-red-400');
             authStatusEl.classList.add('text-green-400');
-
-            showAlert('Warning', 
-                `${errorMessage} 
-                and it is still in development so it might not be de best. For more info, text greg@notgreg.space (email)`
-            );
             
-            // --- FIX: Ensure the button is visible and set up for Sign In/Google ---
-            googleSignInBtn.textContent = 'Sign In';
+            // --- Optionally show sign-in button for authenticated features ---
+            googleSignInBtn.textContent = 'Sign In (Optional)';
             googleSignInBtn.onclick = signInWithGoogle;
             googleSignInBtn.style.display = 'inline-block'; 
             googleSignInBtn.disabled = false; // Ensure it's clickable
