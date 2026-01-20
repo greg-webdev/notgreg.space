@@ -257,18 +257,8 @@
         }
 
         function AboutPage() {
-            const [glassEnabled, setGlassEnabled] = React.useState(false);
-
             return (
                 <>
-                    {/* Toggle Button */}
-                    <button
-                        className={`glass-toggle ${glassEnabled ? 'active' : ''}`}
-                        onClick={() => setGlassEnabled(!glassEnabled)}
-                    >
-                        {glassEnabled ? '✨ Glass ON' : '🔵 Glass OFF'}
-                    </button>
-
                     <div className="max-w-3xl mx-auto">
                         {/* Hero Section */}
                         <div className="mb-8 text-center">
@@ -345,7 +335,7 @@
                             </p>
                             <a
                                 href="https://greg-webdev.github.io/"
-                                className={`liquid-glass-btn ${glassEnabled ? 'glass-enabled' : ''} inline-block mb-4`}
+                                className="liquid-glass-btn inline-block mb-4"
                             >
                                 ← Back to Home
                             </a>
