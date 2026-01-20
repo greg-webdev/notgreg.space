@@ -547,11 +547,11 @@
 
         function App() {
             const handleClick = () => {
-                window.location.href = '/react/page';
+                // Removed redirect
             };
 
             return (
-                <div className="ascii-container" onClick={handleClick}>
+                <div className="ascii-container">
                     <ASCIIText 
                         text="React" 
                         asciiFontSize={8}
@@ -559,7 +559,6 @@
                         textColor="#fdf9f3"
                         planeBaseHeight={8}
                         enableWaves={true}
-                        onClick={handleClick}
                     />
                 </div>
             );
