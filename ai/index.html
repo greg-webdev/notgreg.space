@@ -80,13 +80,15 @@
 </head>
 <body>
 
-    <!-- Full-Screen Loader Overlay -->
-    <div id="full-screen-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-40" style="display: none;">
-        <div class="flex flex-col items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
-            <!-- Loading GIF size: w-8 h-8 (32x32px) -->
-            <img id="typing-loader-gif" src="loader.gif" alt="Loading Spinner" class="w-16 h-16"> 
-            <span class="text-xl font-bold text-sky-400 mt-4">AI is thinking...</span>
-            <p id="loader-status-text" class="text-sm text-gray-400 mt-2">Connecting to model...</p>
+    <!-- Loader Overlay -->
+    <div id="full-screen-loader" class="fixed bottom-6 right-6 flex items-center justify-center z-40" style="display: none;">
+        <div class="flex flex-row items-center gap-3 p-4 bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
+            <!-- Loading GIF -->
+            <img id="typing-loader-gif" src="loader.gif" alt="Loading Spinner" class="w-8 h-8"> 
+            <div class="flex flex-col">
+                <span class="text-sm font-bold text-sky-400">AI is thinking...</span>
+                <p id="loader-status-text" class="text-xs text-gray-400">Connecting to model...</p>
+            </div>
         </div>
     </div>
 
@@ -572,7 +574,7 @@
          * @param {string} collectionName 
          */
         function getUserCollectionPath(collectionName) {
-            return `artifacts/${APP_ID}/users/${userId}/${collectionName}`;
+            return `users/${userId}/${collectionName}`;
         }
 
         /**
@@ -1204,8 +1206,19 @@
             if (confirmed) {
                 try {
                     await signOut(auth);
-                    resetChatView();
-                    // onAuthStateChanged listener handles the rest
+                    
+                    // Clear all localStorage data
+                    localStorage.clear();
+                    
+                    // Clear all cookies
+                    document.cookie.split(";").forEach((c) => {
+                        document.cookie = c
+                            .replace(/^ +/, "")
+                            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                    });
+                    
+                    // Reload the page
+                    location.reload();
                 } catch (error) {
                     console.error("Sign-Out Error:", error);
                     showAlert('Sign-Out Failed', `Could not sign out: ${error.message}`);

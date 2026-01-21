@@ -1,4 +1,99 @@
 (index):64 cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
 (anonymous) @ (index):64
 (anonymous) @ (index):64
-ai/:1459 Uncaught SyntaxError: Identifier 'oldAuth' has already been declared (at ai/:1459:23)
+ai/:830 API Key (first half): AIzaSyAKzKGqa5J8Q2G
+ai/:830 API Key (first half): AIzaSyAKzKGqa5J8Q2G
+popup.ts:309 Cross-Origin-Opener-Policy policy would block the window.closed call.
+poll @ popup.ts:309
+setTimeout
+poll @ popup.ts:216
+pollUserCancellation @ popup.ts:216
+onExecution @ popup.ts:279
+await in onExecution
+(anonymous) @ abstract_popup_redirect_operation.ts:77
+await in (anonymous)
+execute @ abstract_popup_redirect_operation.ts:72
+executeNotNull @ popup.ts:237
+signInWithPopup @ popup.ts:141
+signInWithGoogle @ ai/:1189
+popup.ts:309 Cross-Origin-Opener-Policy policy would block the window.closed call.
+poll @ popup.ts:309
+setTimeout
+poll @ popup.ts:216
+pollUserCancellation @ popup.ts:216
+onExecution @ popup.ts:279
+await in onExecution
+(anonymous) @ abstract_popup_redirect_operation.ts:77
+await in (anonymous)
+execute @ abstract_popup_redirect_operation.ts:72
+executeNotNull @ popup.ts:237
+signInWithPopup @ popup.ts:141
+signInWithGoogle @ ai/:1189
+logger.ts:123 [2026-01-21T07:06:41.350Z]  @firebase/firestore: Firestore (11.6.1): FirebaseAuthCredentialsProvider Auth detected
+logger.ts:123 [2026-01-21T07:06:41.351Z]  @firebase/firestore: Firestore (11.6.1): FirestoreClient Received user= MME4KoqY5tfIpnirzgVJAb7EKJ23
+popup.ts:36 Cross-Origin-Opener-Policy policy would block the window.close call.
+close @ popup.ts:36
+cleanUp @ popup.ts:292
+unregisterAndCleanUp @ popup.ts:91
+resolve @ abstract_popup_redirect_operation.ts:136
+onAuthEvent @ abstract_popup_redirect_operation.ts:104
+await in onAuthEvent
+sendToConsumer @ auth_event_manager.ts:105
+(anonymous) @ auth_event_manager.ts:69
+onEvent @ auth_event_manager.ts:67
+(anonymous) @ popup_redirect.ts:142
+Vm @ cb=gapi.loaded_0?le=scs:195
+(anonymous) @ cb=gapi.loaded_0?le=scs:195
+ll @ cb=gapi.loaded_0?le=scs:174
+ul @ cb=gapi.loaded_0?le=scs:174
+Pk @ cb=gapi.loaded_0?le=scs:175
+(anonymous) @ cb=gapi.loaded_0?le=scs:168
+popup.ts:36 Cross-Origin-Opener-Policy policy would block the window.close call.
+close @ popup.ts:36
+cleanUp @ popup.ts:292
+unregisterAndCleanUp @ popup.ts:91
+resolve @ abstract_popup_redirect_operation.ts:136
+onAuthEvent @ abstract_popup_redirect_operation.ts:104
+await in onAuthEvent
+sendToConsumer @ auth_event_manager.ts:105
+(anonymous) @ auth_event_manager.ts:69
+onEvent @ auth_event_manager.ts:67
+(anonymous) @ popup_redirect.ts:142
+Vm @ cb=gapi.loaded_0?le=scs:195
+(anonymous) @ cb=gapi.loaded_0?le=scs:195
+ll @ cb=gapi.loaded_0?le=scs:174
+ul @ cb=gapi.loaded_0?le=scs:174
+Pk @ cb=gapi.loaded_0?le=scs:175
+(anonymous) @ cb=gapi.loaded_0?le=scs:168
+logger.ts:123 [2026-01-21T07:06:41.352Z]  @firebase/firestore: Firestore (11.6.1): FirestoreClient Using default OnlineComponentProvider
+logger.ts:123 [2026-01-21T07:06:41.352Z]  @firebase/firestore: Firestore (11.6.1): FirestoreClient Using default OfflineComponentProvider
+logger.ts:123 [2026-01-21T07:06:41.352Z]  @firebase/firestore: Firestore (11.6.1): FirestoreClient Initializing OfflineComponentProvider
+logger.ts:123 [2026-01-21T07:06:41.353Z]  @firebase/firestore: Firestore (11.6.1): FirestoreClient Initializing OnlineComponentProvider
+logger.ts:123 [2026-01-21T07:06:41.354Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Allocate target
+logger.ts:123 [2026-01-21T07:06:41.355Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Execute query
+logger.ts:123 [2026-01-21T07:06:41.355Z]  @firebase/firestore: Firestore (11.6.1): QueryEngine Using full collection scan to execute query: Query(target=Target(users/MME4KoqY5tfIpnirzgVJAb7EKJ23/chats, limit: 50, orderBy: [createdAt (desc), __name__ (desc)]); limitType=F)
+logger.ts:123 [2026-01-21T07:06:41.357Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection Creating RPC 'Listen' stream 0x4dfd1bcd: https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel {"httpSessionIdParam":"gsessionid","initMessageHeaders":{"X-Goog-Api-Client":"gl-js/ fire/11.6.1","Content-Type":"text/plain","X-Firebase-GMPID":"1:1022045633401:web:3be544a3a546346fed0da8","Authorization":"Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjA4MmU5NzVlMDdkZmE0OTYwYzdiN2I0ZmMxZDEwZjkxNmRjMmY1NWIiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiR3JlZ29yeSIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NLT25xcnhWU2FmUDBxM0FwV24zYkp2YWVFTjlpWElxcUJPbWRqcnVLODgxRkpsNlE9czk2LWMiLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vYWlhaTAtZjA2ZjEiLCJhdWQiOiJhaWFpMC1mMDZmMSIsImF1dGhfdGltZSI6MTc2ODk3OTIwMCwidXNlcl9pZCI6Ik1NRTRLb3FZNXRmSXBuaXJ6Z1ZKQWI3RUtKMjMiLCJzdWIiOiJNTUU0S29xWTV0ZklwbmlyemdWSkFiN0VLSjIzIiwiaWF0IjoxNzY4OTc5MjAwLCJleHAiOjE3Njg5ODI4MDAsImVtYWlsIjoiZ3JlZ2Jsb3hkQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7Imdvb2dsZS5jb20iOlsiMTE2MjA4OTI1ODMzMTExNTc0MzAzIl0sImVtYWlsIjpbImdyZWdibG94ZEBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJnb29nbGUuY29tIn19.iwGK4MIWqibFuB1Ai27SHwsPIO0tcJ-Z9gIa0gUl3tFQ7m6ajdJ6wletlt-e4vBcFRJW0WmKGfhdnUQtj5dbvuZgBHpjLRTSwrb-IvM6IoWDxLkDumFjd_uR__79dHWT9dfInpYn_-vjJ7PF3CiPl4WXPwim_oQZtnQQ-CqaAgXsZQO8MTcTkf2z6cSfCLN_B5TJr65wqMyCECz6DTsRd3aoqX7XPI2_IA8XRAsexb2nYYSY2-EsWESYbV-R2gp9GpIwGs3-sM-A99Qc3Xq6gSWTG_n8uYqhqJlmHce_3FdNqR-7_0iv-ZYY5GTB7yBmy6Fon2381drUk7HkCZgxKQ"},"messageUrlParams":{"database":"projects/aiai0-f06f1/databases/(default)"},"sendRawJson":true,"supportsCrossDomainXhr":true,"internalChannelParams":{"forwardChannelRequestTimeoutMs":600000},"forceLongPolling":false,"detectBufferingProxy":true,"useFetchStreams":true,"encodeInitMessageHeaders":true}
+logger.ts:123 [2026-01-21T07:06:41.358Z]  @firebase/firestore: Firestore (11.6.1): FirebaseAppCheckTokenProvider AppCheck not yet detected
+logger.ts:123 [2026-01-21T07:06:41.359Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection Opening RPC 'Listen' stream 0x4dfd1bcd transport.
+logger.ts:123 [2026-01-21T07:06:41.359Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd sending: {"database":"projects/aiai0-f06f1/databases/(default)","addTarget":{"query":{"structuredQuery":{"from":[{"collectionId":"chats"}],"orderBy":[{"field":{"fieldPath":"createdAt"},"direction":"DESCENDING"},{"field":{"fieldPath":"__name__"},"direction":"DESCENDING"}],"limit":50},"parent":"projects/aiai0-f06f1/databases/(default)/documents/users/MME4KoqY5tfIpnirzgVJAb7EKJ23"},"targetId":2}}
+ai/:830 API Key (first half): AIzaSyAKzKGqa5J8Q2G
+logger.ts:123 [2026-01-21T07:06:41.655Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd transport opened.
+logger.ts:123 [2026-01-21T07:06:42.248Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd detected buffering proxy
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"targetChangeType":"ADD","targetIds":[2]}}
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"targetChangeType":"CURRENT","targetIds":[2],"resumeToken":"CgkIqMCwh4mckgM=","readTime":"2026-01-21T07:06:41.531944Z"}}
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"resumeToken":"CgkIqMCwh4mckgM=","readTime":"2026-01-21T07:06:41.531944Z"}}
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"targetChangeType":"RESET","targetIds":[2],"resumeToken":"CgA="}}
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"targetChangeType":"CURRENT","targetIds":[2],"resumeToken":"CgkIgqC0h4mckgM=","readTime":"2026-01-21T07:06:41.593346Z"}}
+logger.ts:123 [2026-01-21T07:06:42.884Z]  @firebase/firestore: Firestore (11.6.1): WebChannelConnection RPC 'Listen' stream 0x4dfd1bcd received: {"targetChange":{"resumeToken":"CgkIgqC0h4mckgM=","readTime":"2026-01-21T07:06:41.593346Z"}}
+logger.ts:123 [2026-01-21T07:06:42.885Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Get last remote snapshot version
+logger.ts:123 [2026-01-21T07:06:42.886Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Apply remote event
+logger.ts:123 [2026-01-21T07:06:42.887Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: notifyLocalViewChanges
+logger.ts:123 [2026-01-21T07:06:42.887Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Get last remote snapshot version
+logger.ts:123 [2026-01-21T07:06:42.887Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: Apply remote event
+logger.ts:123 [2026-01-21T07:06:42.887Z]  @firebase/firestore: Firestore (11.6.1): MemoryPersistence Starting transaction: notifyLocalViewChanges
+ai/:983 Error creating chat: ReferenceError: APP_ID is not defined
+    at getUserCollectionPath (ai/:575:33)
+    at selectChat (ai/:958:57)
+    at HTMLButtonElement.<anonymous> (ai/:1255:13)
+selectChat @ ai/:983
+(anonymous) @ ai/:1255
