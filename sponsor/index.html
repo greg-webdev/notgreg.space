@@ -3,12 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sponsor</title>
+    <title>All HTML Elements</title>
 </head>
 <body>
-    <h1>NOTHING HERE YET</h1>
-    <p>NOTHING HERE YET.</p>
-    <button onclick="window.open('opera://operius')">Go to Game</button>
+    <h1>All HTML Elements</h1>
+
+    <h2>Main Root</h2>
+    <!-- html element cannot be nested -->
+
+    <h2>Document Metadata</h2>
+    <base href="#">
+    <link rel="stylesheet" href="">
+    <meta name="description" content="All HTML Elements">
+    <style>body { font-family: Arial; }</style>
+    <!-- head and title cannot be nested -->
+
+    <h2>Sectioning Root</h2>
+    <!-- body cannot be nested -->
+
+    <h2>Content Sectioning</h2>
+    <address>123 Main St</address>
+    <article>This is an article.</article>
+    <aside>This is an aside.</aside>
+    <footer>Footer content</footer>
+    <header>Header content</header>
+    <h1>Heading 1</h1>
+    <h2>Heading 2</h2>
+    <h3>Heading 3</h3>
+    <h4>Heading 4</h4>
+    <h5>Heading 5</h5>
+    <h6>Heading 6</h6>
+    <hgroup><h1>Hgroup Heading</h1></hgroup>
+    <main>Main content</main>
+    <nav>Navigation</nav>
+    <section>Section content</section>
+    <search>Search content</search>
+
+    <h2>Text Content</h2>
+    <blockquote>This is a blockquote.</blockquote>
+    <dd>Description</dd>
+    <div>This is a div.</div>
+    <dl><dt>Term</dt><dd>Description</dd></dl>
+    <dt>Term</dt>
+    <figure><img src="" alt="Figure"><figcaption>Caption</figcaption></figure>
+    <figcaption>Caption</figcaption>
+    <hr>
+    <li>List item</li>
+    <menu><li>Menu item</li></menu>
+    <ol><li>Ordered item</li></ol>
+    <p>This is a paragraph.</p>
+    <pre>Preformatted text</pre>
+    <ul><li>Unordered item</li></ul>
+
+    <h2>Inline Text Semantics</h2>
+    <a href="#">Link</a>
+    <abbr title="Abbreviation">Abbr</abbr>
+    <b>Bold</b>
+    <bdi>BDI</bdi>
+    <bdo dir="rtl">BDO</bdo>
+    <br>
+    <cite>Citation</cite>
+    <code>Code</code>
+    <data value="123">Data</data>
+    <dfn>Definition</dfn>
+    <em>Emphasis</em>
+    <i>Italic</i>
+    <kbd>Keyboard</kbd>
+    <mark>Mark</mark>
+    <q>Quote</q>
+    <rp>RP</rp>
+    <rt>RT</rt>
+    <ruby>Ruby<rt>Annotation</rt></ruby>
+    <s>Strikethrough</s>
+    <samp>Sample</samp>
+    <small>Small</small>
+    <span>Span</span>
+    <strong>Strong</strong>
+    <sub>Subscript</sub>
+    <sup>Superscript</sup>
+    <time>Time</time>
+    <u>Underline</u>
+    <var>Variable</var>
+    <wbr>
+
+    <h2>Image and Multimedia</h2>
+    <map name="map"><area shape="rect" coords="0,0,100,100" href="#"></map>
+    <img src="" alt="Image" usemap="#map">
+    <audio controls><source src="" type="audio/mpeg"></audio>
+    <track kind="subtitles" src="" srclang="en">
+    <video controls><source src="" type="video/mp4"></video>
+
+    <h2>Embedded Content</h2>
+    <embed src="" type="">
+    <fencedframe src=""></fencedframe>
+    <iframe src=""></iframe>
+    <object data="" type=""></object>
+    <picture><source srcset="" type=""><img src="" alt=""></picture>
+    <source srcset="" type="">
+
+    <h2>SVG and MathML</h2>
+    <svg width="100" height="100"><circle cx="50" cy="50" r="40" fill="red"></circle></svg>
+    <math><mi>x</mi><mo>=</mo><mn>5</mn></math>
+
+    <h2>Scripting</h2>
+    <canvas id="canvas" width="100" height="100"></canvas>
+    <noscript>JavaScript disabled</noscript>
+    <script>console.log('Hello');</script>
+
+    <h2>Demarcating Edits</h2>
+    <del>Deleted</del>
+    <ins>Inserted</ins>
+
+    <h2>Table Content</h2>
+    <table>
+        <caption>Table Caption</caption>
+        <colgroup><col span="2"></colgroup>
+        <thead><tr><th>Header 1</th><th>Header 2</th></tr></thead>
+        <tbody><tr><td>Data 1</td><td>Data 2</td></tr></tbody>
+        <tfoot><tr><td>Footer 1</td><td>Footer 2</td></tr></tfoot>
+    </table>
+
+    <h2>Forms</h2>
+    <form>
+        <fieldset>
+            <legend>Form Legend</legend>
+            <label for="input">Label</label>
+            <input id="input" type="text">
+            <button type="submit">Submit</button>
+            <datalist id="datalist"><option value="Option 1"></option></datalist>
+            <input list="datalist">
+            <meter value="0.5" min="0" max="1"></meter>
+            <optgroup label="Group"><option>Option</option></optgroup>
+            <select><option>Select</option></select>
+            <selectedcontent></selectedcontent>
+            <textarea>Textarea</textarea>
+            <output>Output</output>
+            <progress value="50" max="100"></progress>
+        </fieldset>
+    </form>
+
+    <h2>Interactive Elements</h2>
+    <details><summary>Summary</summary>Details content</details>
+    <dialog open>Dialog content</dialog>
+    <geolocation></geolocation>
+
+    <h2>Web Components</h2>
+    <template id="template"><div>Template content</div></template>
+    <slot name="slot">Slot content</slot>
+
+    <h2>Obsolete and Deprecated Elements</h2>
+    <acronym title="Acronym">ACR</acronym>
+    <big>Big text</big>
+    <center>Centered text</center>
+    <content select="div">Content</content>
+    <dir><li>Directory item</li></dir>
+    <font color="red">Font</font>
+    <frame src=""></frame>
+    <frameset><frame src=""></frameset>
+    <image src="" alt="">
+    <marquee>Marquee text</marquee>
+    <menuitem>Menu item</menuitem>
+    <nobr>No break</nobr>
+    <noembed>No embed</noembed>
+    <noframes>No frames</noframes>
+    <param name="param" value="value">
+    <plaintext>Plain text
+    <rb>RB</rb>
+    <rtc>RTC</rtc>
+    <shadow>Shadow</shadow>
+    <strike>Strike</strike>
+    <tt>Teletype</tt>
+    <xmp>XMP
 </body>
 </html></content>
 <parameter name="filePath">C:\Users\geg\Documents\greg-webdev.github.io\sponsor\index.html
