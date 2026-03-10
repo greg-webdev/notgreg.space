@@ -1,38 +1,90 @@
+* { box-sizing: border-box; }
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
 body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #000;
+  color: #fff;
+  overflow-x: hidden;
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  margin: 0;
-  font-family: sans-serif;
+}
+
+.pillar-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+  display: grid;
+  place-items: center;
+}
+
+.banner {
+  position: relative;
+  z-index: 1;
   text-align: center;
-  color: #333;
+  padding: 18px 12px;
+  font-size: clamp(1.4rem, 3.5vw, 2.2rem);
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  letter-spacing: 0.02em;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 92vw);
+  margin: 0 auto;
+  padding: 11vh 20px 40px;
+  text-align: center;
 }
 
 h1 {
-  font-size: 6rem;
-  margin: 0;
-  line-height: 1;
+  margin: 0 0 18px;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  line-height: 1.05;
+  text-shadow: 0 0 26px rgba(255, 255, 255, 0.35);
 }
 
-p {
-  font-size: 1.25rem;
-  margin-top: 1rem;
+.about {
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: 28px;
 }
 
-button {
-  font-size: 2rem;
-  padding: 1rem 2rem;
-  margin-top: 2rem;
-  background-color: #ff69b4;
-  color: white;
-  border: none;
+.cta {
+  font-size: 1.05rem;
+  padding: 12px 26px;
   border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-button:hover {
-  background-color: #ff1493;
+.cta:hover {
+  background: rgba(255, 255, 255, 0.17);
+  border-color: rgba(255, 255, 255, 0.74);
+}
+
+@media (max-width: 1200px) {
+  .pillar-bg > div {
+    width: min(1080px, 100vw) !important;
+    height: min(1080px, 100vw) !important;
+  }
 }
