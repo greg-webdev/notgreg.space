@@ -4,14 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Greg's Homepage</title>
-    <!-- React & ReactDOM as ES modules -->
-    <script type="module">
-        import React from 'https://unpkg.com/react@18/umd/react.development.js?module';
-        import ReactDOM from 'https://unpkg.com/react-dom@18/umd/react-dom.development.js?module';
-        import { Renderer, Triangle, Program, Mesh } from 'https://unpkg.com/ogl?module';
+    <!-- React & libraries via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ogl/dist/ogl.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
 
         // Prism component (copied from provided code, adjusted for module scope)
         const { useEffect, useRef } = React;
+        const { Renderer, Triangle, Program, Mesh } = ogl;
         function Prism({
           height = 3.5,
           baseWidth = 5.5,
