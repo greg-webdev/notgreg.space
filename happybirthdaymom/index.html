@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday Mom!</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: #333;
+            text-align: center;
+        }
+        .birthday-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 500px;
+            animation: float 3s ease-in-out infinite;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #ff69b4;
+        }
+        p {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+        }
+        .hearts {
+            font-size: 2rem;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function BirthdayApp() {
+            const [showMessage, setShowMessage] = useState(false);
+
+            useEffect(() => {
+                setTimeout(() => setShowMessage(true), 500);
+            }, []);
+
+            return (
+                <div className="birthday-card">
+                    <h1>Happy Birthday Mom! 🎉</h1>
+                    {showMessage && (
+                        <div>
+                            <p>Wishing you a day filled with love, laughter, and all your favorite things!</p>
+                            <p>You are the best mom ever! ❤️</p>
+                            <div className="hearts">💖 💕 💗 💓 💞</div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<BirthdayApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
