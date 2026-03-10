@@ -9,7 +9,6 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ogl/dist/ogl.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="text/babel">
 
         // Prism component (copied from provided code, adjusted for module scope)
         const { useEffect, useRef } = React;
@@ -482,6 +481,9 @@
 </head>
 <body>
     <div id="root"></div>
-
+    <script type="text/babel">
+        // moved here so #root exists in DOM when React mounts
+        // (content is defined in head scripts above)
+    </script>
 </body>
 </html>
