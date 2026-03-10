@@ -26,6 +26,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             max-width: 500px;
             animation: float 3s ease-in-out infinite;
+            position: relative;
         }
         h1 {
             font-size: 3rem;
@@ -42,6 +43,37 @@
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
             50% { transform: translateY(-10px); }
+        }
+        .beam {
+            position: absolute;
+            width: 4px;
+            height: 100px;
+            background: linear-gradient(to bottom, rgba(255,105,180,0.8), transparent);
+            border-radius: 2px;
+            animation: beamGlow 2s ease-in-out infinite;
+        }
+        .beam:nth-child(1) { top: -50px; left: 50%; transform: rotate(0deg); }
+        .beam:nth-child(2) { top: -50px; left: 60%; transform: rotate(15deg); }
+        .beam:nth-child(3) { top: -50px; left: 40%; transform: rotate(-15deg); }
+        .beam:nth-child(4) { top: -50px; left: 70%; transform: rotate(30deg); }
+        .beam:nth-child(5) { top: -50px; left: 30%; transform: rotate(-30deg); }
+        @keyframes beamGlow {
+            0%, 100% { opacity: 0.5; transform: scaleY(1); }
+            50% { opacity: 1; transform: scaleY(1.2); }
+        }
+        .floating-heart {
+            position: absolute;
+            font-size: 2rem;
+            animation: floatHeart 4s ease-in-out infinite;
+            opacity: 0.7;
+        }
+        .floating-heart:nth-child(6) { top: -20px; left: 10%; animation-delay: 0s; }
+        .floating-heart:nth-child(7) { top: -30px; right: 10%; animation-delay: 1s; }
+        .floating-heart:nth-child(8) { bottom: -20px; left: 20%; animation-delay: 2s; }
+        .floating-heart:nth-child(9) { bottom: -30px; right: 20%; animation-delay: 3s; }
+        @keyframes floatHeart {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
         }
     </style>
 </head>
@@ -60,6 +92,15 @@
 
             return (
                 <div className="birthday-card">
+                    <div className="beam"></div>
+                    <div className="beam"></div>
+                    <div className="beam"></div>
+                    <div className="beam"></div>
+                    <div className="beam"></div>
+                    <div className="floating-heart">💖</div>
+                    <div className="floating-heart">💕</div>
+                    <div className="floating-heart">💗</div>
+                    <div className="floating-heart">💓</div>
                     <h1>Happy Birthday Mom! 🎉</h1>
                     {showMessage && (
                         <div>
