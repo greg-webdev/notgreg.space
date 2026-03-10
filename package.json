@@ -6,12 +6,19 @@
   "scripts": {
     "monitor": "node actions/monitor-watcher.js --watch",
     "scan": "node actions/monitor-watcher.js",
-    "serve-monitor": "node actions/monitor-server.js"
+    "serve-monitor": "node actions/monitor-server.js",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
   "dependencies": {
     "chokidar": "^3.5.3",
     "minimist": "^1.2.8",
     "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
   }
 } 
