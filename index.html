@@ -7,12 +7,12 @@
     <!-- React & libraries via CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ogl/dist/ogl.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
 
-        // Prism component (copied from provided code, adjusted for module scope)
         const { useEffect, useRef } = React;
-        const { Renderer, Triangle, Program, Mesh } = ogl;
+
+        // Raw WebGL Prism — no external library needed
         function Prism({
           height = 3.5,
           baseWidth = 5.5,
@@ -481,9 +481,5 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel">
-        // moved here so #root exists in DOM when React mounts
-        // (content is defined in head scripts above)
-    </script>
 </body>
 </html>
