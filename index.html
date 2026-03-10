@@ -448,10 +448,10 @@
         function App() {
           return (
             <div className="page">
-              <div className="banner">Happy Birthday Mom!</div>
-              <div className="prism-wrapper">
+              <div className="prism-bg">
                 <Prism animationType="rotate" timeScale={0.5} height={3.5} baseWidth={5.5} scale={3.6} hueShift={0} colorFrequency={1} noise={0} glow={1} />
               </div>
+              <div className="banner">Happy Birthday Mom!</div>
               <div className="content">
                 <h1>Welcome to Greg's Homepage</h1>
                 <div className="about">
@@ -466,40 +466,22 @@
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
-    <link rel="stylesheet" href="/Prism.css"> <!-- Prism styles -->
     <style>
-      /* improved layout styles */
-      body { margin:0; font-family:sans-serif; background: linear-gradient(135deg,#e0e0e0,#ffffff); }
-      .banner { background:#ff69b4; color:#fff; text-align:center; padding:20px; font-size:2rem; font-weight:bold; }
-      .page { display:flex; flex-direction:column; align-items:center; }
-      .prism-wrapper { width:100%; max-width:900px; height:400px; position:relative; margin-top:20px; }
-      .content { max-width:700px; margin:30px auto; padding:0 20px; text-align:center; }
-      .about { font-size:1.3rem; margin-bottom:20px; }
-      button { font-size:1.25rem; padding:12px 24px; background:#4CAF50; color:#fff; border:none; border-radius:8px; cursor:pointer; transition:background-color .3s; }
-      button:hover { background:#45a049; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: sans-serif; background: #000; color: #fff; }
+      .page { position: relative; min-height: 100vh; display: flex; flex-direction: column; }
+      .prism-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+      .prism-container { width: 100%; height: 100%; }
+      .banner { position: relative; z-index: 1; background: rgba(0,0,0,0.55); color: #fff; text-align: center; padding: 20px; font-size: 2rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.12); }
+      .content { position: relative; z-index: 1; max-width: 700px; margin: 0 auto; padding: 80px 20px; text-align: center; }
+      h1 { font-size: 2.5rem; font-weight: 800; color: #fff; text-shadow: 0 0 40px rgba(255,255,255,0.4); margin-bottom: 20px; }
+      .about { font-size: 1.3rem; margin-bottom: 32px; color: rgba(255,255,255,0.8); line-height: 1.7; }
+      button { font-size: 1.1rem; padding: 13px 30px; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.35); border-radius: 10px; cursor: pointer; backdrop-filter: blur(10px); transition: background .25s, border-color .25s; }
+      button:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.65); }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel">
-        function App() {
-            return (
-                <div>
-                    <div className="banner">Happy Birthday Mom!</div>
-                    <div className="content">
-                        <h1>Welcome to Greg's Homepage</h1>
-                        <div className="about">
-                            <p>Hi, I'm Greg, 13 years old.</p>
-                            <p>I like coding for fun!</p>
-                        </div>
-                        <button onClick={() => window.location.href='/about'}>Learn More About Me</button>
-                    </div>
-                </div>
-            );
-        }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
 </body>
 </html>
