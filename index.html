@@ -3,36 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Service Unavailable</title>
+    <title>Gregory's Homepage</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             margin: 0;
             font-family: sans-serif;
+            background-color: #f0f0f0;
+        }
+        .banner {
+            background-color: #ff69b4;
+            color: white;
             text-align: center;
-            color: #333;
+            padding: 20px;
+            font-size: 2rem;
+            font-weight: bold;
         }
-        h1 {
-            font-size: 6rem;
-            margin: 0;
-            line-height: 1;
+        .content {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
         }
-        p {
-            font-size: 1.25rem;
-            margin-top: 1rem;
+        .about {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
         }
         button {
-            font-size: 2rem;
-            padding: 1rem 2rem;
-            margin-top: 2rem;
-            background-color: #ff69b4;
+            font-size: 1.5rem;
+            padding: 15px 30px;
+            background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 10px;
@@ -40,7 +42,7 @@
             transition: background-color 0.3s;
         }
         button:hover {
-            background-color: #ff1493;
+            background-color: #45a049;
         }
     </style>
 </head>
@@ -50,9 +52,15 @@
         function App() {
             return (
                 <div>
-                    <h1>404</h1>
-                    <p>This website is currently down.</p>
-                    <button onClick={() => window.location.href='/happybirthdaymom'}>Happy Birthday Mom!</button>
+                    <div className="banner">Happy Birthday Mom!</div>
+                    <div className="content">
+                        <h1>Welcome to Gregory's Homepage</h1>
+                        <div className="about">
+                            <p>Hi, I'm Gregory, 13 years old.</p>
+                            <p>I like coding for fun!</p>
+                        </div>
+                        <button onClick={() => window.location.href='/about'}>Learn More About Me</button>
+                    </div>
                 </div>
             );
         }
