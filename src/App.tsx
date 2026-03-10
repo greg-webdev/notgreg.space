@@ -6,7 +6,7 @@ function App() {
   return (
     <div className="page">
       <div className="pillar-bg">
-        <div style={{ width: '1080px', height: '1080px', position: 'relative' }}>
+        <div className="pillar-frame">
           <LightPillar
             topColor="#5227FF"
             bottomColor="#FF9FFC"
@@ -24,17 +24,25 @@ function App() {
         </div>
       </div>
 
-      <div className="banner">Happy Birthday Mom!</div>
+      <div className="banner">
+        <span className="banner-label">Happy Birthday Mom!</span>
+      </div>
 
       <main className="content">
+        <p className="eyebrow">NOTGREG.SPACE</p>
         <h1>Welcome to Greg's Homepage</h1>
         <div className="about">
           <p>Hi, I'm Greg, 13 years old.</p>
           <p>I like coding for fun!</p>
         </div>
-        <button className="cta" onClick={() => { window.location.href = '/about'; }}>
-          Learn More About Me
-        </button>
+        <div className="actions">
+          <button className="cta cta-primary" onClick={() => { window.location.href = '/about'; }}>
+            Learn More About Me
+          </button>
+          <button className="cta" onClick={() => { window.location.href = '/happybirthdaymom'; }}>
+            Birthday Page
+          </button>
+        </div>
       </main>
     </div>
   );
