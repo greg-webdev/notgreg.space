@@ -97,7 +97,21 @@
   <script type="text/babel">
     const { useEffect, useRef } = React;
 
-    function Prism({ timeScale = 1.0 }) {
+    function Prism({
+      height = 3.5,
+      baseWidth = 5.5,
+      animationType = "rotate",
+      glow = 1,
+      noise = 0,
+      transparent = false,
+      scale = 3.6,
+      hueShift = 0,
+      colorFrequency = 1,
+      hoverStrength = 2,
+      inertia = 0.05,
+      bloom = 1,
+      timeScale = 0.5
+    }) {
       const containerRef = useRef(null);
 
       useEffect(() => {
@@ -259,7 +273,21 @@
           if (fs) gl.deleteShader(fs);
           if (canvas.parentElement === container) container.removeChild(canvas);
         };
-      }, [timeScale]);
+      }, [
+        height,
+        baseWidth,
+        animationType,
+        glow,
+        noise,
+        transparent,
+        scale,
+        hueShift,
+        colorFrequency,
+        hoverStrength,
+        inertia,
+        bloom,
+        timeScale
+      ]);
 
       return <div className="prism-container" ref={containerRef} />;
     }
@@ -268,7 +296,23 @@
       return (
         <div className="page">
           <div className="prism-bg">
-            <Prism timeScale={1.0} />
+            <div style={{ width: "1080px", height: "1080px", position: "relative" }}>
+              <Prism
+                height={3.5}
+                baseWidth={5.5}
+                animationType="rotate"
+                glow={1}
+                noise={0}
+                transparent={false}
+                scale={3.6}
+                hueShift={0}
+                colorFrequency={1}
+                hoverStrength={2}
+                inertia={0.05}
+                bloom={1}
+                timeScale={0.5}
+              />
+            </div>
           </div>
 
           <div className="banner">Happy Birthday Mom!</div>
