@@ -1,23 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kindle Video</title>
     <style>
-        /* This forces the GIF to 240p-style dimensions */
-        .low-res-force {
-            width: 320px;   /* Standard 240p width */
-            height: 240px;  /* Standard 240p height */
-            
-            /* This ensures the image doesn't stretch weirdly */
-            object-fit: contain; 
-            
-            /* Pixelated rendering helps it look sharper on E-ink */
-            image-rendering: pixelated; 
-            
-            border: 1px solid #000;
-            background: #eee;
+        body {
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
         }
-
-        body { text-align: center; padding-top: 50px; font-family: sans-serif; }
+        h3 {
+            margin-bottom: 20px;
+        }
+        .low-res-force {
+            width: 320px; /* Force low resolution */
+            height: auto;
+        }
     </style>
 </head>
 <body>
