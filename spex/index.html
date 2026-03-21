@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gregs System Specs</title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Montserrat:700,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background: linear-gradient(135deg, #232526, #414345);
+        color: #fff;
+        font-family: "Montserrat", sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      h1 {
+        font-size: 2.2em;
+        margin-bottom: 18px;
+        letter-spacing: 2px;
+      }
+      .spec {
+        margin: 18px 0;
+        padding: 18px 0;
+        border-bottom: 1px solid #444;
+        font-size: 1.2em;
+      }
+      .spec:last-child {
+        border-bottom: none;
+      }
+      .label {
+        font-weight: 700;
+        color: #ffd700;
+        font-size: 1.1em;
+      }
+      .value {
+        display: block;
+        margin-top: 6px;
+        font-size: 1.15em;
+        color: #fff;
+      }
+      .gpu-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .gpu-item {
+        background: #444343;
+        border-radius: 8px;
+        padding: 8px 0;
+        font-size: 1em;
+        color: #ffafaf;
+      }
+      .cpu-item {
+        background: #355235;
+        border-radius: 8px;
+        padding: 8px 0;
+        font-size: 1em;
+        color: #aff6ff;
+      }
+      @media (max-width: 600px) {
+        .container {
+          padding: 18px 8px;
+        }
+        h1 {
+          font-size: 1.3em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Geg's System Specifications</h1>
+      <div class="spec">
+        <span class="label">CPU</span>
+        <div class="cpu-item">11th Gen Intel® Core™ i9-11900K @ 3.50GHz</div>
+      </div>
+      <div class="spec">
+        <span class="label">Graphics Cards</span>
+        <div class="gpu-list">
+          <div class="gpu-item">NVIDIA GeForce GTX 1660 Ti</div>
+          <div class="gpu-item">NVIDIA GeForce RTX 3060</div>
+        </div>
+      </div>
+      <div class="spec">
+        <span class="label">RAM</span>
+        <span class="value">32.0 GB DDR4</span>
+      </div>
+      <div style="margin-top: 24px; font-size: 0.95em; color: #fff7f7">
+        <em>Everything is in a NZXT S340 case</em>
+      </div>
+      <div style="margin-top: 24px; font-size: 0.95em; color: #aaa">
+        <em>© Geg ©</em>
+      </div>
+    </div>
+  </body>
+</html>
