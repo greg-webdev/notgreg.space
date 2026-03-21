@@ -1,40 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Reading Notes</title>
     <style>
-        body { 
-            font-family: serif; 
-            padding: 30px; 
-            line-height: 1.6; 
-            color: #333;
+        /* This forces the GIF to 240p-style dimensions */
+        .low-res-force {
+            width: 320px;   /* Standard 240p width */
+            height: 240px;  /* Standard 240p height */
+            
+            /* This ensures the image doesn't stretch weirdly */
+            object-fit: contain; 
+            
+            /* Pixelated rendering helps it look sharper on E-ink */
+            image-rendering: pixelated; 
+            
+            border: 1px solid #000;
+            background: #eee;
         }
-        .content-container {
-            max-width: 600px;
-            margin: auto;
-        }
-        .kindle-gif {
-            display: block;
-            margin: 20px auto;
-            max-width: 100%;
-            height: auto;
-            /* Greyscale filter helps it look more native to E-ink */
-            filter: grayscale(100%) contrast(120%);
-        }
+
+        body { text-align: center; padding-top: 50px; font-family: sans-serif; }
     </style>
 </head>
 <body>
 
-    <div class="content-container">
-        <h2>Chapter 1: Observations</h2>
-        <p>The following figure demonstrates the movement pattern observed during the study. On an E-ink device, this may appear to flicker as the screen refreshes.</p>
-        
-        <img src="HnVideoEditor_2026_03_21_090351686.gif" class="kindle-gif" alt="Animated Diagram">
-        
-        <p>Note: If the animation is too fast, the Kindle screen may struggle to keep up. It is best to use GIFs with a slow frame rate.</p>
-    </div>
+    <h3>Low-Res Preview</h3>
+    <img src="HnVideoEditor_2026_03_21_090351686.gif" class="low-res-force">
 
 </body>
 </html>
