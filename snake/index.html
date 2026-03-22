@@ -29,16 +29,11 @@
         // Clamp to allowed range
         width = Math.max(40, Math.min(1000, width));
         height = Math.max(40, Math.min(900, height));
-        // Set grid size to fit evenly (max 50x50 grid)
+        grid = 20;
         let cols = Math.floor(width / grid);
         let rows = Math.floor(height / grid);
-        // Adjust grid size to fit canvas exactly
-        grid = Math.min(Math.floor(width / cols), Math.floor(height / rows));
-        cols = Math.floor(width / grid);
-        rows = Math.floor(height / grid);
         width = cols * grid;
         height = rows * grid;
-        // Set canvas size
         canvas.width = width;
         canvas.height = height;
         document.getElementById('sliderRow').style.width = width + 'px';
@@ -107,7 +102,7 @@
         });
 
         function botAI() {
-            // Greedy AI: move toward food, avoid collisions
+            // Advanced BFS pathfinding AI
             const head = snake[0];
             const directions = [
                 {dx: 0, dy: -grid}, // up
@@ -115,26 +110,36 @@
                 {dx: -grid, dy: 0}, // left
                 {dx: grid, dy: 0}   // right
             ];
-            // Sort directions by distance to food
-            directions.sort((a, b) => {
-                const ax = head.x + a.dx, ay = head.y + a.dy;
-                const bx = head.x + b.dx, by = head.y + b.dy;
-                const distA = Math.abs(ax - food.x) + Math.abs(ay - food.y);
-                const distB = Math.abs(bx - food.x) + Math.abs(by - food.y);
-                return distA - distB;
-            });
-            // Try each direction, pick the first that doesn't collide
+            // BFS to find shortest path to food
+            function posKey(x, y) { return x + ',' + y; }
+            let queue = [{x: head.x, y: head.y, path: []}];
+            let visited = new Set();
+            snake.forEach(s => visited.add(posKey(s.x, s.y)));
+            visited.delete(posKey(head.x, head.y)); // allow head
+            let found = null;
+            while (queue.length > 0) {
+                let {x, y, path} = queue.shift();
+                if (x === food.x && y === food.y) { found = path; break; }
+                for (let dir of directions) {
+                    let nx = x + dir.dx, ny = y + dir.dy;
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                    if (visited.has(posKey(nx, ny))) continue;
+                    visited.add(posKey(nx, ny));
+                    queue.push({x: nx, y: ny, path: path.concat([{dx: dir.dx, dy: dir.dy}])});
+                }
+            }
+            if (found && found.length > 0) {
+                dx = found[0].dx;
+                dy = found[0].dy;
+                return;
+            }
+            // If no path to food, try to survive: pick any safe move
             for (let dir of directions) {
-                const newHead = {x: head.x + dir.dx, y: head.y + dir.dy};
-                // Check wall collision
-                if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) continue;
-                // Check self collision
+                let nx = head.x + dir.dx, ny = head.y + dir.dy;
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
                 let collision = false;
                 for (let i = 0; i < snake.length; i++) {
-                    if (newHead.x === snake[i].x && newHead.y === snake[i].y) {
-                        collision = true;
-                        break;
-                    }
+                    if (nx === snake[i].x && ny === snake[i].y) { collision = true; break; }
                 }
                 if (!collision) {
                     dx = dir.dx;
@@ -142,7 +147,7 @@
                     return;
                 }
             }
-            // If all directions collide, just keep current direction (will die)
+            // If all else fails, keep current direction (will die)
         }
 
         function loop() {
