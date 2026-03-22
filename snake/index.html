@@ -13,11 +13,11 @@
         <div style="background:#333;padding:32px 24px;border-radius:12px;box-shadow:0 2px 16px #0008;display:flex;flex-direction:column;align-items:center;">
             <h1>Snake Game</h1>
             <form id="sizeForm">
-                <label style="color:white;">Width:
-                    <input type="number" id="width" min="40" max="1000" value="400" required style="width:80px;margin:0 8px;">
+                <label style="color:white;">Width (tiles):
+                    <input type="number" id="width" min="16" max="1000" value="16" required style="width:80px;margin:0 8px;">
                 </label>
-                <label style="color:white;">Height:
-                    <input type="number" id="height" min="40" max="900" value="400" required style="width:80px;margin:0 8px;">
+                <label style="color:white;">Height (tiles):
+                    <input type="number" id="height" min="16" max="1000" value="16" required style="width:80px;margin:0 8px;">
                 </label>
                 <button type="submit" style="margin-top:24px;font-size:1.2em;padding:8px 24px;border-radius:6px;border:none;background:#4caf50;color:#fff;cursor:pointer;">Start Game</button>
             </form>
@@ -33,20 +33,20 @@
     </div>
     <script>
         // --- Home/start logic ---
-        let width = 400, height = 400;
-        let grid = 20;
-        let cols = 20, rows = 20;
+        let width = 16, height = 16;
+        let grid = 32;
+        let cols = 16, rows = 16;
         let canvas, ctx, speedSlider, speedValue;
         let snake, dx, dy, food, gameOver, botMode, speed, baseDelay;
         let gameStarted = false;
 
         document.getElementById('sizeForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            width = Math.max(40, Math.min(1000, parseInt(document.getElementById('width').value)));
-            height = Math.max(40, Math.min(900, parseInt(document.getElementById('height').value)));
-            grid = 20;
-            cols = Math.floor(width / grid);
-            rows = Math.floor(height / grid);
+            cols = Math.max(16, Math.min(1000, parseInt(document.getElementById('width').value)));
+            rows = Math.max(16, Math.min(1000, parseInt(document.getElementById('height').value)));
+            // Fit the game in the window, max 1000px either way
+            let maxPx = 1000;
+            grid = Math.floor(Math.min(maxPx / cols, maxPx / rows));
             width = cols * grid;
             height = rows * grid;
             document.getElementById('startScreen').style.display = 'none';
