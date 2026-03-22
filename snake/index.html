@@ -83,10 +83,9 @@
         }
 
         function checkCollision() {
-            if (botMode) return false;
             const head = snake[0];
             // Wall collision
-            if (head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400) return true;
+            if (head.x < 0 || head.x >= width || head.y < 0 || head.y >= height) return true;
             // Self collision
             for (let i = 1; i < snake.length; i++) {
                 if (head.x === snake[i].x && head.y === snake[i].y) return true;
@@ -108,25 +107,27 @@
         });
 
         function botAI() {
+            // Greedy AI: move toward food, avoid collisions
             const head = snake[0];
-            // Possible directions: [dx, dy]
             const directions = [
                 {dx: 0, dy: -grid}, // up
                 {dx: 0, dy: grid},  // down
                 {dx: -grid, dy: 0}, // left
                 {dx: grid, dy: 0}   // right
             ];
-            // Prefer directions that move closer to food
+            // Sort directions by distance to food
             directions.sort((a, b) => {
-                const distA = Math.abs((head.x + a.dx) - food.x) + Math.abs((head.y + a.dy) - food.y);
-                const distB = Math.abs((head.x + b.dx) - food.x) + Math.abs((head.y + b.dy) - food.y);
+                const ax = head.x + a.dx, ay = head.y + a.dy;
+                const bx = head.x + b.dx, by = head.y + b.dy;
+                const distA = Math.abs(ax - food.x) + Math.abs(ay - food.y);
+                const distB = Math.abs(bx - food.x) + Math.abs(by - food.y);
                 return distA - distB;
             });
             // Try each direction, pick the first that doesn't collide
             for (let dir of directions) {
                 const newHead = {x: head.x + dir.dx, y: head.y + dir.dy};
                 // Check wall collision
-                if (newHead.x < 0 || newHead.x >= 400 || newHead.y < 0 || newHead.y >= 400) continue;
+                if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) continue;
                 // Check self collision
                 let collision = false;
                 for (let i = 0; i < snake.length; i++) {
@@ -141,7 +142,7 @@
                     return;
                 }
             }
-            // If all directions collide, just keep current direction (invincible in botMode)
+            // If all directions collide, just keep current direction (will die)
         }
 
         function loop() {
