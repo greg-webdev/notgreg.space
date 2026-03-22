@@ -141,7 +141,7 @@
         // (Key handler moved to handleKey)
 
         function botAI() {
-            // Advanced BFS pathfinding AI
+            // Advanced BFS pathfinding AI with 80% reachability check
             const head = snake[0];
             const directions = [
                 {dx: 0, dy: -grid}, // up
@@ -149,22 +149,53 @@
                 {dx: -grid, dy: 0}, // left
                 {dx: grid, dy: 0}   // right
             ];
-            // BFS to find shortest path to food
             function posKey(x, y) { return x + ',' + y; }
-            let queue = [{x: head.x, y: head.y, path: []}];
+            // Flood fill from (x, y) to count reachable tiles
+            function floodFill(x, y, snakeSet) {
+                let visited = new Set();
+                let queue = [{x, y}];
+                let count = 0;
+                while (queue.length > 0) {
+                    let {x, y} = queue.pop();
+                    let key = posKey(x, y);
+                    if (visited.has(key) || snakeSet.has(key) || x < 0 || x >= width || y < 0 || y >= height) continue;
+                    visited.add(key);
+                    count++;
+                    for (let d of directions) {
+                        queue.push({x: x + d.dx, y: y + d.dy});
+                    }
+                }
+                return count;
+            }
+            // BFS to find shortest path to food, only accept paths where 80% of available tiles are reachable from the next head
+            let snakeSet = new Set(snake.map(s => posKey(s.x, s.y)));
+            snakeSet.delete(posKey(head.x, head.y)); // allow head
+            let totalFree = 0;
+            for (let y = 0; y < height; y += grid) {
+                for (let x = 0; x < width; x += grid) {
+                    if (!snakeSet.has(posKey(x, y))) totalFree++;
+                }
+            }
+            let queue = [{x: head.x, y: head.y, path: [], snakeBody: [...snake]}];
             let visited = new Set();
-            snake.forEach(s => visited.add(posKey(s.x, s.y)));
-            visited.delete(posKey(head.x, head.y)); // allow head
             let found = null;
             while (queue.length > 0) {
-                let {x, y, path} = queue.shift();
+                let {x, y, path, snakeBody} = queue.shift();
                 if (x === food.x && y === food.y) { found = path; break; }
                 for (let dir of directions) {
                     let nx = x + dir.dx, ny = y + dir.dy;
                     if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                    if (visited.has(posKey(nx, ny))) continue;
-                    visited.add(posKey(nx, ny));
-                    queue.push({x: nx, y: ny, path: path.concat([{dx: dir.dx, dy: dir.dy}])});
+                    let nkey = posKey(nx, ny);
+                    if (visited.has(nkey + ':' + path.length)) continue;
+                    // Simulate snake body for this path
+                    let newBody = [{x: nx, y: ny}, ...snakeBody.slice(0, -1)];
+                    let newSet = new Set(newBody.map(s => posKey(s.x, s.y)));
+                    if (newSet.size < newBody.length) continue; // self collision
+                    // Flood fill from new head
+                    let reachable = floodFill(nx, ny, new Set(newBody.map(s => posKey(s.x, s.y))));
+                    if (reachable < 0.8 * totalFree) continue;
+                    visited.add(nkey + ':' + path.length);
+                    queue.push({x: nx, y: ny, path: path.concat([{dx: dir.dx, dy: dir.dy}]), snakeBody: newBody});
                 }
             }
             if (found && found.length > 0) {
@@ -172,19 +203,17 @@
                 dy = found[0].dy;
                 return;
             }
-            // If no path to food, try to survive: pick any safe move
+            // If no path to food, try to survive: pick any safe move with 80% reachability
             for (let dir of directions) {
                 let nx = head.x + dir.dx, ny = head.y + dir.dy;
                 if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                let collision = false;
-                for (let i = 0; i < snake.length; i++) {
-                    if (nx === snake[i].x && ny === snake[i].y) { collision = true; break; }
-                }
-                if (!collision) {
-                    dx = dir.dx;
-                    dy = dir.dy;
-                    return;
-                }
+                let nkey = posKey(nx, ny);
+                if (snakeSet.has(nkey)) continue;
+                let reachable = floodFill(nx, ny, snakeSet);
+                if (reachable < 0.8 * totalFree) continue;
+                dx = dir.dx;
+                dy = dir.dy;
+                return;
             }
             // If all else fails, keep current direction (will die)
         }
