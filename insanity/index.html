@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Contents</title>
+</head>
+<body>
+    <h1>Files in Insanity Folder</h1>
+    <ul id="file-list">
+        <!-- File links will be inserted here by JavaScript -->
+    </ul>
+    <script>
+    // List of files in this folder (manually update this array if files change)
+    const files = [
+        "index.html",
+        "hacks for nigga pc.exe"
+    ];
+    const list = document.getElementById('file-list');
+    files.forEach(file => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = file;
+        a.textContent = file;
+        a.download = file;
+        li.appendChild(a);
+        list.appendChild(li);
+    });
+    </script>
+</body>
+</html>
