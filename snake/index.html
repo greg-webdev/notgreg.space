@@ -9,7 +9,7 @@
     </style>
 </head>
 <body style="flex-direction:column;">
-    <div style="width:400px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+    <div id="sliderRow" style="width:400px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
         <label for="speedSlider" style="color:white;margin-right:8px;">Speed:</label>
         <input type="range" id="speedSlider" min="1" max="1000" value="1" style="flex:1;">
         <span id="speedValue" style="color:white;margin-left:8px;">1x</span>
@@ -18,7 +18,30 @@
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
-        const grid = 20;
+        let grid = 20;
+        // Parse URL params for width/height
+        function getParam(name, def) {
+            const m = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.search);
+            return m ? parseInt(decodeURIComponent(m[1])) : def;
+        }
+        let width = getParam('width', 400);
+        let height = getParam('height', 400);
+        // Clamp to allowed range
+        width = Math.max(40, Math.min(1000, width));
+        height = Math.max(40, Math.min(900, height));
+        // Set grid size to fit evenly (max 50x50 grid)
+        let cols = Math.floor(width / grid);
+        let rows = Math.floor(height / grid);
+        // Adjust grid size to fit canvas exactly
+        grid = Math.min(Math.floor(width / cols), Math.floor(height / rows));
+        cols = Math.floor(width / grid);
+        rows = Math.floor(height / grid);
+        width = cols * grid;
+        height = rows * grid;
+        // Set canvas size
+        canvas.width = width;
+        canvas.height = height;
+        document.getElementById('sliderRow').style.width = width + 'px';
         let snake = [{x: 200, y: 200}];
         let dx = grid, dy = 0;
         let food = {x: 100, y: 100};
