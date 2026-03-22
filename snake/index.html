@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Snake Game</title>
+    <style>
+        body { background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { background: #111; display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="game" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const grid = 20;
+        let snake = [{x: 200, y: 200}];
+        let dx = grid, dy = 0;
+        let food = {x: 100, y: 100};
+        let gameOver = false;
+
+        function draw() {
+            ctx.clearRect(0, 0, 400, 400);
+
+            // Draw food
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x, food.y, grid, grid);
+
+            // Draw snake
+            ctx.fillStyle = 'lime';
+            snake.forEach(s => ctx.fillRect(s.x, s.y, grid, grid));
+        }
+
+        function moveSnake() {
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+
+            // Eat food
+            if (head.x === food.x && head.y === food.y) {
+                food.x = Math.floor(Math.random() * 20) * grid;
+                food.y = Math.floor(Math.random() * 20) * grid;
+            } else {
+                snake.pop();
+            }
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+            // Wall collision
+            if (head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400) return true;
+            // Self collision
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) return true;
+            }
+            return false;
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -grid; }
+            else if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = grid; }
+            else if (e.key === 'ArrowLeft' && dx === 0) { dx = -grid; dy = 0; }
+            else if (e.key === 'ArrowRight' && dx === 0) { dx = grid; dy = 0; }
+        });
+
+        function loop() {
+            if (gameOver) {
+                ctx.fillStyle = 'white';
+                ctx.font = '30px Arial';
+                ctx.fillText('Game Over', 120, 200);
+                return;
+            }
+            moveSnake();
+            gameOver = checkCollision();
+            draw();
+            setTimeout(loop, 100);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
