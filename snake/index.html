@@ -9,56 +9,95 @@
     </style>
 </head>
 <body style="flex-direction:column;">
-    <div id="sliderRow" style="width:400px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
-        <label for="speedSlider" style="color:white;margin-right:8px;">Speed:</label>
-        <input type="range" id="speedSlider" min="1" max="1000" value="1" style="flex:1;">
-        <span id="speedValue" style="color:white;margin-left:8px;">1x</span>
+    <div id="startScreen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;">
+        <div style="background:#333;padding:32px 24px;border-radius:12px;box-shadow:0 2px 16px #0008;display:flex;flex-direction:column;align-items:center;">
+            <h1>Snake Game</h1>
+            <form id="sizeForm">
+                <label style="color:white;">Width:
+                    <input type="number" id="width" min="40" max="1000" value="400" required style="width:80px;margin:0 8px;">
+                </label>
+                <label style="color:white;">Height:
+                    <input type="number" id="height" min="40" max="900" value="400" required style="width:80px;margin:0 8px;">
+                </label>
+                <button type="submit" style="margin-top:24px;font-size:1.2em;padding:8px 24px;border-radius:6px;border:none;background:#4caf50;color:#fff;cursor:pointer;">Start Game</button>
+            </form>
+        </div>
     </div>
-    <canvas id="game" width="400" height="400"></canvas>
+    <div id="gameContainer" style="display:none;flex-direction:column;align-items:center;justify-content:center;width:100%;">
+        <div id="sliderRow" style="width:400px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+            <label for="speedSlider" style="color:white;margin-right:8px;">Speed:</label>
+            <input type="range" id="speedSlider" min="1" max="1000" value="1" style="flex:1;">
+            <span id="speedValue" style="color:white;margin-left:8px;">1x</span>
+        </div>
+        <canvas id="game" width="400" height="400"></canvas>
+    </div>
     <script>
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
+        // --- Home/start logic ---
+        let width = 400, height = 400;
         let grid = 20;
-        // Parse URL params for width/height
-        function getParam(name, def) {
-            const m = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.search);
-            return m ? parseInt(decodeURIComponent(m[1])) : def;
-        }
-        let width = getParam('width', 400);
-        let height = getParam('height', 400);
-        // Clamp to allowed range
-        width = Math.max(40, Math.min(1000, width));
-        height = Math.max(40, Math.min(900, height));
-        grid = 20;
-        let cols = Math.floor(width / grid);
-        let rows = Math.floor(height / grid);
-        width = cols * grid;
-        height = rows * grid;
-        canvas.width = width;
-        canvas.height = height;
-        document.getElementById('sliderRow').style.width = width + 'px';
-        let snake = [{x: 200, y: 200}];
-        let dx = grid, dy = 0;
-        let food = {x: 100, y: 100};
-        let gameOver = false;
-        let botMode = false;
-        let speed = 1;
-        let baseDelay = 100;
-        const speedSlider = document.getElementById('speedSlider');
-        const speedValue = document.getElementById('speedValue');
+        let cols = 20, rows = 20;
+        let canvas, ctx, speedSlider, speedValue;
+        let snake, dx, dy, food, gameOver, botMode, speed, baseDelay;
+        let gameStarted = false;
 
-        speedSlider.addEventListener('input', function() {
-            speed = parseInt(this.value);
-            speedValue.textContent = speed + 'x';
+        document.getElementById('sizeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            width = Math.max(40, Math.min(1000, parseInt(document.getElementById('width').value)));
+            height = Math.max(40, Math.min(900, parseInt(document.getElementById('height').value)));
+            grid = 20;
+            cols = Math.floor(width / grid);
+            rows = Math.floor(height / grid);
+            width = cols * grid;
+            height = rows * grid;
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'flex';
+            canvas = document.getElementById('game');
+            ctx = canvas.getContext('2d');
+            canvas.width = width;
+            canvas.height = height;
+            document.getElementById('sliderRow').style.width = width + 'px';
+            speedSlider = document.getElementById('speedSlider');
+            speedValue = document.getElementById('speedValue');
+            startGame();
         });
 
-        function draw() {
-            ctx.clearRect(0, 0, 400, 400);
+        function startGame() {
+            snake = [{x: Math.floor(cols/2)*grid, y: Math.floor(rows/2)*grid}];
+            dx = grid; dy = 0;
+            food = {x: grid * Math.floor(Math.random() * cols), y: grid * Math.floor(Math.random() * rows)};
+            gameOver = false;
+            botMode = false;
+            speed = 1;
+            baseDelay = 100;
+            speedSlider.value = 1;
+            speedValue.textContent = '1x';
+            speedSlider.oninput = function() {
+                speed = parseInt(this.value);
+                speedValue.textContent = speed + 'x';
+            };
+            document.addEventListener('keydown', handleKey);
+            if (!gameStarted) {
+                gameStarted = true;
+                loop();
+            }
+        }
 
+        function handleKey(e) {
+            if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -grid; }
+            else if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = grid; }
+            else if (e.key === 'ArrowLeft' && dx === 0) { dx = -grid; dy = 0; }
+            else if (e.key === 'ArrowRight' && dx === 0) { dx = grid; dy = 0; }
+            else if (e.key === 'b' || e.key === 'B') {
+                botMode = !botMode;
+                if (botMode) gameOver = false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
             // Draw food
             ctx.fillStyle = 'red';
             ctx.fillRect(food.x, food.y, grid, grid);
-
             // Draw snake
             ctx.fillStyle = 'lime';
             snake.forEach(s => ctx.fillRect(s.x, s.y, grid, grid));
@@ -67,11 +106,22 @@
         function moveSnake() {
             const head = {x: snake[0].x + dx, y: snake[0].y + dy};
             snake.unshift(head);
-
             // Eat food
             if (head.x === food.x && head.y === food.y) {
-                food.x = Math.floor(Math.random() * 20) * grid;
-                food.y = Math.floor(Math.random() * 20) * grid;
+                // Place food at random empty cell
+                let empty = [];
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        if (!snake.some(s => s.x === x * grid && s.y === y * grid)) {
+                            empty.push({x: x * grid, y: y * grid});
+                        }
+                    }
+                }
+                if (empty.length > 0) {
+                    let f = empty[Math.floor(Math.random() * empty.length)];
+                    food.x = f.x;
+                    food.y = f.y;
+                }
             } else {
                 snake.pop();
             }
@@ -88,18 +138,7 @@
             return false;
         }
 
-        document.addEventListener('keydown', e => {
-            if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -grid; }
-            else if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = grid; }
-            else if (e.key === 'ArrowLeft' && dx === 0) { dx = -grid; dy = 0; }
-            else if (e.key === 'ArrowRight' && dx === 0) { dx = grid; dy = 0; }
-            else if (e.key === 'b' || e.key === 'B') {
-                botMode = !botMode;
-                if (botMode) {
-                    gameOver = false;
-                }
-            }
-        });
+        // (Key handler moved to handleKey)
 
         function botAI() {
             // Advanced BFS pathfinding AI
@@ -151,10 +190,11 @@
         }
 
         function loop() {
+            if (!gameStarted) return;
             if (gameOver) {
                 ctx.fillStyle = 'white';
                 ctx.font = '30px Arial';
-                ctx.fillText('Game Over', 120, 200);
+                ctx.fillText('Game Over', width/2-80, height/2);
                 return;
             }
             if (botMode) {
@@ -167,8 +207,6 @@
             let delay = Math.max(1, baseDelay / speed);
             setTimeout(loop, delay);
         }
-
-        loop();
     </script>
 </body>
 </html>
