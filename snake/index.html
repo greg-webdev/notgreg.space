@@ -8,7 +8,12 @@
         canvas { background: #111; display: block; }
     </style>
 </head>
-<body>
+<body style="flex-direction:column;">
+    <div style="width:400px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+        <label for="speedSlider" style="color:white;margin-right:8px;">Speed:</label>
+        <input type="range" id="speedSlider" min="1" max="1000" value="1" style="flex:1;">
+        <span id="speedValue" style="color:white;margin-left:8px;">1x</span>
+    </div>
     <canvas id="game" width="400" height="400"></canvas>
     <script>
         const canvas = document.getElementById('game');
@@ -19,6 +24,15 @@
         let food = {x: 100, y: 100};
         let gameOver = false;
         let botMode = false;
+        let speed = 1;
+        let baseDelay = 100;
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+
+        speedSlider.addEventListener('input', function() {
+            speed = parseInt(this.value);
+            speedValue.textContent = speed + 'x';
+        });
 
         function draw() {
             ctx.clearRect(0, 0, 400, 400);
@@ -70,6 +84,43 @@
             }
         });
 
+        function botAI() {
+            const head = snake[0];
+            // Possible directions: [dx, dy]
+            const directions = [
+                {dx: 0, dy: -grid}, // up
+                {dx: 0, dy: grid},  // down
+                {dx: -grid, dy: 0}, // left
+                {dx: grid, dy: 0}   // right
+            ];
+            // Prefer directions that move closer to food
+            directions.sort((a, b) => {
+                const distA = Math.abs((head.x + a.dx) - food.x) + Math.abs((head.y + a.dy) - food.y);
+                const distB = Math.abs((head.x + b.dx) - food.x) + Math.abs((head.y + b.dy) - food.y);
+                return distA - distB;
+            });
+            // Try each direction, pick the first that doesn't collide
+            for (let dir of directions) {
+                const newHead = {x: head.x + dir.dx, y: head.y + dir.dy};
+                // Check wall collision
+                if (newHead.x < 0 || newHead.x >= 400 || newHead.y < 0 || newHead.y >= 400) continue;
+                // Check self collision
+                let collision = false;
+                for (let i = 0; i < snake.length; i++) {
+                    if (newHead.x === snake[i].x && newHead.y === snake[i].y) {
+                        collision = true;
+                        break;
+                    }
+                }
+                if (!collision) {
+                    dx = dir.dx;
+                    dy = dir.dy;
+                    return;
+                }
+            }
+            // If all directions collide, just keep current direction (invincible in botMode)
+        }
+
         function loop() {
             if (gameOver) {
                 ctx.fillStyle = 'white';
@@ -77,10 +128,15 @@
                 ctx.fillText('Game Over', 120, 200);
                 return;
             }
+            if (botMode) {
+                botAI();
+            }
             moveSnake();
             gameOver = checkCollision();
             draw();
-            setTimeout(loop, 100);
+            // Speed: 1x = 100ms, 1000x = 0.1ms (minimum 1ms for browser safety)
+            let delay = Math.max(1, baseDelay / speed);
+            setTimeout(loop, delay);
         }
 
         loop();
