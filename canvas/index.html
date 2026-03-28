@@ -128,13 +128,127 @@
             z-index: 5;
             box-sizing: border-box;
         }
+
+        #uploadBtn {
+            width: 100%;
+            padding: 8px;
+            background: #1e5194;
+            border: 2px solid var(--border);
+            color: var(--text);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 7px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        #uploadBtn:hover {
+            background: #2a6bb8;
+        }
+
+        #uploadModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #uploadModal.active {
+            display: flex;
+        }
+
+        #modalContent {
+            background: var(--panel-bg);
+            border: 3px solid var(--accent);
+            padding: 20px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            font-size: 12px;
+            color: var(--accent);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .modal-section {
+            margin-bottom: 15px;
+        }
+
+        .modal-label {
+            font-size: 8px;
+            color: #888;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        #qualitySlider {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        #qualityValue {
+            font-size: 8px;
+            color: var(--accent);
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        #previewContainer {
+            background: #000;
+            border: 2px solid var(--border);
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 10px;
+            max-height: 300px;
+            overflow: auto;
+        }
+
+        #pixelatedPreview {
+            image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 280px;
+            border: 1px solid var(--border);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 8px;
+            background: var(--accent);
+            border: 2px solid var(--border);
+            color: var(--bg-dark);
+            font-family: 'Press Start 2P', cursive;
+            font-size: 7px;
+            cursor: pointer;
+        }
+
+        .modal-buttons button:hover {
+            opacity: 0.8;
+        }
     </style>
+
 </head>
 <body>
 
     <div id="side-panel">
         <h2>PIXELPLACE2</h2>
         
+        <div class="control-group">
+            <button id="uploadBtn">UPLOAD IMAGE</button>
+        </div>
+
         <div class="control-group">
             <span class="label">COLOR SELECTION</span>
             <input type="color" id="colorPicker" value="#00ff41">
@@ -152,6 +266,32 @@
             CLICK TO PLACE<br>SPACE+DRAG TO PAINT<br>DRAG TO MOVE<br>SCROLL TO ZOOM
         </div>
     </div>
+
+    <div id="uploadModal">
+        <div id="modalContent">
+            <div class="modal-title">PIXELATE IMAGE</div>
+            
+            <div class="modal-section">
+                <span class="modal-label">QUALITY (pixel size)</span>
+                <input type="range" id="qualitySlider" min="1" max="50" value="10">
+                <span id="qualityValue">10 pixels</span>
+            </div>
+
+            <div class="modal-section">
+                <span class="modal-label">PREVIEW</span>
+                <div id="previewContainer">
+                    <canvas id="pixelatedPreview" width="300" height="300"></canvas>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button onclick="confirmImagePlacement()">PLACE</button>
+                <button onclick="cancelUpload()">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="imageInput" accept="image/*" style="display: none;">
 
     <div id="viewport">
         <div id="pixel-outline"></div>
@@ -352,6 +492,125 @@
                 placedPixels.clear();
             }
         });
+
+        let uploadedImageData = null;
+
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            document.getElementById('imageInput').click();
+        });
+
+        document.getElementById('imageInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    uploadedImageData = img;
+                    document.getElementById('uploadModal').classList.add('active');
+                    updatePixelatedPreview();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('qualitySlider').addEventListener('input', (e) => {
+            const quality = parseInt(e.target.value);
+            document.getElementById('qualityValue').innerText = quality + ' pixels';
+            updatePixelatedPreview();
+        });
+
+        function updatePixelatedPreview() {
+            if (!uploadedImageData) return;
+            const quality = parseInt(document.getElementById('qualitySlider').value);
+            const previewCanvas = document.getElementById('pixelatedPreview');
+            const previewCtx = previewCanvas.getContext('2d');
+            
+            const aspectRatio = uploadedImageData.width / uploadedImageData.height;
+            let previewWidth = 300;
+            let previewHeight = 300 / aspectRatio;
+            if (previewHeight > 300) {
+                previewHeight = 300;
+                previewWidth = 300 * aspectRatio;
+            }
+
+            previewCanvas.width = previewWidth;
+            previewCanvas.height = previewHeight;
+
+            const pixelWidth = previewWidth / quality;
+            const pixelHeight = previewHeight / quality;
+
+            previewCtx.drawImage(uploadedImageData, 0, 0, previewWidth, previewHeight);
+
+            const imageData = previewCtx.getImageData(0, 0, previewWidth, previewHeight);
+            const data = imageData.data;
+
+            for (let y = 0; y < pixelHeight; y++) {
+                for (let x = 0; x < pixelWidth; x++) {
+                    const pixelX = Math.floor(x * quality);
+                    const pixelY = Math.floor(y * quality);
+                    const index = (pixelY * previewWidth + pixelX) * 4;
+
+                    const r = data[index];
+                    const g = data[index + 1];
+                    const b = data[index + 2];
+
+                    for (let py = 0; py < quality && pixelY + py < previewHeight; py++) {
+                        for (let px = 0; px < quality && pixelX + px < previewWidth; px++) {
+                            const pixelIndex = ((pixelY + py) * previewWidth + (pixelX + px)) * 4;
+                            data[pixelIndex] = r;
+                            data[pixelIndex + 1] = g;
+                            data[pixelIndex + 2] = b;
+                        }
+                    }
+                }
+            }
+
+            previewCtx.putImageData(imageData, 0, 0);
+        }
+
+        window.confirmImagePlacement = () => {
+            if (!uploadedImageData || !currentUser) return;
+
+            const quality = parseInt(document.getElementById('qualitySlider').value);
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCanvas.width = uploadedImageData.width / quality;
+            tempCanvas.height = uploadedImageData.height / quality;
+
+            tempCtx.drawImage(uploadedImageData, 0, 0, tempCanvas.width, tempCanvas.height);
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+
+                const pixelIndex = i / 4;
+                const px = pixelIndex % tempCanvas.width;
+                const py = Math.floor(pixelIndex / tempCanvas.width);
+
+                set(ref(db, `pixels/${px}_${py}`), { x: px, y: py, color: hex })
+                .catch(err => console.error(err));
+            }
+
+            document.getElementById('uploadModal').classList.remove('active');
+            uploadedImageData = null;
+            document.getElementById('imageInput').value = '';
+            status.innerText = "IMAGE PLACED";
+            status.style.color = "#00ff41";
+        };
+
+        window.cancelUpload = () => {
+            document.getElementById('uploadModal').classList.remove('active');
+            uploadedImageData = null;
+            document.getElementById('imageInput').value = '';
+        };
 
         canvas.addEventListener('click', (e) => {
             if (!currentUser) return;
