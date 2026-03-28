@@ -213,6 +213,10 @@
             }
         }, 1000);
 
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
         signInAnonymously(auth).catch((error) => {
             console.error("Auth failed:", error);
             status.innerText = "AUTH ERR";
@@ -262,7 +266,7 @@
         }, { passive: false });
 
         viewport.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
+            if (e.button === 0 || e.button === 2) {
                 isDragging = true;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
