@@ -264,7 +264,7 @@
         viewport.addEventListener('wheel', (e) => {
             e.preventDefault();
             const oldScale = scale;
-            const delta = -e.deltaY * 0.005;
+            const delta = -e.deltaY * 0.01;
             scale = Math.min(Math.max(0.1, scale + delta), 500);
 
             const rect = viewport.getBoundingClientRect();
