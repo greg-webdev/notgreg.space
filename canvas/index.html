@@ -337,6 +337,8 @@
         let currentUser = null;
         let isSpacebarPressed = false;
         let placedPixels = new Set();
+        let imageToPlace = null;
+        let imagePlacementMode = false;
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C'))) {
@@ -585,6 +587,8 @@
             const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
             const data = imageData.data;
 
+            imageToPlace = [];
+
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
@@ -595,14 +599,14 @@
                 const px = pixelIndex % tempCanvas.width;
                 const py = Math.floor(pixelIndex / tempCanvas.width);
 
-                set(ref(db, `pixels/${px}_${py}`), { x: px, y: py, color: hex })
-                .catch(err => console.error(err));
+                imageToPlace.push({ x: px, y: py, color: hex });
             }
 
             document.getElementById('uploadModal').classList.remove('active');
             uploadedImageData = null;
             document.getElementById('imageInput').value = '';
-            status.innerText = "IMAGE PLACED";
+            imagePlacementMode = true;
+            status.innerText = "CLICK TO PLACE";
             status.style.color = "#00ff41";
         };
 
@@ -620,16 +624,31 @@
             const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
 
             if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
-                const color = document.getElementById('colorPicker').value;
-                set(ref(db, `pixels/${x}_${y}`), { x, y, color })
-                .then(() => {
-                    status.innerText = "PLACED";
+                if (imagePlacementMode && imageToPlace) {
+                    imageToPlace.forEach(pixel => {
+                        const placeX = x + pixel.x;
+                        const placeY = y + pixel.y;
+                        if (placeX >= 0 && placeX < CANVAS_SIZE && placeY >= 0 && placeY < CANVAS_SIZE) {
+                            set(ref(db, `pixels/${placeX}_${placeY}`), { x: placeX, y: placeY, color: pixel.color })
+                            .catch(err => console.error(err));
+                        }
+                    });
+                    imagePlacementMode = false;
+                    imageToPlace = null;
+                    status.innerText = "IMAGE PLACED";
                     status.style.color = "#00ff41";
-                }).catch(err => {
-                    console.error("Write error:", err);
-                    status.innerText = "DENIED";
-                    status.style.color = "#ff4444";
-                });
+                } else {
+                    const color = document.getElementById('colorPicker').value;
+                    set(ref(db, `pixels/${x}_${y}`), { x, y, color })
+                    .then(() => {
+                        status.innerText = "PLACED";
+                        status.style.color = "#00ff41";
+                    }).catch(err => {
+                        console.error("Write error:", err);
+                        status.innerText = "DENIED";
+                        status.style.color = "#ff4444";
+                    });
+                }
             }
         });
 
