@@ -276,9 +276,10 @@
                 const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
                 if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
                     coordsDisplay.innerText = `${x},${y}`;
-                    const pixelSize = (CANVAS_SIZE / rect.width);
-                    const outlineX = rect.left + (x / CANVAS_SIZE) * rect.width;
-                    const outlineY = rect.top + (y / CANVAS_SIZE) * rect.height;
+                    const viewportRect = viewport.getBoundingClientRect();
+                    const pixelSize = rect.width / CANVAS_SIZE;
+                    const outlineX = (rect.left - viewportRect.left) + (x / CANVAS_SIZE) * rect.width;
+                    const outlineY = (rect.top - viewportRect.top) + (y / CANVAS_SIZE) * rect.height;
                     pixelOutline.style.width = pixelSize + 'px';
                     pixelOutline.style.height = pixelSize + 'px';
                     pixelOutline.style.left = outlineX + 'px';
