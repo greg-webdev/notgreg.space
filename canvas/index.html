@@ -196,6 +196,23 @@
         let isSpacebarPressed = false;
         let placedPixels = new Set();
 
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C'))) {
+                e.preventDefault();
+                location.reload();
+            }
+        });
+
+        const devtoolsCheck = setInterval(() => {
+            const before = performance.now();
+            debugger;
+            const after = performance.now();
+            if (after - before > 100) {
+                clearInterval(devtoolsCheck);
+                location.reload();
+            }
+        }, 1000);
+
         signInAnonymously(auth).catch((error) => {
             console.error("Auth failed:", error);
             status.innerText = "AUTH ERR";
