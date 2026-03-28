@@ -235,6 +235,13 @@
             }
         });
 
+        window.cc = () => {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            set(ref(db, 'pixels'), {});
+            console.log("Canvas cleared with white!");
+        };
+
         let scale = 0.4;
         let originX = 0;
         let originY = 0;
