@@ -230,9 +230,8 @@
 
         viewport.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomSpeed = 0.1;
-            const delta = -Math.sign(e.deltaY) * zoomSpeed;
             const oldScale = scale;
+            const delta = -e.deltaY * 0.001;
             scale = Math.min(Math.max(0.1, scale + delta), 40);
 
             const rect = viewport.getBoundingClientRect();
