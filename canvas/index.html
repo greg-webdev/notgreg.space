@@ -214,7 +214,7 @@
         let lastMouseY = 0;
         let grabTimeout = null;
 
-        function updateTransform() {
+        function spamTheCanvasVroom() {
             container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
         }
 
@@ -222,7 +222,7 @@
             const vRect = viewport.getBoundingClientRect();
             originX = (vRect.width - (CANVAS_SIZE * scale)) / 2;
             originY = (vRect.height - (CANVAS_SIZE * scale)) / 2;
-            updateTransform();
+            spamTheCanvasVroom();
         };
 
         viewport.addEventListener('wheel', (e) => {
@@ -239,7 +239,7 @@
             originX = mouseX - (mouseX - originX) * (scale / oldScale);
             originY = mouseY - (mouseY - originY) * (scale / oldScale);
             
-            updateTransform();
+            spamTheCanvasVroom();
         }, { passive: false });
 
         viewport.addEventListener('mousedown', (e) => {
@@ -264,7 +264,7 @@
                 originY += dy;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
-                updateTransform();
+                spamTheCanvasVroom();
             }
 
             const rect = canvas.getBoundingClientRect();
@@ -290,17 +290,8 @@
             viewport.classList.remove('grabbing');
         });
 
-        function hasDrawn() {
-            return document.cookie.includes('has_drawn=true');
-        }
-
         canvas.addEventListener('dblclick', (e) => {
             if (!currentUser) return;
-            if (hasDrawn()) {
-                status.innerText = "USED!";
-                status.style.color = "#ff4444";
-                return;
-            }
 
             const rect = canvas.getBoundingClientRect();
             const x = Math.floor((e.clientX - rect.left) * (CANVAS_SIZE / rect.width));
@@ -310,7 +301,6 @@
                 const color = document.getElementById('colorPicker').value;
                 set(ref(db, `pixels/${x}_${y}`), { x, y, color })
                 .then(() => {
-                    document.cookie = "has_drawn=true; max-age=31536000; path=/";
                     status.innerText = "PLACED";
                     status.style.color = "#00ff41";
                 }).catch(err => {
