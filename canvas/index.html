@@ -136,10 +136,6 @@
         <h2>PIXELPLACE2</h2>
         
         <div class="control-group">
-            <button id="googleSignInBtn" onclick="googleSignIn()" style="width: 100%; padding: 8px; background: #1e5194; border: 2px solid #444; color: #fff; font-family: 'Press Start 2P', cursive; font-size: 7px; cursor: pointer; margin-bottom: 10px;">SIGN IN WITH GOOGLE</button>
-        </div>
-
-        <div class="control-group">
             <span class="label">COLOR SELECTION</span>
             <input type="color" id="colorPicker" value="#00ff41">
         </div>
@@ -170,7 +166,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getDatabase, ref, set, onChildAdded, onChildChanged, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -201,14 +197,9 @@
         let currentUser = null;
         let isSpacebarPressed = false;
         let placedPixels = new Set();
-        let isGoogleUser = false;
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J'))) {
-                e.preventDefault();
-                location.reload();
-            }
-            if (e.ctrlKey && e.shiftKey && e.key === 'C' && !isGoogleUser) {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C'))) {
                 e.preventDefault();
                 location.reload();
             }
@@ -225,7 +216,10 @@
         }, 1000);
 
         document.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
+            const isBottomLeftCorner = e.clientX < 100 && e.clientY > window.innerHeight - 100;
+            if (!isBottomLeftCorner) {
+                e.preventDefault();
+            }
         });
 
         signInAnonymously(auth).catch((error) => {
@@ -233,36 +227,11 @@
             status.innerText = "AUTH ERR";
         });
 
-        window.googleSignIn = () => {
-            const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider).catch(error => {
-                console.error("Google sign-in failed:", error);
-                status.innerText = "GOOGLE ERR";
-            });
-        };
-
-        window.clear = () => {
-            if (!isGoogleUser) {
-                console.error("Only Google sign-in users can clear the canvas");
-                return;
-            }
-            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-            set(ref(db, 'pixels'), {}).then(() => {
-                console.log("Canvas cleared!");
-            }).catch(err => {
-                console.error("Clear error:", err);
-            });
-        };
-
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
-                status.innerText = isGoogleUser ? "GOOGLE MODE" : "READY";
+                status.innerText = "READY";
                 status.style.color = "#00ff41";
-                if (document.getElementById('googleSignInBtn')) {
-                    document.getElementById('googleSignInBtn').style.display = 'none';
-                }
             }
         });
 
