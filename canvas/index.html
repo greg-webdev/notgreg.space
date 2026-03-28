@@ -121,18 +121,19 @@
             position: absolute;
             width: 1px;
             height: 1px;
-            border: 2px solid var(--accent);
-            box-shadow: 0 0 10px var(--accent), inset 0 0 5px var(--accent);
+            background: rgba(0, 255, 65, 0.3);
+            border: 1px solid var(--accent);
             pointer-events: none;
             display: none;
             z-index: 5;
+            box-sizing: border-box;
         }
     </style>
 </head>
 <body>
 
     <div id="side-panel">
-        <h2>PIXEL AMIGOS</h2>
+        <h2>PIXELPLACE2</h2>
         
         <div class="control-group">
             <span class="label">COLOR SELECTION</span>
@@ -146,7 +147,7 @@
         </div>
 
         <div style="font-size: 6px; margin-top: 15px; color: #666; line-height: 1.6;">
-            DRAG TO MOVE<br>SCROLL TO ZOOM<br>ONE PIXEL ONLY!
+            CLICK TO PLACE<br>SPACE+DRAG TO PAINT<br>DRAG TO MOVE<br>SCROLL TO ZOOM
         </div>
     </div>
 
@@ -164,7 +165,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getDatabase, ref, set, onChildAdded, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, set, onChildAdded, onChildChanged, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCC0xW-iSvy64UNZrfkJbvyehYv5bBm5rY",
@@ -192,6 +193,8 @@
 
         const CANVAS_SIZE = 2000;
         let currentUser = null;
+        let isSpacebarPressed = false;
+        let placedPixels = new Set();
 
         signInAnonymously(auth).catch((error) => {
             console.error("Auth failed:", error);
@@ -273,11 +276,24 @@
                 const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
                 if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
                     coordsDisplay.innerText = `${x},${y}`;
+                    const pixelSize = (CANVAS_SIZE / rect.width);
                     const outlineX = rect.left + (x / CANVAS_SIZE) * rect.width;
                     const outlineY = rect.top + (y / CANVAS_SIZE) * rect.height;
+                    pixelOutline.style.width = pixelSize + 'px';
+                    pixelOutline.style.height = pixelSize + 'px';
                     pixelOutline.style.left = outlineX + 'px';
                     pixelOutline.style.top = outlineY + 'px';
                     pixelOutline.style.display = 'block';
+                    
+                    if (isSpacebarPressed && !isDragging && currentUser) {
+                        const pixelKey = `${x}_${y}`;
+                        if (!placedPixels.has(pixelKey)) {
+                            placedPixels.add(pixelKey);
+                            const color = document.getElementById('colorPicker').value;
+                            set(ref(db, `pixels/${x}_${y}`), { x, y, color })
+                            .catch(err => console.error("Write error:", err));
+                        }
+                    }
                 } else {
                     pixelOutline.style.display = 'none';
                 }
@@ -290,7 +306,21 @@
             viewport.classList.remove('grabbing');
         });
 
-        canvas.addEventListener('dblclick', (e) => {
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                isSpacebarPressed = true;
+                placedPixels.clear();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                isSpacebarPressed = false;
+                placedPixels.clear();
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
             if (!currentUser) return;
 
             const rect = canvas.getBoundingClientRect();
@@ -312,6 +342,12 @@
         });
 
         onChildAdded(ref(db, 'pixels'), (snap) => {
+            const p = snap.val();
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 1, 1);
+        });
+
+        onChildChanged(ref(db, 'pixels'), (snap) => {
             const p = snap.val();
             ctx.fillStyle = p.color;
             ctx.fillRect(p.x, p.y, 1, 1);
