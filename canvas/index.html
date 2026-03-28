@@ -265,7 +265,7 @@
             e.preventDefault();
             const oldScale = scale;
             const delta = -e.deltaY * 0.005;
-            scale = Math.min(Math.max(0.1, scale + delta), 50);
+            scale = Math.min(Math.max(0.1, scale + delta), 500);
 
             const rect = viewport.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
