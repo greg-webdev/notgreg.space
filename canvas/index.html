@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Amigos: World Canvas</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --panel-bg: #1e1e1e;
+            --accent: #00ff41;
+            --border: #444;
+            --text: #ffffff;
+        }
+
+        body { 
+            margin: 0;
+            padding: 0;
+            background: var(--bg-dark);
+            color: var(--text);
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #side-panel {
+            width: 320px;
+            background: var(--panel-bg);
+            border-right: 4px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        h2 { font-size: 14px; color: var(--accent); margin-bottom: 20px; text-align: center; }
+
+        .control-group { margin-bottom: 25px; }
+        .label { font-size: 8px; margin-bottom: 10px; display: block; color: #888; }
+
+        #colorPicker {
+            width: 100%;
+            height: 50px;
+            border: 3px solid var(--border);
+            background: none;
+            cursor: pointer;
+        }
+
+        #chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            border: 3px solid var(--border);
+            background: #000;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 8px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            scrollbar-width: thin;
+        }
+
+        .msg { margin-bottom: 8px; word-break: break-all; }
+        .msg-user { color: var(--accent); }
+
+        #chat-input {
+            background: #222;
+            border: 2px solid var(--border);
+            color: #fff;
+            padding: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 8px;
+            outline: none;
+        }
+
+        #viewport {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+            cursor: crosshair;
+        }
+        
+        #viewport.grabbing { cursor: grabbing; }
+
+        #canvas-container {
+            position: absolute;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        canvas {
+            background: #fff;
+            image-rendering: pixelated;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            display: block;
+        }
+
+        #status-bar {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            font-size: 8px;
+            border: 2px solid var(--border);
+            pointer-events: none;
+        }
+
+        #coords { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div id="side-panel">
+        <h2>PIXEL AMIGOS</h2>
+        
+        <div class="control-group">
+            <span class="label">COLOR SELECTION</span>
+            <input type="color" id="colorPicker" value="#00ff41">
+        </div>
+
+        <span class="label">WORLD CHAT</span>
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <input type="text" id="chat-input" placeholder="TYPE MSG..." maxlength="50">
+        </div>
+
+        <div style="font-size: 6px; margin-top: 15px; color: #666; line-height: 1.6;">
+            DRAG TO MOVE<br>SCROLL TO ZOOM<br>ONE PIXEL ONLY!
+        </div>
+    </div>
+
+    <div id="viewport">
+        <div id="canvas-container">
+            <canvas id="pixelCanvas" width="2000" height="2000"></canvas>
+        </div>
+        <div id="status-bar">
+            STATUS: <span id="status">INIT...</span><br>
+            POS: <span id="coords">0,0</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, set, onChildAdded, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCC0xW-iSvy64UNZrfkJbvyehYv5bBm5rY",
+            authDomain: "canvas-amigos.firebaseapp.com",
+            projectId: "canvas-amigos",
+            storageBucket: "canvas-amigos.firebasestorage.app",
+            messagingSenderId: "133627763894",
+            appId: "1:133627763894:web:3e246f2765761613145a17",
+            databaseURL: "https://canvas-amigos-default-rtdb.firebaseio.com"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+        
+        const canvas = document.getElementById('pixelCanvas');
+        const ctx = canvas.getContext('2d');
+        const viewport = document.getElementById('viewport');
+        const container = document.getElementById('canvas-container');
+        const status = document.getElementById('status');
+        const coordsDisplay = document.getElementById('coords');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        const CANVAS_SIZE = 2000;
+        let currentUser = null;
+
+        signInAnonymously(auth).catch((error) => {
+            console.error("Auth failed:", error);
+            status.innerText = "AUTH ERR";
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                status.innerText = "READY";
+                status.style.color = "#00ff41";
+            }
+        });
+
+        let scale = 0.4;
+        let originX = 0;
+        let originY = 0;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let grabTimeout = null;
+
+        function updateTransform() {
+            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+        }
+
+        window.onload = () => {
+            const vRect = viewport.getBoundingClientRect();
+            originX = (vRect.width - (CANVAS_SIZE * scale)) / 2;
+            originY = (vRect.height - (CANVAS_SIZE * scale)) / 2;
+            updateTransform();
+        };
+
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.1;
+            const delta = -Math.sign(e.deltaY) * zoomSpeed;
+            const oldScale = scale;
+            scale = Math.min(Math.max(0.1, scale + delta), 40);
+
+            const rect = viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            originX = mouseX - (mouseX - originX) * (scale / oldScale);
+            originY = mouseY - (mouseY - originY) * (scale / oldScale);
+            
+            updateTransform();
+        }, { passive: false });
+
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                
+                grabTimeout = setTimeout(() => {
+                    if (isDragging) {
+                        viewport.classList.add('grabbing');
+                    }
+                }, 100);
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                originX += dx;
+                originY += dy;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                updateTransform();
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width > 0) {
+                const x = Math.floor((e.clientX - rect.left) * (CANVAS_SIZE / rect.width));
+                const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
+                if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
+                    coordsDisplay.innerText = `${x},${y}`;
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            if (grabTimeout) clearTimeout(grabTimeout);
+            viewport.classList.remove('grabbing');
+        });
+
+        function hasDrawn() {
+            return document.cookie.includes('has_drawn=true');
+        }
+
+        canvas.addEventListener('dblclick', (e) => {
+            if (!currentUser) return;
+            if (hasDrawn()) {
+                status.innerText = "USED!";
+                status.style.color = "#ff4444";
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) * (CANVAS_SIZE / rect.width));
+            const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
+
+            if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
+                const color = document.getElementById('colorPicker').value;
+                set(ref(db, `pixels/${x}_${y}`), { x, y, color })
+                .then(() => {
+                    document.cookie = "has_drawn=true; max-age=31536000; path=/";
+                    status.innerText = "PLACED";
+                    status.style.color = "#00ff41";
+                }).catch(err => {
+                    console.error("Write error:", err);
+                    status.innerText = "DENIED";
+                    status.style.color = "#ff4444";
+                });
+            }
+        });
+
+        onChildAdded(ref(db, 'pixels'), (snap) => {
+            const p = snap.val();
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 1, 1);
+        });
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && chatInput.value.trim() && currentUser) {
+                const msg = chatInput.value.trim();
+                push(ref(db, 'messages'), {
+                    text: msg,
+                    time: serverTimestamp(),
+                    uid: currentUser.uid
+                }).catch(err => console.error("Chat error:", err));
+                chatInput.value = '';
+            }
+        });
+
+        onChildAdded(ref(db, 'messages'), (snap) => {
+            const m = snap.val();
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="msg-user">USER:</span> ${m.text}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+    </script>
+</body>
+</html>
