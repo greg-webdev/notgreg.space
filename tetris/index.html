@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -33,262 +33,411 @@
     <button onclick="launchGame()">Open Game</button>
     <script>
         function launchGame() {
-            const w = window.open('about:blank');
+            const w = window.open('about:blank', '_blank');
+            if (!w) return;
+
             setTimeout(() => {
                 const d = w.document;
-                d.body.innerHTML = '<canvas id="c"></canvas><div id="ui"><span id="score">Score: 0</span><button id="aiBtn">AI OFF</button><div><label>Speed:</label><input type="range" id="speed" min="0.1" max="1" step="0.05" value="0.5"><span id="sp">50%</span></div></div><style>*{margin:0;padding:0}body{overflow:hidden;background:#000;font-family:Arial}#c{display:block}#ui{background:#222;color:#fff;padding:15px;display:flex;gap:20px;align-items:center}#aiBtn{padding:8px 15px;background:#ff6b6b;color:#fff;border:none;cursor:pointer;border-radius:3px}#aiBtn.on{background:#51cf66}input{width:150px}</style>';
-                
+                d.body.innerHTML = '<div id="gameWrap"><canvas id="c"></canvas></div><div id="ui"><span id="score">Score: 0</span><button id="aiBtn">AI OFF</button><div><label>Speed:</label><input type="range" id="speed" min="0.1" max="1" step="0.05" value="0.5"><span id="sp">50%</span></div></div><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#000;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;overflow:hidden}#gameWrap{padding-top:10px}#c{display:block;background:#000;border:1px solid #1f1f1f}#ui{width:302px;background:#20232a;color:#fff;padding:12px;display:flex;gap:16px;align-items:center;justify-content:space-between}#aiBtn{padding:7px 12px;background:#ff6b6b;color:#fff;border:none;cursor:pointer;border-radius:4px}#aiBtn.on{background:#51cf66}#ui div{display:flex;align-items:center;gap:6px}input{width:120px}</style>';
+
                 const c = d.getElementById('c');
                 const x = c.getContext('2d');
-                c.width = 300;
-                c.height = 600;
-                
-                const W = 10, H = 20, B = 30;
+                const scoreEl = d.getElementById('score');
+                const aiBtn = d.getElementById('aiBtn');
+                const speedEl = d.getElementById('speed');
+                const speedText = d.getElementById('sp');
+
+                const W = 10;
+                const H = 20;
+                const B = 30;
+                c.width = W * B;
+                c.height = H * B;
+
                 const TETRIMINOS = [
-                    {s: [[1,1,1,1]], co: '#0ff'},
-                    {s: [[1,0],[1,0],[1,1]], co: '#00f'},
-                    {s: [[0,1],[1,0],[1,1]], co: '#ff0'},
-                    {s: [[1,1,0],[0,1,1]], co: '#f00'},
-                    {s: [[1,1],[1,1]], co: '#0f0'},
-                    {s: [[0,1,1],[1,1,0]], co: '#f0f'},
-                    {s: [[1,1,1],[0,1,0]], co: '#fa0'}
+                    { s: [[1,1,1,1]], co: '#00e5ff' },
+                    { s: [[1,0],[1,0],[1,1]], co: '#2f5dff' },
+                    { s: [[0,1],[1,0],[1,1]], co: '#ffd000' },
+                    { s: [[1,1,0],[0,1,1]], co: '#ff3b30' },
+                    { s: [[1,1],[1,1]], co: '#39ff14' },
+                    { s: [[0,1,1],[1,1,0]], co: '#ff00ff' },
+                    { s: [[1,1,1],[0,1,0]], co: '#ff8c00' }
                 ];
-                
-                let board = Array(H).fill(0).map(() => Array(W).fill(0));
-                let score = 0, ai = false, speed = 0.5, lastAi = 0, lastGrav = -1000, p = null, np = null, over = false;
-                
+
+                let board = Array.from({ length: H }, () => Array(W).fill(0));
+                let score = 0;
+                let ai = false;
+                let speed = 0.5;
+                let over = false;
+                let p = null;
+                let np = null;
+
+                let gravityMs = 0;
+                let aiMs = 0;
+                let lastFrame = w.performance.now();
+
+                function cloneShape(shape) {
+                    return shape.map(row => row.slice());
+                }
+
+                function rotateShape(shape) {
+                    const rows = shape.length;
+                    const cols = shape[0].length;
+                    const out = Array.from({ length: cols }, () => Array(rows).fill(0));
+                    for (let r = 0; r < rows; r++) {
+                        for (let c2 = 0; c2 < cols; c2++) {
+                            out[c2][rows - 1 - r] = shape[r][c2];
+                        }
+                    }
+                    return out;
+                }
+
+                function uniqueRotations(shape) {
+                    const seen = new Set();
+                    const result = [];
+                    let cur = cloneShape(shape);
+                    for (let i = 0; i < 4; i++) {
+                        const key = cur.map(r => r.join('')).join('|');
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            result.push(cloneShape(cur));
+                        }
+                        cur = rotateShape(cur);
+                    }
+                    return result;
+                }
+
                 class Piece {
                     constructor(t) {
-                        this.sh = t.s.map(r => [...r]);
-                        this.x = Math.floor(W/2) - Math.ceil(t.s[0].length/2);
+                        this.sh = cloneShape(t.s);
+                        this.x = Math.floor(W / 2) - Math.ceil(this.sh[0].length / 2);
                         this.y = 0;
                         this.co = t.co;
                     }
-                    rot() {
-                        const n = this.sh.length;
-                        const r = Array(this.sh[0].length).fill(0).map(() => Array(n).fill(0));
-                        for(let i = 0; i < n; i++) for(let j = 0; j < this.sh[i].length; j++) r[j][n-1-i] = this.sh[i][j];
-                        this.sh = r;
-                    }
-                    ok(dx, dy) {
-                        console.log('Checking ok() - dx:', dx, 'dy:', dy, 'px:', this.x, 'py:', this.y);
-                        for(let i = 0; i < this.sh.length; i++) {
-                            for(let j = 0; j < this.sh[i].length; j++) {
-                                if(this.sh[i][j]) {
-                                    const nx = this.x + j + dx;
-                                    const ny = this.y + i + dy;
-                                    console.log('  Block at', i, j, 'would be at', nx, ny);
-                                    if(nx < 0 || nx >= W || ny >= H) {
-                                        console.log('    Out of bounds!');
-                                        return false;
-                                    }
-                                    if(ny >= 0 && board[ny][nx]) {
-                                        console.log('    Collision!');
-                                        return false;
-                                    }
-                                }
+
+                    ok(dx, dy, shape = this.sh, testX = this.x, testY = this.y) {
+                        for (let i = 0; i < shape.length; i++) {
+                            for (let j = 0; j < shape[i].length; j++) {
+                                if (!shape[i][j]) continue;
+                                const nx = testX + j + dx;
+                                const ny = testY + i + dy;
+                                if (nx < 0 || nx >= W || ny >= H) return false;
+                                if (ny >= 0 && board[ny][nx]) return false;
                             }
                         }
-                        console.log('  ok() = true');
                         return true;
                     }
+
                     mv(dx, dy) {
-                        if(this.ok(dx, dy)) {
-                            console.log('mv success:', dx, dy);
-                            this.x += dx;
-                            this.y += dy;
-                            return true;
+                        if (!this.ok(dx, dy)) return false;
+                        this.x += dx;
+                        this.y += dy;
+                        return true;
+                    }
+
+                    rot() {
+                        const rotated = rotateShape(this.sh);
+                        if (this.ok(0, 0, rotated, this.x, this.y)) {
+                            this.sh = rotated;
                         }
-                        console.log('mv FAILED:', dx, dy);
-                        return false;
                     }
                 }
-                
+
                 function newP() {
-                    const piece = new Piece(TETRIMINOS[Math.floor(Math.random() * TETRIMINOS.length)]);
-                    console.log('New piece created:', piece);
-                    return piece;
+                    return new Piece(TETRIMINOS[Math.floor(Math.random() * TETRIMINOS.length)]);
                 }
-                
+
                 function merge() {
-                    console.log('MERGE called');
-                    for(let i = 0; i < p.sh.length; i++) {
-                        for(let j = 0; j < p.sh[i].length; j++) {
-                            if(p.sh[i][j]) {
-                                const y = p.y + i;
-                                if(y >= 0) board[y][p.x + j] = p.co;
-                            }
+                    for (let i = 0; i < p.sh.length; i++) {
+                        for (let j = 0; j < p.sh[i].length; j++) {
+                            if (!p.sh[i][j]) continue;
+                            const yy = p.y + i;
+                            if (yy >= 0) board[yy][p.x + j] = p.co;
                         }
                     }
-                    for(let i = H - 1; i >= 0; i--) {
-                        if(board[i].every(e => e)) {
-                            board.splice(i, 1);
+
+                    let cleared = 0;
+                    for (let r = H - 1; r >= 0; r--) {
+                        if (board[r].every(Boolean)) {
+                            board.splice(r, 1);
                             board.unshift(Array(W).fill(0));
-                            score += 100;
+                            cleared++;
+                            r++;
                         }
                     }
+
+                    score += cleared * 100;
                     p = np;
                     np = newP();
-                    console.log('New piece from merge:', p);
-                    if(!p.ok(0, 1)) over = true;
+
+                    if (!p.ok(0, 0)) {
+                        over = true;
+                    }
                 }
-                
-                function eval(pi, px, py, rot) {
-                    const tb = board.map(r => [...r]);
-                    const tp = new Piece({s: pi.sh.map(r => [...r]), co: pi.co});
-                    tp.x = px;
-                    tp.y = py;
-                    
-                    for(let r = 0; r < rot; r++) tp.rot();
-                    
-                    let ok = true;
-                    for(let i = 0; i < tp.sh.length && ok; i++) {
-                        for(let j = 0; j < tp.sh[i].length && ok; j++) {
-                            if(tp.sh[i][j]) {
-                                const ny = tp.y + i;
-                                const nx = tp.x + j;
-                                if(nx < 0 || nx >= W || ny >= H || (ny >= 0 && tb[ny][nx])) ok = false;
-                            }
+
+                function collides(mask, shape, px, py) {
+                    for (let i = 0; i < shape.length; i++) {
+                        for (let j = 0; j < shape[i].length; j++) {
+                            if (!shape[i][j]) continue;
+                            const x2 = px + j;
+                            const y2 = py + i;
+                            if (x2 < 0 || x2 >= W || y2 >= H) return true;
+                            if (y2 >= 0 && mask[y2][x2]) return true;
                         }
                     }
-                    if(!ok) return -99999;
-                    
-                    while(tp.y + tp.sh.length < H) {
-                        let can = true;
-                        for(let i = 0; i < tp.sh.length && can; i++) {
-                            for(let j = 0; j < tp.sh[i].length && can; j++) {
-                                if(tp.sh[i][j]) {
-                                    const ny = tp.y + i + 1;
-                                    const nx = tp.x + j;
-                                    if(ny >= H || (ny >= 0 && tb[ny][nx])) can = false;
+                    return false;
+                }
+
+                function simulateDrop(mask, shape, px) {
+                    let py = -4;
+                    while (!collides(mask, shape, px, py + 1)) py++;
+                    if (collides(mask, shape, px, py)) return null;
+
+                    const nextMask = mask.map(r => r.slice());
+                    for (let i = 0; i < shape.length; i++) {
+                        for (let j = 0; j < shape[i].length; j++) {
+                            if (!shape[i][j]) continue;
+                            const y2 = py + i;
+                            const x2 = px + j;
+                            if (y2 < 0) return null;
+                            nextMask[y2][x2] = 1;
+                        }
+                    }
+
+                    let lines = 0;
+                    for (let r = H - 1; r >= 0; r--) {
+                        let full = true;
+                        for (let c2 = 0; c2 < W; c2++) {
+                            if (!nextMask[r][c2]) {
+                                full = false;
+                                break;
+                            }
+                        }
+                        if (full) {
+                            nextMask.splice(r, 1);
+                            nextMask.unshift(Array(W).fill(0));
+                            lines++;
+                            r++;
+                        }
+                    }
+
+                    return { mask: nextMask, lines, y: py };
+                }
+
+                function analyzeBoard(mask) {
+                    const heights = Array(W).fill(0);
+                    let holes = 0;
+
+                    for (let col = 0; col < W; col++) {
+                        let seenBlock = false;
+                        for (let row = 0; row < H; row++) {
+                            if (mask[row][col]) {
+                                if (!seenBlock) {
+                                    heights[col] = H - row;
+                                    seenBlock = true;
                                 }
+                            } else if (seenBlock) {
+                                holes++;
                             }
                         }
-                        if(!can) break;
-                        tp.y++;
                     }
-                    
-                    for(let i = 0; i < tp.sh.length; i++) {
-                        for(let j = 0; j < tp.sh[i].length; j++) {
-                            if(tp.sh[i][j]) tb[tp.y + i][tp.x + j] = 1;
+
+                    const aggregate = heights.reduce((a, b) => a + b, 0);
+                    const maxHeight = Math.max(...heights);
+
+                    let bumpiness = 0;
+                    for (let i = 0; i < W - 1; i++) {
+                        bumpiness += Math.abs(heights[i] - heights[i + 1]);
+                    }
+
+                    let wells = 0;
+                    for (let col = 0; col < W; col++) {
+                        const left = col === 0 ? heights[col + 1] + 1 : heights[col - 1];
+                        const right = col === W - 1 ? heights[col - 1] + 1 : heights[col + 1];
+                        if (heights[col] < left && heights[col] < right) {
+                            wells += Math.min(left, right) - heights[col];
                         }
                     }
-                    
-                    let holes = 0, ht = 0, cl = 0;
-                    for(let col = 0; col < W; col++) {
-                        let filled = false;
-                        for(let row = H - 1; row >= 0; row--) {
-                            if(tb[row][col]) {
-                                if(row > ht) ht = row;
-                                filled = true;
-                            } else if(filled) holes++;
-                        }
+
+                    let topDanger = 0;
+                    for (const h of heights) {
+                        if (h >= H - 2) topDanger += h - (H - 3);
                     }
-                    for(let row = H - 1; row >= 0; row--) {
-                        if(tb[row].every(e => e)) cl++;
+
+                    let leftMass = 0;
+                    let rightMass = 0;
+                    for (let col = 0; col < W; col++) {
+                        if (col < W / 2) leftMass += heights[col];
+                        else rightMass += heights[col];
                     }
-                    return cl * 1000 - holes * 100 - ht * 10;
+                    const balance = Math.abs(leftMass - rightMass);
+
+                    return { aggregate, holes, maxHeight, bumpiness, wells, topDanger, balance };
                 }
-                
-                function aiMove() {
-                    let best = -99999, bx = 0, br = 0;
-                    for(let rot = 0; rot < 4; rot++) {
-                        for(let px = -2; px < W + 2; px++) {
-                            const sc = eval(p, px, 0, rot);
-                            if(sc > best) {
-                                best = sc;
-                                bx = px;
-                                br = rot;
+
+                function scorePlacement(result, shape, px) {
+                    const m = analyzeBoard(result.mask);
+                    const lineBonus = [0, 120, 360, 900, 2200][result.lines];
+                    const pieceCenter = px + shape[0].length / 2;
+                    const centerPenalty = Math.abs(pieceCenter - (W / 2)) * 2;
+
+                    return (
+                        lineBonus
+                        - m.aggregate * 0.45
+                        - m.holes * 12
+                        - m.bumpiness * 2.4
+                        - m.maxHeight * 2.2
+                        - m.wells * 1.5
+                        - m.topDanger * 40
+                        - m.balance * 1.4
+                        - centerPenalty
+                    );
+                }
+
+                function bestOnePly(mask, shape) {
+                    const rotations = uniqueRotations(shape);
+                    let best = -Infinity;
+
+                    for (const rotShape of rotations) {
+                        const maxX = W - rotShape[0].length;
+                        for (let px = 0; px <= maxX; px++) {
+                            const result = simulateDrop(mask, rotShape, px);
+                            if (!result) continue;
+                            const val = scorePlacement(result, rotShape, px);
+                            if (val > best) best = val;
+                        }
+                    }
+
+                    return best;
+                }
+
+                function findBestPlacement(mask, curShape, nextShape) {
+                    const rotations = uniqueRotations(curShape);
+                    let best = null;
+
+                    for (const rotShape of rotations) {
+                        const maxX = W - rotShape[0].length;
+                        for (let px = 0; px <= maxX; px++) {
+                            const first = simulateDrop(mask, rotShape, px);
+                            if (!first) continue;
+
+                            let val = scorePlacement(first, rotShape, px);
+
+                            if (nextShape) {
+                                const follow = bestOnePly(first.mask, nextShape);
+                                if (follow > -Infinity) val += follow * 0.65;
+                            }
+
+                            if (!best || val > best.val) {
+                                best = { val, x: px, shape: cloneShape(rotShape) };
                             }
                         }
                     }
-                    for(let r = 0; r < br; r++) {
-                        if(p.ok(0, 0)) p.rot();
+
+                    return best;
+                }
+
+                function aiMove() {
+                    if (!p || over) return;
+                    const mask = board.map(row => row.map(cell => (cell ? 1 : 0)));
+                    const best = findBestPlacement(mask, p.sh, np ? np.sh : null);
+
+                    if (!best) {
+                        over = true;
+                        return;
                     }
-                    while(p.x > bx) p.mv(-1, 0);
-                    while(p.x < bx) p.mv(1, 0);
-                    while(p.mv(0, 1)) {}
+
+                    p.sh = cloneShape(best.shape);
+                    p.x = best.x;
+                    while (p.mv(0, 1)) {}
                     merge();
                 }
-                
+
                 function draw() {
                     x.fillStyle = '#000';
                     x.fillRect(0, 0, c.width, c.height);
-                    for(let i = 0; i < H; i++) {
-                        for(let j = 0; j < W; j++) {
-                            if(board[i][j]) {
-                                x.fillStyle = board[i][j];
-                                x.fillRect(j * B, i * B, B - 1, B - 1);
-                            }
+
+                    for (let r = 0; r < H; r++) {
+                        for (let c2 = 0; c2 < W; c2++) {
+                            if (!board[r][c2]) continue;
+                            x.fillStyle = board[r][c2];
+                            x.fillRect(c2 * B, r * B, B - 1, B - 1);
                         }
                     }
-                    if(p) {
+
+                    if (p) {
                         x.fillStyle = p.co;
-                        for(let i = 0; i < p.sh.length; i++) {
-                            for(let j = 0; j < p.sh[i].length; j++) {
-                                if(p.sh[i][j] && p.y + i >= 0) {
+                        for (let i = 0; i < p.sh.length; i++) {
+                            for (let j = 0; j < p.sh[i].length; j++) {
+                                if (p.sh[i][j] && p.y + i >= 0) {
                                     x.fillRect((p.x + j) * B, (p.y + i) * B, B - 1, B - 1);
                                 }
                             }
                         }
                     }
                 }
-                
-                function loop() {
-                    const now = performance.now();
-                    
-                    console.log('Loop tick, now:', now, 'lastGrav:', lastGrav, 'ai:', ai, 'over:', over);
-                    
-                    if(!over) {
-                        if(ai && now - lastAi > (1 - speed) * 500 + 50) {
-                            console.log('AI move');
-                            aiMove();
-                            lastAi = now;
-                        } else if(!ai) {
-                            console.log('Checking gravity. Diff:', now - lastGrav, 'p exists:', !!p);
-                            if(now - lastGrav > 500) {
-                                console.log('Gravity trigger! Attempting to move piece down');
-                                const moved = p.mv(0, 1);
-                                console.log('Piece moved down:', moved);
-                                if(!moved) {
-                                    console.log('Could not move, merging');
-                                    merge();
-                                }
-                                lastGrav = now;
+
+                function loop(now) {
+                    const dt = Math.min(100, now - lastFrame);
+                    lastFrame = now;
+
+                    if (!over) {
+                        if (ai) {
+                            aiMs += dt;
+                            const aiInterval = (1 - speed) * 280 + 35;
+                            if (aiMs >= aiInterval) {
+                                aiMs = 0;
+                                aiMove();
+                            }
+                        } else {
+                            gravityMs += dt;
+                            if (gravityMs >= 500) {
+                                gravityMs = 0;
+                                if (p && !p.mv(0, 1)) merge();
                             }
                         }
                     }
+
                     draw();
-                    d.getElementById('score').textContent = 'Score: ' + score;
-                    requestAnimationFrame(loop);
+                    scoreEl.textContent = over ? ('Score: ' + score + '  GAME OVER') : ('Score: ' + score);
+                    w.requestAnimationFrame(loop);
                 }
-                
-                d.addEventListener('keydown', e => {
-                    if(!ai && p && !over) {
-                        if(e.key === 'ArrowLeft') p.mv(-1, 0);
-                        if(e.key === 'ArrowRight') p.mv(1, 0);
-                        if(e.key === 'ArrowUp') p.rot();
-                        if(e.key === ' ' || e.key === 'ArrowDown') { while(p.mv(0, 1)) {} merge(); }
+
+                w.addEventListener('keydown', e => {
+                    if (!ai && p && !over) {
+                        if (e.key === 'ArrowLeft') p.mv(-1, 0);
+                        if (e.key === 'ArrowRight') p.mv(1, 0);
+                        if (e.key === 'ArrowUp') p.rot();
+                        if (e.key === 'ArrowDown') {
+                            if (!p.mv(0, 1)) merge();
+                        }
+                        if (e.key === ' ') {
+                            while (p.mv(0, 1)) {}
+                            merge();
+                        }
+                    }
+
+                    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+                        e.preventDefault();
                     }
                 });
-                
-                d.getElementById('aiBtn').onclick = () => {
+
+                aiBtn.onclick = () => {
                     ai = !ai;
-                    const btn = d.getElementById('aiBtn');
-                    btn.textContent = ai ? 'AI ON' : 'AI OFF';
-                    btn.classList.toggle('on', ai);
+                    aiBtn.textContent = ai ? 'AI ON' : 'AI OFF';
+                    aiBtn.classList.toggle('on', ai);
+                    aiMs = 0;
+                    gravityMs = 0;
                 };
-                
-                d.getElementById('speed').oninput = e => {
+
+                speedEl.oninput = e => {
                     speed = parseFloat(e.target.value);
-                    d.getElementById('sp').textContent = Math.round(speed * 100) + '%';
+                    speedText.textContent = Math.round(speed * 100) + '%';
                 };
-                
-                console.log('Initializing game...');
+
                 p = newP();
                 np = newP();
-                console.log('Game initialized. p:', p, 'np:', np);
-                loop();
+                w.focus();
+                w.requestAnimationFrame(loop);
             }, 50);
         }
     </script>
