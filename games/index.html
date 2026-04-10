@@ -35,9 +35,107 @@
         function openBlankFullscreen() {
             const blankWindow = window.open('about:blank', '_blank');
             if (blankWindow) {
-                blankWindow.document.documentElement.requestFullscreen().catch(err => {
-                    console.log('Fullscreen request failed:', err);
-                });
+                blankWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            * { margin: 0; padding: 0; box-sizing: border-box; }
+                            body { width: 100vw; height: 100vh; overflow: hidden; background: #1a1a1a; font-family: Arial; }
+                            canvas { display: block; background: #000; }
+                            #score { position: fixed; top: 20px; left: 20px; color: #fff; font-size: 24px; z-index: 10; }
+                            #info { position: fixed; bottom: 20px; left: 20px; color: #aaa; font-size: 14px; z-index: 10; }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="score">Score: 0</div>
+                        <div id="info">Move mouse to catch | Click to fullscreen</div>
+                        <canvas id="gameCanvas"></canvas>
+                        <script>
+                            const canvas = document.getElementById('gameCanvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = window.innerWidth;
+                            canvas.height = window.innerHeight;
+                            
+                            let score = 0;
+                            const player = { x: canvas.width / 2, y: canvas.height - 40, width: 60, height: 40 };
+                            const objects = [];
+                            let mouseX = canvas.width / 2;
+                            
+                            document.addEventListener('mousemove', (e) => {
+                                mouseX = e.clientX;
+                            });
+                            
+                            document.addEventListener('click', () => {
+                                document.documentElement.requestFullscreen().catch(() => {});
+                            });
+                            
+                            class FallingObject {
+                                constructor() {
+                                    this.x = Math.random() * canvas.width;
+                                    this.y = -20;
+                                    this.width = 30;
+                                    this.height = 30;
+                                    this.speed = 3 + Math.random() * 3;
+                                    this.color = \`hsl(\${Math.random() * 360}, 70%, 50%)\`;
+                                }
+                                
+                                update() {
+                                    this.y += this.speed;
+                                }
+                                
+                                draw() {
+                                    ctx.fillStyle = this.color;
+                                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                                }
+                                
+                                isOffScreen() {
+                                    return this.y > canvas.height;
+                                }
+                                
+                                checkCollision(player) {
+                                    return this.x < player.x + player.width &&
+                                           this.x + this.width > player.x &&
+                                           this.y < player.y + player.height &&
+                                           this.y + this.height > player.y;
+                                }
+                            }
+                            
+                            function gameLoop() {
+                                ctx.fillStyle = '#000';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                
+                                player.x = mouseX - player.width / 2;
+                                
+                                if (Math.random() < 0.02) {
+                                    objects.push(new FallingObject());
+                                }
+                                
+                                for (let i = objects.length - 1; i >= 0; i--) {
+                                    objects[i].update();
+                                    objects[i].draw();
+                                    
+                                    if (objects[i].checkCollision(player)) {
+                                        objects.splice(i, 1);
+                                        score++;
+                                        document.getElementById('score').textContent = 'Score: ' + score;
+                                    } else if (objects[i].isOffScreen()) {
+                                        objects.splice(i, 1);
+                                    }
+                                }
+                                
+                                ctx.fillStyle = '#00ff00';
+                                ctx.fillRect(player.x, player.y, player.width, player.height);
+                                
+                                requestAnimationFrame(gameLoop);
+                            }
+                            
+                            gameLoop();
+                        </script>
+                    </body>
+                    </html>
+                `);
+                blankWindow.document.close();
             }
         }
     </script>
