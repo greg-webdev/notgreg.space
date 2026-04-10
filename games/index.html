@@ -1,0 +1,271 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Games</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #222;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button onclick="launchGame()">Open Game</button>
+    <script>
+        function launchGame() {
+            const w = window.open('about:blank');
+            setTimeout(() => {
+                const d = w.document;
+                d.body.innerHTML = '<canvas id="c"></canvas><div id="ui"><span id="score">Score: 0</span><button id="aiBtn">AI OFF</button><div><label>Speed:</label><input type="range" id="speed" min="0.1" max="1" step="0.05" value="0.5"><span id="sp">50%</span></div></div><style>*{margin:0;padding:0}body{overflow:hidden;background:#000;font-family:Arial}#c{display:block}#ui{background:#222;color:#fff;padding:15px;display:flex;gap:20px;align-items:center}#aiBtn{padding:8px 15px;background:#ff6b6b;color:#fff;border:none;cursor:pointer;border-radius:3px}#aiBtn.on{background:#51cf66}input{width:150px}</style>';
+                
+                const c = d.getElementById('c');
+                const x = c.getContext('2d');
+                c.width = 300;
+                c.height = 600;
+                
+                const W = 10, H = 20, B = 30;
+                const TETRIMINOS = [
+                    {s: [[1,1,1,1]], co: '#0ff'},
+                    {s: [[1,0],[1,0],[1,1]], co: '#00f'},
+                    {s: [[0,1],[1,0],[1,1]], co: '#ff0'},
+                    {s: [[1,1,0],[0,1,1]], co: '#f00'},
+                    {s: [[1,1],[1,1]], co: '#0f0'},
+                    {s: [[0,1,1],[1,1,0]], co: '#f0f'},
+                    {s: [[1,1,1],[0,1,0]], co: '#fa0'}
+                ];
+                
+                let board = Array(H).fill(0).map(() => Array(W).fill(0));
+                let score = 0, ai = false, speed = 0.5, lastGrav = 0, p = null, np = null, over = false;
+                let gravityCounter = 0;
+                
+                class Piece {
+                    constructor(t) {
+                        this.sh = t.s.map(r => [...r]);
+                        this.x = Math.floor(W/2) - Math.ceil(t.s[0].length/2);
+                        this.y = 0;
+                        this.co = t.co;
+                    }
+                    rot() {
+                        const n = this.sh.length;
+                        const r = Array(this.sh[0].length).fill(0).map(() => Array(n).fill(0));
+                        for(let i = 0; i < n; i++) for(let j = 0; j < this.sh[i].length; j++) r[j][n-1-i] = this.sh[i][j];
+                        this.sh = r;
+                    }
+                    ok(dx, dy) {
+                        for(let i = 0; i < this.sh.length; i++) {
+                            for(let j = 0; j < this.sh[i].length; j++) {
+                                if(this.sh[i][j]) {
+                                    const nx = this.x + j + dx;
+                                    const ny = this.y + i + dy;
+                                    if(nx < 0 || nx >= W || ny >= H) return false;
+                                    if(ny >= 0 && board[ny][nx]) return false;
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                    mv(dx, dy) {
+                        if(this.ok(dx, dy)) {
+                            this.x += dx;
+                            this.y += dy;
+                            return true;
+                        }
+                        return false;
+                    }
+                }
+                
+                function newP() {
+                    return new Piece(TETRIMINOS[Math.floor(Math.random() * TETRIMINOS.length)]);
+                }
+                
+                function merge() {
+                    for(let i = 0; i < p.sh.length; i++) {
+                        for(let j = 0; j < p.sh[i].length; j++) {
+                            if(p.sh[i][j]) {
+                                const y = p.y + i;
+                                if(y >= 0) board[y][p.x + j] = p.co;
+                            }
+                        }
+                    }
+                    for(let i = H - 1; i >= 0; i--) {
+                        if(board[i].every(e => e)) {
+                            board.splice(i, 1);
+                            board.unshift(Array(W).fill(0));
+                            score += 100;
+                        }
+                    }
+                    p = np;
+                    np = newP();
+                    if(!p.ok(0, 1)) over = true;
+                }
+                
+                function eval(pi, px, py, rot) {
+                    const tb = board.map(r => [...r]);
+                    const tp = new Piece({s: pi.sh.map(r => [...r]), co: pi.co});
+                    tp.x = px;
+                    tp.y = py;
+                    
+                    for(let r = 0; r < rot; r++) tp.rot();
+                    
+                    let ok = true;
+                    for(let i = 0; i < tp.sh.length && ok; i++) {
+                        for(let j = 0; j < tp.sh[i].length && ok; j++) {
+                            if(tp.sh[i][j]) {
+                                const ny = tp.y + i;
+                                const nx = tp.x + j;
+                                if(nx < 0 || nx >= W || ny >= H || (ny >= 0 && tb[ny][nx])) ok = false;
+                            }
+                        }
+                    }
+                    if(!ok) return -99999;
+                    
+                    while(tp.y + tp.sh.length < H) {
+                        let can = true;
+                        for(let i = 0; i < tp.sh.length && can; i++) {
+                            for(let j = 0; j < tp.sh[i].length && can; j++) {
+                                if(tp.sh[i][j]) {
+                                    const ny = tp.y + i + 1;
+                                    const nx = tp.x + j;
+                                    if(ny >= H || (ny >= 0 && tb[ny][nx])) can = false;
+                                }
+                            }
+                        }
+                        if(!can) break;
+                        tp.y++;
+                    }
+                    
+                    for(let i = 0; i < tp.sh.length; i++) {
+                        for(let j = 0; j < tp.sh[i].length; j++) {
+                            if(tp.sh[i][j]) tb[tp.y + i][tp.x + j] = 1;
+                        }
+                    }
+                    
+                    let holes = 0, ht = 0, cl = 0;
+                    for(let col = 0; col < W; col++) {
+                        let filled = false;
+                        for(let row = H - 1; row >= 0; row--) {
+                            if(tb[row][col]) {
+                                if(row > ht) ht = row;
+                                filled = true;
+                            } else if(filled) holes++;
+                        }
+                    }
+                    for(let row = H - 1; row >= 0; row--) {
+                        if(tb[row].every(e => e)) cl++;
+                    }
+                    return cl * 1000 - holes * 100 - ht * 10;
+                }
+                
+                function aiMove() {
+                    let best = -99999, bx = 0, br = 0;
+                    for(let rot = 0; rot < 4; rot++) {
+                        for(let px = -2; px < W + 2; px++) {
+                            const sc = eval(p, px, 0, rot);
+                            if(sc > best) {
+                                best = sc;
+                                bx = px;
+                                br = rot;
+                            }
+                        }
+                    }
+                    for(let r = 0; r < br; r++) {
+                        if(p.ok(0, 0)) p.rot();
+                    }
+                    while(p.x > bx) p.mv(-1, 0);
+                    while(p.x < bx) p.mv(1, 0);
+                    while(p.mv(0, 1)) {}
+                    merge();
+                }
+                
+                function draw() {
+                    x.fillStyle = '#000';
+                    x.fillRect(0, 0, c.width, c.height);
+                    for(let i = 0; i < H; i++) {
+                        for(let j = 0; j < W; j++) {
+                            if(board[i][j]) {
+                                x.fillStyle = board[i][j];
+                                x.fillRect(j * B, i * B, B - 1, B - 1);
+                            }
+                        }
+                    }
+                    if(p) {
+                        x.fillStyle = p.co;
+                        for(let i = 0; i < p.sh.length; i++) {
+                            for(let j = 0; j < p.sh[i].length; j++) {
+                                if(p.sh[i][j] && p.y + i >= 0) {
+                                    x.fillRect((p.x + j) * B, (p.y + i) * B, B - 1, B - 1);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                function loop() {
+                    if(!over) {
+                        if(ai) {
+                            // AI mode - not implemented gravity here
+                        } else {
+                            // Manual mode - gravity every 8 frames (roughly 500ms at 60fps)
+                            gravityCounter++;
+                            if(gravityCounter >= 8) {
+                                gravityCounter = 0;
+                                if(p && !p.mv(0, 1)) {
+                                    merge();
+                                }
+                            }
+                        }
+                    }
+                    draw();
+                    d.getElementById('score').textContent = 'Score: ' + score;
+                    requestAnimationFrame(loop);
+                }
+                
+                d.addEventListener('keydown', e => {
+                    if(!ai && p && !over) {
+                        if(e.key === 'ArrowLeft') p.mv(-1, 0);
+                        if(e.key === 'ArrowRight') p.mv(1, 0);
+                        if(e.key === 'ArrowUp') p.rot();
+                        if(e.key === ' ' || e.key === 'ArrowDown') { while(p.mv(0, 1)) {} merge(); }
+                    }
+                });
+                
+                d.getElementById('aiBtn').onclick = () => {
+                    ai = !ai;
+                    const btn = d.getElementById('aiBtn');
+                    btn.textContent = ai ? 'AI ON' : 'AI OFF';
+                    btn.classList.toggle('on', ai);
+                };
+                
+                d.getElementById('speed').oninput = e => {
+                    speed = parseFloat(e.target.value);
+                    d.getElementById('sp').textContent = Math.round(speed * 100) + '%';
+                };
+                
+                p = newP();
+                np = newP();
+                loop();
+            }, 50);
+        }
+    </script>
+</body>
+</html>
