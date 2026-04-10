@@ -44,21 +44,7 @@
                 c.height = 600;
                 
                 const logsDiv = d.getElementById('logs');
-                const originalLog = console.log;
-                let logCount = 0;
-                console.log = function(...args) {
-                    originalLog.apply(console, args);
-                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-                    const logEl = d.createElement('div');
-                    logEl.textContent = msg;
-                    logsDiv.appendChild(logEl);
-                    logCount++;
-                    if(logCount > 100) {
-                        logsDiv.removeChild(logsDiv.firstChild);
-                        logCount--;
-                    }
-                    logsDiv.scrollTop = logsDiv.scrollHeight;
-                };
+                // Console.log override disabled - was causing severe performance throttling
                 
                 const W = 10, H = 20, B = 30;
                 const TETRIMINOS = [
@@ -204,7 +190,13 @@
                         if(tb[row].every(e => e)) cl++;
                     }
                     
-                    return cl * 10000 - holes * 1000 - maxColHeight * 50 - bumpiness * 200 - deadZones * 500;
+                    let centerBias = 0;
+                    for(let col = 0; col < W; col++) {
+                        const distFromCenter = Math.abs(col - W/2);
+                        centerBias -= distFromCenter * 30 * colHeights[col];
+                    }
+                    
+                    return cl * 10000 - holes * 1000 - maxColHeight * 50 - bumpiness * 200 - deadZones * 500 + centerBias;
                 }
                 
                 function aiMove() {
