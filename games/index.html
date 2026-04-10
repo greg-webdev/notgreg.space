@@ -71,33 +71,47 @@
                         this.sh = r;
                     }
                     ok(dx, dy) {
+                        console.log('Checking ok() - dx:', dx, 'dy:', dy, 'px:', this.x, 'py:', this.y);
                         for(let i = 0; i < this.sh.length; i++) {
                             for(let j = 0; j < this.sh[i].length; j++) {
                                 if(this.sh[i][j]) {
                                     const nx = this.x + j + dx;
                                     const ny = this.y + i + dy;
-                                    if(nx < 0 || nx >= W || ny >= H) return false;
-                                    if(ny >= 0 && board[ny][nx]) return false;
+                                    console.log('  Block at', i, j, 'would be at', nx, ny);
+                                    if(nx < 0 || nx >= W || ny >= H) {
+                                        console.log('    Out of bounds!');
+                                        return false;
+                                    }
+                                    if(ny >= 0 && board[ny][nx]) {
+                                        console.log('    Collision!');
+                                        return false;
+                                    }
                                 }
                             }
                         }
+                        console.log('  ok() = true');
                         return true;
                     }
                     mv(dx, dy) {
                         if(this.ok(dx, dy)) {
+                            console.log('mv success:', dx, dy);
                             this.x += dx;
                             this.y += dy;
                             return true;
                         }
+                        console.log('mv FAILED:', dx, dy);
                         return false;
                     }
                 }
                 
                 function newP() {
-                    return new Piece(TETRIMINOS[Math.floor(Math.random() * TETRIMINOS.length)]);
+                    const piece = new Piece(TETRIMINOS[Math.floor(Math.random() * TETRIMINOS.length)]);
+                    console.log('New piece created:', piece);
+                    return piece;
                 }
                 
                 function merge() {
+                    console.log('MERGE called');
                     for(let i = 0; i < p.sh.length; i++) {
                         for(let j = 0; j < p.sh[i].length; j++) {
                             if(p.sh[i][j]) {
@@ -115,6 +129,7 @@
                     }
                     p = np;
                     np = newP();
+                    console.log('New piece from merge:', p);
                     if(!p.ok(0, 1)) over = true;
                 }
                 
@@ -222,13 +237,25 @@
                 function loop() {
                     const now = performance.now();
                     
+                    console.log('Loop tick, now:', now, 'lastGrav:', lastGrav, 'ai:', ai, 'over:', over);
+                    
                     if(!over) {
                         if(ai && now - lastAi > (1 - speed) * 500 + 50) {
+                            console.log('AI move');
                             aiMove();
                             lastAi = now;
-                        } else if(!ai && now - lastGrav > 500) {
-                            if(!p.mv(0, 1)) merge();
-                            lastGrav = now;
+                        } else if(!ai) {
+                            console.log('Checking gravity. Diff:', now - lastGrav, 'p exists:', !!p);
+                            if(now - lastGrav > 500) {
+                                console.log('Gravity trigger! Attempting to move piece down');
+                                const moved = p.mv(0, 1);
+                                console.log('Piece moved down:', moved);
+                                if(!moved) {
+                                    console.log('Could not move, merging');
+                                    merge();
+                                }
+                                lastGrav = now;
+                            }
                         }
                     }
                     draw();
@@ -257,8 +284,10 @@
                     d.getElementById('sp').textContent = Math.round(speed * 100) + '%';
                 };
                 
+                console.log('Initializing game...');
                 p = newP();
                 np = newP();
+                console.log('Game initialized. p:', p, 'np:', np);
                 loop();
             }, 50);
         }
