@@ -179,6 +179,8 @@
                     
                     let holes = 0, ht = 0, cl = 0, bumpiness = 0;
                     let colHeights = Array(W).fill(0);
+                    let deadZones = 0;
+                    let maxColHeight = 0;
                     
                     for(let col = 0; col < W; col++) {
                         let filled = false;
@@ -189,17 +191,20 @@
                                 filled = true;
                             } else if(filled) holes++;
                         }
+                        maxColHeight = Math.max(maxColHeight, colHeights[col]);
                     }
                     
                     for(let i = 1; i < W; i++) {
-                        bumpiness += Math.abs(colHeights[i] - colHeights[i-1]);
+                        const diff = Math.abs(colHeights[i] - colHeights[i-1]);
+                        bumpiness += diff;
+                        if(diff > 3) deadZones += diff;
                     }
                     
                     for(let row = H - 1; row >= 0; row--) {
                         if(tb[row].every(e => e)) cl++;
                     }
                     
-                    return cl * 5000 - holes * 500 - ht * 5 - bumpiness * 100;
+                    return cl * 10000 - holes * 1000 - maxColHeight * 50 - bumpiness * 200 - deadZones * 500;
                 }
                 
                 function aiMove() {
