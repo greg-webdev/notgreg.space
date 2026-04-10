@@ -45,12 +45,18 @@
                 
                 const logsDiv = d.getElementById('logs');
                 const originalLog = console.log;
+                let logCount = 0;
                 console.log = function(...args) {
                     originalLog.apply(console, args);
                     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
                     const logEl = d.createElement('div');
                     logEl.textContent = msg;
                     logsDiv.appendChild(logEl);
+                    logCount++;
+                    if(logCount > 100) {
+                        logsDiv.removeChild(logsDiv.firstChild);
+                        logCount--;
+                    }
                     logsDiv.scrollTop = logsDiv.scrollHeight;
                 };
                 
@@ -171,20 +177,29 @@
                         }
                     }
                     
-                    let holes = 0, ht = 0, cl = 0;
+                    let holes = 0, ht = 0, cl = 0, bumpiness = 0;
+                    let colHeights = Array(W).fill(0);
+                    
                     for(let col = 0; col < W; col++) {
                         let filled = false;
                         for(let row = H - 1; row >= 0; row--) {
                             if(tb[row][col]) {
+                                colHeights[col] = H - row;
                                 if(row > ht) ht = row;
                                 filled = true;
                             } else if(filled) holes++;
                         }
                     }
+                    
+                    for(let i = 1; i < W; i++) {
+                        bumpiness += Math.abs(colHeights[i] - colHeights[i-1]);
+                    }
+                    
                     for(let row = H - 1; row >= 0; row--) {
                         if(tb[row].every(e => e)) cl++;
                     }
-                    return cl * 1000 - holes * 100 - ht * 10;
+                    
+                    return cl * 5000 - holes * 500 - ht * 5 - bumpiness * 100;
                 }
                 
                 function aiMove() {
