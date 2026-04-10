@@ -665,7 +665,7 @@
                     button.addEventListener('click', showAnimationView);
                 } else {
                     button.dataset.url = project.url;
-                    button.addEventListener('click', () => window.open(project.url, '_blank'));
+                    button.addEventListener('click', () => window.location.href = project.url);
                 }
 
                 container.appendChild(button);
