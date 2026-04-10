@@ -36,12 +36,23 @@
             const w = window.open('about:blank');
             setTimeout(() => {
                 const d = w.document;
-                d.body.innerHTML = '<canvas id="c"></canvas><div id="ui"><span id="score">Score: 0</span><button id="aiBtn">AI OFF</button><div><label>Speed:</label><input type="range" id="speed" min="0.1" max="1" step="0.05" value="0.5"><span id="sp">50%</span></div></div><style>*{margin:0;padding:0}body{overflow:hidden;background:#000;font-family:Arial}#c{display:block}#ui{background:#222;color:#fff;padding:15px;display:flex;gap:20px;align-items:center}#aiBtn{padding:8px 15px;background:#ff6b6b;color:#fff;border:none;cursor:pointer;border-radius:3px}#aiBtn.on{background:#51cf66}input{width:150px}</style>';
+                d.body.innerHTML = '<canvas id="c"></canvas><div id="ui"><span id="score">Score: 0</span><button id="aiBtn">AI OFF</button><div><label>Speed:</label><input type="range" id="speed" min="0.1" max="1" step="0.05" value="0.5"><span id="sp">50%</span></div></div><div id="logs"></div><style>*{margin:0;padding:0}body{overflow:hidden;background:#000;font-family:Arial}#c{display:block}#ui{background:#222;color:#fff;padding:15px;display:flex;gap:20px;align-items:center}#aiBtn{padding:8px 15px;background:#ff6b6b;color:#fff;border:none;cursor:pointer;border-radius:3px}#aiBtn.on{background:#51cf66}input{width:150px}#logs{position:fixed;bottom:0;right:0;width:300px;height:300px;background:rgba(0,0,0,0.8);color:#0f0;font-family:monospace;font-size:11px;overflow-y:auto;padding:8px;border:1px solid #0f0;z-index:1000}</style>';
                 
                 const c = d.getElementById('c');
                 const x = c.getContext('2d');
                 c.width = 300;
                 c.height = 600;
+                
+                const logsDiv = d.getElementById('logs');
+                const originalLog = console.log;
+                console.log = function(...args) {
+                    originalLog.apply(console, args);
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+                    const logEl = d.createElement('div');
+                    logEl.textContent = msg;
+                    logsDiv.appendChild(logEl);
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                };
                 
                 const W = 10, H = 20, B = 30;
                 const TETRIMINOS = [
