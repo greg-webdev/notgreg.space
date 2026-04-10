@@ -55,7 +55,7 @@
                 ];
                 
                 let board = Array(H).fill(0).map(() => Array(W).fill(0));
-                let score = 0, ai = false, speed = 0.5, lastAi = 0, p = null, np = null, over = false;
+                let score = 0, ai = false, speed = 0.5, lastAi = 0, lastGrav = 0, p = null, np = null, over = false;
                 
                 class Piece {
                     constructor(t) {
@@ -224,8 +224,11 @@
                         if(ai && performance.now() - lastAi > (1 - speed) * 500 + 50) {
                             aiMove();
                             lastAi = performance.now();
-                        } else if(!ai && !p.mv(0, 1)) {
-                            merge();
+                        } else if(!ai) {
+                            if(performance.now() - lastGrav > 500) {
+                                if(!p.mv(0, 1)) merge();
+                                lastGrav = performance.now();
+                            }
                         }
                     }
                     draw();
