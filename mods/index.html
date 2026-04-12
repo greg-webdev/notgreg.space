@@ -1,3 +1,253 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:2b9611757d0ba54932514039b95ae58f9ec3b257adb8878ec98bfd5b78338d21
-size 8669
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>/mods index</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: #d0d7de;
+      --accent: #0b5fff;
+      --accent-soft: rgba(11, 95, 255, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --text: #e6edf3;
+        --muted: #9aa4b2;
+        --line: #2f3945;
+        --accent: #6ea8fe;
+        --accent-soft: rgba(110, 168, 254, 0.18);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(160deg, var(--bg), color-mix(in oklab, var(--bg), #7aa2ff 12%));
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.35rem;
+      word-break: break-word;
+    }
+
+    nav {
+      margin: 0 0 16px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    .back {
+      display: inline-block;
+      margin: 0 0 12px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      text-decoration: none;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font-size: 0.9rem;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    section {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: color-mix(in oklab, var(--panel), var(--bg) 28%);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    li {
+      margin: 0 0 8px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .download-link {
+      margin-left: 8px;
+      font-size: 0.82rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 2px 6px;
+      background: var(--accent-soft);
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>/mods</h1>
+    <nav><a href="./index.html">mods</a></nav>
+    
+    <div class="grid">
+      <section>
+        <h2>Folders (39)</h2>
+        <ul><li><a class="dir-link" href=".fabric/index.html">.fabric/</a></li>
+<li><a class="dir-link" href=".physics_mod_cache/index.html">.physics_mod_cache/</a></li>
+<li><a class="dir-link" href=".voxy/index.html">.voxy/</a></li>
+<li><a class="dir-link" href="assets/index.html">assets/</a></li>
+<li><a class="dir-link" href="backups/index.html">backups/</a></li>
+<li><a class="dir-link" href="baritone/index.html">baritone/</a></li>
+<li><a class="dir-link" href="chiselsandbits/index.html">chiselsandbits/</a></li>
+<li><a class="dir-link" href="cloth_local/index.html">cloth_local/</a></li>
+<li><a class="dir-link" href="config/index.html">config/</a></li>
+<li><a class="dir-link" href="config_old/index.html">config_old/</a></li>
+<li><a class="dir-link" href="crash-reports/index.html">crash-reports/</a></li>
+<li><a class="dir-link" href="CustomSkinLoader/index.html">CustomSkinLoader/</a></li>
+<li><a class="dir-link" href="data/index.html">data/</a></li>
+<li><a class="dir-link" href="debug/index.html">debug/</a></li>
+<li><a class="dir-link" href="defaultconfigs/index.html">defaultconfigs/</a></li>
+<li><a class="dir-link" href="Distant_Horizons_server_data/index.html">Distant_Horizons_server_data/</a></li>
+<li><a class="dir-link" href="downloads/index.html">downloads/</a></li>
+<li><a class="dir-link" href="essential/index.html">essential/</a></li>
+<li><a class="dir-link" href="fancymenu_data/index.html">fancymenu_data/</a></li>
+<li><a class="dir-link" href="flashback/index.html">flashback/</a></li>
+<li><a class="dir-link" href="LegacyMinecraftLauncher/index.html">LegacyMinecraftLauncher/</a></li>
+<li><a class="dir-link" href="libraries/index.html">libraries/</a></li>
+<li><a class="dir-link" href="logs/index.html">logs/</a></li>
+<li><a class="dir-link" href="meteor-client/index.html">meteor-client/</a></li>
+<li><a class="dir-link" href="MicrosoftProfiles/index.html">MicrosoftProfiles/</a></li>
+<li><a class="dir-link" href="mods/index.html">mods/</a></li>
+<li><a class="dir-link" href="replay_recordings/index.html">replay_recordings/</a></li>
+<li><a class="dir-link" href="resourcepacks/index.html">resourcepacks/</a></li>
+<li><a class="dir-link" href="resources/index.html">resources/</a></li>
+<li><a class="dir-link" href="runtime/index.html">runtime/</a></li>
+<li><a class="dir-link" href="saves/index.html">saves/</a></li>
+<li><a class="dir-link" href="screenshots/index.html">screenshots/</a></li>
+<li><a class="dir-link" href="shaderpacks/index.html">shaderpacks/</a></li>
+<li><a class="dir-link" href="stats/index.html">stats/</a></li>
+<li><a class="dir-link" href="texturepacks/index.html">texturepacks/</a></li>
+<li><a class="dir-link" href="texturepacks-mp-cache/index.html">texturepacks-mp-cache/</a></li>
+<li><a class="dir-link" href="versions/index.html">versions/</a></li>
+<li><a class="dir-link" href="xaero/index.html">xaero/</a></li>
+<li><a class="dir-link" href="XaeroWaypoints_BACKUP240807/index.html">XaeroWaypoints_BACKUP240807/</a></li></ul>
+      </section>
+      <section>
+        <h2>Files (15)</h2>
+        <ul><li>
+        <a class="file-link" href="command_history.txt">command_history.txt</a>
+        <a class="download-link" href="command_history.txt" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="debug-profile.json">debug-profile.json</a>
+        <a class="download-link" href="debug-profile.json" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="debug.stitched_items.png">debug.stitched_items.png</a>
+        <a class="download-link" href="debug.stitched_items.png" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="debug.stitched_terrain.png">debug.stitched_terrain.png</a>
+        <a class="download-link" href="debug.stitched_terrain.png" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="hotbar.nbt">hotbar.nbt</a>
+        <a class="download-link" href="hotbar.nbt" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="launcher_profiles.json">launcher_profiles.json</a>
+        <a class="download-link" href="launcher_profiles.json" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="level.dat">level.dat</a>
+        <a class="download-link" href="level.dat" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="options.txt">options.txt</a>
+        <a class="download-link" href="options.txt" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="output-client.log">output-client.log</a>
+        <a class="download-link" href="output-client.log" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="output-server.log">output-server.log</a>
+        <a class="download-link" href="output-server.log" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="servers.dat">servers.dat</a>
+        <a class="download-link" href="servers.dat" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="servers.dat_old">servers.dat_old</a>
+        <a class="download-link" href="servers.dat_old" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="servers.essential.dat">servers.essential.dat</a>
+        <a class="download-link" href="servers.essential.dat" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="usercache.json">usercache.json</a>
+        <a class="download-link" href="usercache.json" download>download</a>
+      </li>
+<li>
+        <a class="file-link" href="usernamecache.json">usernamecache.json</a>
+        <a class="download-link" href="usernamecache.json" download>download</a>
+      </li></ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
