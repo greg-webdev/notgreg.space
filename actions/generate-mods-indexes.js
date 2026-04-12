@@ -40,6 +40,11 @@ function renderPage(currentDir, relativeParts, directories, files) {
   const isRoot = relativeParts.length === 0;
   const parentLink = isRoot ? "" : '<a class="back" href="../index.html">.. (parent)</a>';
   const titlePath = `/mods${relativeParts.length ? `/${relativeParts.join("/")}` : ""}`;
+  const zipEntries = files.map((name) => ({
+    name,
+    href: encodeSegment(name),
+  }));
+  const zipEntriesJson = JSON.stringify(zipEntries);
 
   const breadcrumbHtml = buildBreadcrumbSegments(relativeParts)
     .map((crumb, index, list) => {
@@ -64,6 +69,78 @@ function renderPage(currentDir, relativeParts, directories, files) {
       </li>`;
     })
     .join("\n");
+
+  const rootZipControls = isRoot && files.length
+    ? `<button id="download-zip-btn" class="zip-download-btn" type="button">download zip</button>
+        <p id="download-zip-status" class="zip-status" aria-live="polite"></p>`
+    : "";
+
+  const rootZipScript = isRoot && files.length
+    ? `<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    (() => {
+      const button = document.getElementById("download-zip-btn");
+      const status = document.getElementById("download-zip-status");
+      if (!button || !status || typeof JSZip === "undefined") {
+        return;
+      }
+
+      const entries = ${zipEntriesJson};
+
+      const setStatus = (message) => {
+        status.textContent = message;
+      };
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        setStatus("Preparing zip...");
+
+        try {
+          const zip = new JSZip();
+
+          for (let i = 0; i < entries.length; i += 1) {
+            const entry = entries[i];
+            setStatus("Fetching " + (i + 1) + "/" + entries.length + ": " + entry.name);
+
+            const response = await fetch(entry.href);
+            if (!response.ok) {
+              throw new Error("Failed to fetch " + entry.name);
+            }
+
+            zip.file(entry.name, await response.blob());
+          }
+
+          let lastPercent = -1;
+          const archiveBlob = await zip.generateAsync(
+            { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
+            (metadata) => {
+              const percent = Math.floor(metadata.percent);
+              if (percent !== lastPercent) {
+                lastPercent = percent;
+                setStatus("Compressing: " + percent + "%");
+              }
+            }
+          );
+
+          const blobUrl = URL.createObjectURL(archiveBlob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = "mods-files.zip";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(blobUrl);
+          setStatus("ZIP downloaded.");
+        } catch (error) {
+          console.error(error);
+          setStatus("Could not build zip. Check browser console for details.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+    })();
+  </script>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -201,6 +278,42 @@ function renderPage(currentDir, relativeParts, directories, files) {
       color: var(--muted);
       font-style: italic;
     }
+
+    .files-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .files-head h2 {
+      margin: 0;
+    }
+
+    .zip-download-btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    .zip-download-btn:disabled {
+      opacity: 0.65;
+      cursor: progress;
+    }
+
+    .zip-status {
+      margin: 0;
+      width: 100%;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -214,11 +327,15 @@ function renderPage(currentDir, relativeParts, directories, files) {
         ${directories.length ? `<ul>${directoryItems}</ul>` : '<p class="empty">No folders.</p>'}
       </section>
       <section>
-        <h2>Files (${files.length})</h2>
+        <div class="files-head">
+          <h2>Files (${files.length})</h2>
+          ${rootZipControls}
+        </div>
         ${files.length ? `<ul>${fileItems}</ul>` : '<p class="empty">No files.</p>'}
       </section>
     </div>
   </main>
+  ${rootZipScript}
 </body>
 </html>`;
 }

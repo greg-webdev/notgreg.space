@@ -134,6 +134,42 @@
       color: var(--muted);
       font-style: italic;
     }
+
+    .files-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .files-head h2 {
+      margin: 0;
+    }
+
+    .zip-download-btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    .zip-download-btn:disabled {
+      opacity: 0.65;
+      cursor: progress;
+    }
+
+    .zip-status {
+      margin: 0;
+      width: 100%;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -147,7 +183,10 @@
         <p class="empty">No folders.</p>
       </section>
       <section>
-        <h2>Files (9)</h2>
+        <div class="files-head">
+          <h2>Files (9)</h2>
+          
+        </div>
         <ul><li>
         <a class="file-link" href="hal1.ogg">hal1.ogg</a>
         <a class="download-link" href="hal1.ogg" download>download</a>
@@ -187,5 +226,6 @@
       </section>
     </div>
   </main>
+  
 </body>
 </html>
