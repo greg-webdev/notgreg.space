@@ -6,6 +6,7 @@
   "scripts": {
     "monitor": "node actions/monitor-watcher.js --watch",
     "scan": "node actions/monitor-watcher.js",
+    "mods:indexes": "node actions/generate-mods-indexes.js",
     "serve-monitor": "node actions/monitor-server.js",
     "start": "react-scripts start",
     "build": "react-scripts build",
