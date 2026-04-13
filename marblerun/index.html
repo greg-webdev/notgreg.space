@@ -109,6 +109,7 @@
     }
 
     input[type="range"],
+    input[type="number"],
     select,
     button {
       width: 100%;
@@ -182,6 +183,24 @@
       backdrop-filter: blur(4px);
       pointer-events: none;
       white-space: pre;
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .editor-grid .row {
+      gap: 4px;
+    }
+
+    #partPreview {
+      width: 100%;
+      height: 120px;
+      border: 1px solid #d9d0bf;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #fffef9 0%, #f8f0df 100%);
     }
 
     .tip {
@@ -311,7 +330,53 @@
             <label for="phase">Phase Offset <span class="value" id="phaseVal"></span></label>
             <input id="phase" type="range" min="0" max="360" step="1" value="0" />
           </div>
-          <button id="applySelected">Apply To Selected Part</button>
+          <button id="applySelected">Apply Slider Tuning To Selected</button>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Selected Item Editor</div>
+          <canvas id="partPreview" width="300" height="120"></canvas>
+          <div class="row">
+            <label>Item <span class="value" id="selectedItemMeta">none</span></label>
+          </div>
+          <div class="row">
+            <label for="selectedActive">Active</label>
+            <select id="selectedActive">
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="editor-grid">
+            <div class="row">
+              <label for="selectedX">Center X</label>
+              <input id="selectedX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedY">Center Y</label>
+              <input id="selectedY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedFromX">From X</label>
+              <input id="selectedFromX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedFromY">From Y</label>
+              <input id="selectedFromY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedToX">To X</label>
+              <input id="selectedToX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedToY">To Y</label>
+              <input id="selectedToY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedAngle">Angle</label>
+              <input id="selectedAngle" type="number" step="1" />
+            </div>
+          </div>
+          <button id="updateSelectedFromMenu">Update Selected Item</button>
         </div>
 
         <div class="group">
@@ -365,6 +430,8 @@
     const canvas = document.getElementById("sim");
     const ctx = canvas.getContext("2d");
     const hud = document.getElementById("hud");
+    const previewCanvas = document.getElementById("partPreview");
+    const previewCtx = previewCanvas.getContext("2d");
 
     const ui = {
       tool: document.getElementById("tool"),
@@ -384,6 +451,16 @@
       triggerAction: document.getElementById("triggerAction"),
       triggerTarget: document.getElementById("triggerTarget"),
       applySelected: document.getElementById("applySelected"),
+      selectedItemMeta: document.getElementById("selectedItemMeta"),
+      selectedActive: document.getElementById("selectedActive"),
+      selectedX: document.getElementById("selectedX"),
+      selectedY: document.getElementById("selectedY"),
+      selectedFromX: document.getElementById("selectedFromX"),
+      selectedFromY: document.getElementById("selectedFromY"),
+      selectedToX: document.getElementById("selectedToX"),
+      selectedToY: document.getElementById("selectedToY"),
+      selectedAngle: document.getElementById("selectedAngle"),
+      updateSelectedFromMenu: document.getElementById("updateSelectedFromMenu"),
       selectionInfo: document.getElementById("selectionInfo"),
       gravityVal: document.getElementById("gravityVal"),
       bounceVal: document.getElementById("bounceVal"),
@@ -450,7 +527,10 @@
       simTime: 0,
       selectedPartId: null,
       score: 0,
-      teleporterCooldown: 0
+      teleporterCooldown: 0,
+      dragMode: null,
+      dragLast: null,
+      selectionRect: null
     };
 
     const TOOL_PRESETS = {
@@ -502,6 +582,70 @@
       const dx = ax - bx;
       const dy = ay - by;
       return dx * dx + dy * dy;
+    }
+
+    function isPathMover(part) {
+      return !!part && (part.motion === "smooth" || part.motion === "linear" || part.motion === "warp");
+    }
+
+    function syncPartPathFromCenter(part) {
+      if (!part) {
+        return;
+      }
+      if (!isPathMover(part)) {
+        part.fromX = part.x;
+        part.fromY = part.y;
+        part.toX = part.x;
+        part.toY = part.y;
+        return;
+      }
+
+      const half = part.moveDistance * 0.5;
+      const dx = Math.cos(part.moveAngle) * half;
+      const dy = Math.sin(part.moveAngle) * half;
+      part.fromX = part.x - dx;
+      part.fromY = part.y - dy;
+      part.toX = part.x + dx;
+      part.toY = part.y + dy;
+    }
+
+    function ensurePartPathEndpoints(part) {
+      if (!part) {
+        return;
+      }
+      if (
+        typeof part.fromX !== "number" ||
+        typeof part.fromY !== "number" ||
+        typeof part.toX !== "number" ||
+        typeof part.toY !== "number"
+      ) {
+        syncPartPathFromCenter(part);
+      }
+    }
+
+    function syncPartCenterFromPath(part) {
+      if (!part) {
+        return;
+      }
+      ensurePartPathEndpoints(part);
+      part.x = (part.fromX + part.toX) * 0.5;
+      part.y = (part.fromY + part.toY) * 0.5;
+      const dx = part.toX - part.fromX;
+      const dy = part.toY - part.fromY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0.0001) {
+        part.moveDistance = dist;
+        part.moveAngle = Math.atan2(dy, dx);
+      }
+    }
+
+    function formatNum(value) {
+      return Number.isFinite(value) ? value.toFixed(1) : "";
+    }
+
+    function parseNum(input, fallback) {
+      const v = Number(input.value);
+      return Number.isFinite(v) ? v : fallback;
     }
 
     function nearestPointOnSegment(px, py, s) {
@@ -620,7 +764,7 @@
         moveAngle: world.moveAngle,
         phase: world.phase,
         baseAngle: world.moveAngle,
-        active: preset.motion === "static" ? true : true,
+        active: true,
         teleporterIndex: -1
       };
 
@@ -631,6 +775,8 @@
       if (part.padType) {
         part.active = true;
       }
+
+      syncPartPathFromCenter(part);
 
       return part;
     }
@@ -689,13 +835,89 @@
       return null;
     }
 
+    function syncSelectedEditorFromPart() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        ui.selectedItemMeta.textContent = "none";
+        ui.selectedActive.value = "on";
+        ui.selectedX.value = "";
+        ui.selectedY.value = "";
+        ui.selectedFromX.value = "";
+        ui.selectedFromY.value = "";
+        ui.selectedToX.value = "";
+        ui.selectedToY.value = "";
+        ui.selectedAngle.value = "";
+        ui.selectedActive.disabled = true;
+        ui.selectedX.disabled = true;
+        ui.selectedY.disabled = true;
+        ui.selectedFromX.disabled = true;
+        ui.selectedFromY.disabled = true;
+        ui.selectedToX.disabled = true;
+        ui.selectedToY.disabled = true;
+        ui.selectedAngle.disabled = true;
+        ui.updateSelectedFromMenu.disabled = true;
+        return;
+      }
+
+      ensurePartPathEndpoints(part);
+
+      ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
+      ui.selectedActive.value = part.active ? "on" : "off";
+      ui.selectedX.value = formatNum(part.x);
+      ui.selectedY.value = formatNum(part.y);
+      ui.selectedFromX.value = formatNum(part.fromX);
+      ui.selectedFromY.value = formatNum(part.fromY);
+      ui.selectedToX.value = formatNum(part.toX);
+      ui.selectedToY.value = formatNum(part.toY);
+      ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
+      ui.selectedX.disabled = isPathMover(part);
+      ui.selectedY.disabled = isPathMover(part);
+      ui.selectedAngle.disabled = false;
+      ui.updateSelectedFromMenu.disabled = false;
+
+      const disableMotion = !isPathMover(part);
+      ui.selectedFromX.disabled = disableMotion;
+      ui.selectedFromY.disabled = disableMotion;
+      ui.selectedToX.disabled = disableMotion;
+      ui.selectedToY.disabled = disableMotion;
+      ui.selectedActive.disabled = part.motion === "static" || !!part.padType;
+    }
+
+    function applySelectedEditorValues() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return;
+      }
+
+      part.baseAngle = parseNum(ui.selectedAngle, part.baseAngle * (180 / Math.PI)) * (Math.PI / 180);
+      part.active = ui.selectedActive.value !== "off";
+
+      if (isPathMover(part)) {
+        part.fromX = parseNum(ui.selectedFromX, part.fromX);
+        part.fromY = parseNum(ui.selectedFromY, part.fromY);
+        part.toX = parseNum(ui.selectedToX, part.toX);
+        part.toY = parseNum(ui.selectedToY, part.toY);
+        syncPartCenterFromPath(part);
+      } else {
+        part.x = parseNum(ui.selectedX, part.x);
+        part.y = parseNum(ui.selectedY, part.y);
+        syncPartPathFromCenter(part);
+      }
+
+      syncSelectedEditorFromPart();
+      updateSelectionInfo();
+    }
+
     function updateSelectionInfo() {
       const part = findPartById(state.selectedPartId);
       if (!part) {
         ui.selectionInfo.textContent = "Selected part: none";
+        syncSelectedEditorFromPart();
         return;
       }
-      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + part.size.toFixed(0);
+      ensurePartPathEndpoints(part);
+      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + part.size.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
+      syncSelectedEditorFromPart();
     }
 
     function applyTuningToPart(part) {
@@ -709,6 +931,9 @@
       part.moveAngle = world.moveAngle;
       part.phase = world.phase;
       part.baseAngle = world.moveAngle;
+      if (isPathMover(part)) {
+        syncPartPathFromCenter(part);
+      }
     }
 
     function undoBuild() {
@@ -780,34 +1005,32 @@
       }
 
       const power = world.motorPower;
-      const dirX = Math.cos(part.moveAngle);
-      const dirY = Math.sin(part.moveAngle);
-      const travel = part.moveDistance;
       const theta = time * part.moveSpeed * power + part.phase;
+      ensurePartPathEndpoints(part);
 
-      if (part.motion === "smooth") {
-        const offset = Math.sin(theta) * travel * 0.5;
-        const vel = Math.cos(theta) * part.moveSpeed * power * travel * 0.5;
-        x += dirX * offset;
-        y += dirY * offset;
-        vx += dirX * vel;
-        vy += dirY * vel;
-      } else if (part.motion === "linear") {
-        const wave = triangleMotion(theta);
-        const offset = wave.value * travel * 0.5;
-        const vel = wave.slope * part.moveSpeed * power * travel * 0.5;
-        x += dirX * offset;
-        y += dirY * offset;
-        vx += dirX * vel;
-        vy += dirY * vel;
-      } else if (part.motion === "warp") {
-        const wave = sawMotion(theta);
-        const offset = wave.value * travel * 0.5;
-        const vel = wave.slope * part.moveSpeed * power * travel * 0.5;
-        x += dirX * offset;
-        y += dirY * offset;
-        vx += dirX * vel;
-        vy += dirY * vel;
+      if (isPathMover(part)) {
+        const dx = part.toX - part.fromX;
+        const dy = part.toY - part.fromY;
+        let t = 0.5;
+        let dt = 0;
+
+        if (part.motion === "smooth") {
+          t = 0.5 + 0.5 * Math.sin(theta);
+          dt = 0.5 * Math.cos(theta) * part.moveSpeed * power;
+        } else if (part.motion === "linear") {
+          const wave = triangleMotion(theta);
+          t = 0.5 + 0.5 * wave.value;
+          dt = 0.5 * wave.slope * part.moveSpeed * power;
+        } else if (part.motion === "warp") {
+          const wave = sawMotion(theta);
+          t = 0.5 + 0.5 * wave.value;
+          dt = 0.5 * wave.slope * part.moveSpeed * power;
+        }
+
+        x = part.fromX + dx * t;
+        y = part.fromY + dy * t;
+        vx = dx * dt;
+        vy = dy * dt;
       } else if (part.motion === "spin") {
         const spin = part.spinSpeed * power;
         angle += spin * time + part.phase;
@@ -965,6 +1188,7 @@
       for (const pad of state.pads) {
         const pose = computePartPose(pad, state.simTime);
         state.partPoses.set(pad.id, pose);
+        buildPartColliders(pad, pose);
       }
     }
 
@@ -1179,7 +1403,7 @@
       trigger.flash = 0.22;
     }
 
-    function handleTriggerZones(m, dt) {
+    function handleTriggerZones(m) {
       for (const trigger of state.triggers) {
         const inside = m.x >= trigger.x && m.x <= trigger.x + trigger.w && m.y >= trigger.y && m.y <= trigger.y + trigger.h;
         const wasInside = !!m.triggerState[trigger.id];
@@ -1187,9 +1411,6 @@
           fireTrigger(trigger);
         }
         m.triggerState[trigger.id] = inside;
-        if (trigger.flash > 0) {
-          trigger.flash = Math.max(0, trigger.flash - dt);
-        }
       }
     }
 
@@ -1305,6 +1526,36 @@
       updateSelectionInfo();
     }
 
+    function getSelectedHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!part || !isPathMover(part)) {
+        return null;
+      }
+      ensurePartPathEndpoints(part);
+      if (distanceSq(x, y, part.fromX, part.fromY) <= 12 * 12) {
+        return "from";
+      }
+      if (distanceSq(x, y, part.toX, part.toY) <= 12 * 12) {
+        return "to";
+      }
+      return null;
+    }
+
+    function moveSelectedPartBy(dx, dy) {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return;
+      }
+      part.x += dx;
+      part.y += dy;
+      ensurePartPathEndpoints(part);
+      part.fromX += dx;
+      part.fromY += dy;
+      part.toX += dx;
+      part.toY += dy;
+      syncSelectedEditorFromPart();
+    }
+
     function removeNearestPiece(x, y) {
       rebuildColliderCache();
 
@@ -1369,6 +1620,12 @@
       state.simTime += simDt;
       rebuildColliderCache();
 
+      for (const trigger of state.triggers) {
+        if (trigger.flash > 0) {
+          trigger.flash = Math.max(0, trigger.flash - simDt);
+        }
+      }
+
       if (state.raining) {
         state.rainTimer -= simDt;
         if (state.rainTimer <= 0) {
@@ -1408,7 +1665,7 @@
         }
 
         applyPads(m, simDt);
-        handleTriggerZones(m, simDt);
+        handleTriggerZones(m);
 
         if (m.y > world.height + 180 || m.y < -220) {
           state.marbles.splice(i, 1);
@@ -1521,59 +1778,59 @@
       return "#ffffff";
     }
 
-    function drawPartShape(part, pose, color, selected) {
+    function drawPartShape(drawCtx, part, pose, color, selected) {
       const size = part.size;
       const half = size * 0.5;
 
-      ctx.save();
-      ctx.translate(pose.x, pose.y);
-      ctx.rotate(pose.angle);
+      drawCtx.save();
+      drawCtx.translate(pose.x, pose.y);
+      drawCtx.rotate(pose.angle);
 
       if (part.shape === "block" || part.shape === "padSquare") {
-        ctx.fillStyle = color;
-        ctx.fillRect(-half, -half, size, size);
+        drawCtx.fillStyle = color;
+        drawCtx.fillRect(-half, -half, size, size);
       } else if (part.shape === "circle") {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(0, 0, half, 0, TAU);
-        ctx.fill();
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, half, 0, TAU);
+        drawCtx.fill();
       } else if (part.shape === "wedge") {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(-half, -half);
-        ctx.lineTo(half, half);
-        ctx.lineTo(-half, half);
-        ctx.closePath();
-        ctx.fill();
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.moveTo(-half, -half);
+        drawCtx.lineTo(half, half);
+        drawCtx.lineTo(-half, half);
+        drawCtx.closePath();
+        drawCtx.fill();
       } else if (part.shape === "curveLarge" || part.shape === "curveSmall") {
         const radius = part.shape === "curveLarge" ? size * 0.72 : size * 0.46;
         const thick = size * 0.2;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = thick;
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 0.5);
-        ctx.stroke();
+        drawCtx.strokeStyle = color;
+        drawCtx.lineWidth = thick;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, radius, 0, Math.PI * 0.5);
+        drawCtx.stroke();
       } else if (part.shape === "gear") {
         const coreR = size * 0.34;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(0, 0, coreR, 0, TAU);
-        ctx.fill();
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, coreR, 0, TAU);
+        drawCtx.fill();
         for (let i = 0; i < 8; i += 1) {
           const a = (i / 8) * TAU;
           const tx = Math.cos(a) * size * 0.45;
           const ty = Math.sin(a) * size * 0.45;
-          ctx.fillRect(tx - size * 0.06, ty - size * 0.06, size * 0.12, size * 0.12);
+          drawCtx.fillRect(tx - size * 0.06, ty - size * 0.06, size * 0.12, size * 0.12);
         }
       }
 
       if (selected) {
-        ctx.strokeStyle = "#ff9e40";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-half - 4, -half - 4, size + 8, size + 8);
+        drawCtx.strokeStyle = "#ff9e40";
+        drawCtx.lineWidth = 2;
+        drawCtx.strokeRect(-half - 4, -half - 4, size + 8, size + 8);
       }
 
-      ctx.restore();
+      drawCtx.restore();
     }
 
     function drawParts() {
@@ -1585,14 +1842,12 @@
         const base = partColor(part);
         const selected = part.id === state.selectedPartId;
 
-        if (part.motion !== "static") {
-          const dirX = Math.cos(part.moveAngle);
-          const dirY = Math.sin(part.moveAngle);
-          const range = part.moveDistance * 0.5;
-          const ax = part.x - dirX * range;
-          const ay = part.y - dirY * range;
-          const bx = part.x + dirX * range;
-          const by = part.y + dirY * range;
+        if (isPathMover(part)) {
+          ensurePartPathEndpoints(part);
+          const ax = part.fromX;
+          const ay = part.fromY;
+          const bx = part.toX;
+          const by = part.toY;
           ctx.strokeStyle = "rgba(60, 58, 48, 0.24)";
           ctx.lineWidth = 2;
           ctx.setLineDash([5, 5]);
@@ -1603,7 +1858,7 @@
           ctx.setLineDash([]);
         }
 
-        drawPartShape(part, pose, base, selected);
+        drawPartShape(ctx, part, pose, base, selected);
 
         if (!part.active && part.motion !== "static") {
           ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
@@ -1620,8 +1875,147 @@
           continue;
         }
         const selected = pad.id === state.selectedPartId;
-        drawPartShape(pad, pose, partColor(pad), selected);
+        drawPartShape(ctx, pad, pose, partColor(pad), selected);
       }
+    }
+
+    function drawSelectedHandles() {
+      const part = findPartById(state.selectedPartId);
+      if (!part || !isPathMover(part)) {
+        return;
+      }
+      ensurePartPathEndpoints(part);
+
+      ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(part.fromX, part.fromY);
+      ctx.lineTo(part.toX, part.toY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#ff9e40";
+      ctx.beginPath();
+      ctx.arc(part.fromX, part.fromY, 7, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "#2fbf71";
+      ctx.beginPath();
+      ctx.arc(part.toX, part.toY, 7, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(20, 28, 36, 0.9)";
+      ctx.font = "700 11px IBM Plex Mono";
+      ctx.fillText("FROM", part.fromX + 10, part.fromY - 8);
+      ctx.fillText("TO", part.toX + 10, part.toY - 8);
+    }
+
+    function selectPartInRect(x1, y1, x2, y2) {
+      const minX = Math.min(x1, x2);
+      const minY = Math.min(y1, y2);
+      const maxX = Math.max(x1, x2);
+      const maxY = Math.max(y1, y2);
+
+      rebuildColliderCache();
+      let chosen = null;
+      let bestDist = Number.POSITIVE_INFINITY;
+      const cx = (minX + maxX) * 0.5;
+      const cy = (minY + maxY) * 0.5;
+
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
+          continue;
+        }
+        const d = distanceSq(cx, cy, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          chosen = part;
+        }
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
+          continue;
+        }
+        const d = distanceSq(cx, cy, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          chosen = pad;
+        }
+      }
+
+      state.selectedPartId = chosen ? chosen.id : null;
+      updateSelectionInfo();
+    }
+
+    function drawSelectedPreview() {
+      const w = previewCanvas.width;
+      const h = previewCanvas.height;
+      previewCtx.clearRect(0, 0, w, h);
+
+      const g = previewCtx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#fffef9");
+      g.addColorStop(1, "#f1e6d1");
+      previewCtx.fillStyle = g;
+      previewCtx.fillRect(0, 0, w, h);
+
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        previewCtx.fillStyle = "rgba(30, 31, 38, 0.55)";
+        previewCtx.font = "700 14px Space Grotesk";
+        previewCtx.fillText("No selected item", 12, 24);
+        return;
+      }
+
+      const cx = w * 0.5;
+      const cy = h * 0.58;
+      const p = {
+        ...part,
+        x: cx,
+        y: cy
+      };
+
+      ensurePartPathEndpoints(part);
+
+      if (isPathMover(part)) {
+        const dx = part.toX - part.fromX;
+        const dy = part.toY - part.fromY;
+        p.fromX = cx - dx * 0.4;
+        p.fromY = cy - dy * 0.4;
+        p.toX = cx + dx * 0.4;
+        p.toY = cy + dy * 0.4;
+
+        previewCtx.strokeStyle = "rgba(60, 58, 48, 0.35)";
+        previewCtx.lineWidth = 2;
+        previewCtx.setLineDash([5, 4]);
+        previewCtx.beginPath();
+        previewCtx.moveTo(p.fromX, p.fromY);
+        previewCtx.lineTo(p.toX, p.toY);
+        previewCtx.stroke();
+        previewCtx.setLineDash([]);
+
+        previewCtx.fillStyle = "#ff9e40";
+        previewCtx.beginPath();
+        previewCtx.arc(p.fromX, p.fromY, 4, 0, TAU);
+        previewCtx.fill();
+
+        previewCtx.fillStyle = "#2fbf71";
+        previewCtx.beginPath();
+        previewCtx.arc(p.toX, p.toY, 4, 0, TAU);
+        previewCtx.fill();
+      }
+
+      const previewPose = computePartPose(p, state.simTime);
+      drawPartShape(previewCtx, p, previewPose, partColor(p), true);
     }
 
     function drawTriggers() {
@@ -1670,6 +2064,16 @@
     }
 
     function drawDraft() {
+      if (ui.tool.value === "select" && state.selectionRect) {
+        const r = state.selectionRect;
+        ctx.fillStyle = "rgba(255, 158, 64, 0.14)";
+        ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        return;
+      }
+
       if (!state.pointerDown || !state.drawStart) {
         return;
       }
@@ -1736,6 +2140,7 @@
       b1.moveDistance = 160;
       b1.moveAngle = Math.PI * 0.03;
       b1.moveSpeed = 1.6;
+      syncPartPathFromCenter(b1);
       state.parts.push(b1);
       rememberBuild("parts", b1);
 
@@ -1743,6 +2148,7 @@
       b2.moveDistance = 150;
       b2.moveAngle = Math.PI * 0.85;
       b2.moveSpeed = 1.25;
+      syncPartPathFromCenter(b2);
       state.parts.push(b2);
       rememberBuild("parts", b2);
 
@@ -1750,6 +2156,7 @@
       b3.moveDistance = 190;
       b3.moveSpeed = 0.95;
       b3.moveAngle = Math.PI * 1.25;
+      syncPartPathFromCenter(b3);
       state.parts.push(b3);
       rememberBuild("parts", b3);
 
@@ -1823,8 +2230,10 @@
       drawTriggers();
       drawParts();
       drawPads();
+      drawSelectedHandles();
       drawMarbles();
       drawDraft();
+      drawSelectedPreview();
       updateHud(now - (frame.lastNow || now));
       frame.lastNow = now;
 
@@ -1852,6 +2261,42 @@
         applyTuningToPart(part);
       }
       updateSelectionInfo();
+    });
+
+    ui.updateSelectedFromMenu.addEventListener("click", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedActive.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedFromX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedFromY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedToX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedToY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedAngle.addEventListener("change", () => {
+      applySelectedEditorValues();
     });
 
     ui.spawn.addEventListener("click", () => {
@@ -1895,32 +2340,112 @@
       const pos = getPointerPosition(evt);
       state.pointerDown = true;
       state.pointer = pos;
+      state.dragLast = pos;
 
       if (ui.tool.value === "line" || ui.tool.value === "trigger") {
         state.drawStart = pos;
+        state.dragMode = "draw";
         return;
       }
 
       if (ui.tool.value === "select") {
-        selectNearestPart(pos.x, pos.y);
-        state.pointerDown = false;
+        const handle = getSelectedHandleAt(pos.x, pos.y);
+        if (handle) {
+          state.dragMode = handle === "from" ? "drag-from" : "drag-to";
+          return;
+        }
+
+        const selected = findPartById(state.selectedPartId);
+        rebuildColliderCache();
+        if (selected) {
+          const pose = state.partPoses.get(selected.id);
+          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < Math.max(14, selected.size * 0.6) ** 2) {
+            state.dragMode = "move-part";
+            return;
+          }
+        }
+
+        state.dragMode = "select-rect";
+        state.drawStart = pos;
+        state.selectionRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
         return;
       }
 
       if (ui.tool.value === "peg") {
         addPeg(pos.x, pos.y, 9);
+        state.pointerDown = false;
         return;
       }
 
       addPart(ui.tool.value, pos.x, pos.y);
+      state.pointerDown = false;
+      state.dragMode = null;
     });
 
     canvas.addEventListener("pointermove", (evt) => {
       state.pointer = getPointerPosition(evt);
+
+      if (!state.pointerDown || ui.tool.value !== "select") {
+        return;
+      }
+
+      const part = findPartById(state.selectedPartId);
+      if (state.dragMode === "drag-from" && part && isPathMover(part)) {
+        part.fromX = state.pointer.x;
+        part.fromY = state.pointer.y;
+        syncPartCenterFromPath(part);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "drag-to" && part && isPathMover(part)) {
+        part.toX = state.pointer.x;
+        part.toY = state.pointer.y;
+        syncPartCenterFromPath(part);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "move-part" && part && state.dragLast) {
+        const dx = state.pointer.x - state.dragLast.x;
+        const dy = state.pointer.y - state.dragLast.y;
+        moveSelectedPartBy(dx, dy);
+        state.dragLast = { x: state.pointer.x, y: state.pointer.y };
+        return;
+      }
+
+      if (state.dragMode === "select-rect" && state.drawStart) {
+        state.selectionRect = {
+          x: Math.min(state.drawStart.x, state.pointer.x),
+          y: Math.min(state.drawStart.y, state.pointer.y),
+          w: Math.abs(state.pointer.x - state.drawStart.x),
+          h: Math.abs(state.pointer.y - state.drawStart.y)
+        };
+      }
     });
 
     canvas.addEventListener("pointerup", (evt) => {
       const pos = getPointerPosition(evt);
+
+      if (ui.tool.value === "select") {
+        if (state.dragMode === "select-rect" && state.drawStart) {
+          const w = Math.abs(pos.x - state.drawStart.x);
+          const h = Math.abs(pos.y - state.drawStart.y);
+          if (w < 6 && h < 6) {
+            selectNearestPart(pos.x, pos.y);
+          } else {
+            selectPartInRect(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+          }
+        }
+
+        state.pointerDown = false;
+        state.drawStart = null;
+        state.dragMode = null;
+        state.dragLast = null;
+        state.selectionRect = null;
+        return;
+      }
+
       if (state.pointerDown && state.drawStart) {
         if (ui.tool.value === "line") {
           addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
@@ -1930,11 +2455,17 @@
       }
       state.pointerDown = false;
       state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
     });
 
     canvas.addEventListener("pointercancel", () => {
       state.pointerDown = false;
       state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
     });
 
     canvas.addEventListener("contextmenu", (evt) => {
