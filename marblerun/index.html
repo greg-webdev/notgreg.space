@@ -208,6 +208,8 @@
           <select id="tool">
             <option value="line">Line track</option>
             <option value="peg">Peg bumper</option>
+            <option value="motor">Motor arm</option>
+            <option value="shuttle">Shuttle peg</option>
           </select>
         </div>
 
@@ -230,6 +232,21 @@
           <label for="marbleSize">Marble Size <span class="value" id="sizeVal"></span></label>
           <input id="marbleSize" type="range" min="6" max="20" step="1" value="10" />
         </div>
+
+        <div class="row">
+          <label for="timeScale">Sim Speed <span class="value" id="timeVal"></span></label>
+          <input id="timeScale" type="range" min="0.25" max="2" step="0.05" value="1" />
+        </div>
+
+        <div class="row">
+          <label for="motorPower">Motor Power <span class="value" id="motorVal"></span></label>
+          <input id="motorPower" type="range" min="0.3" max="2.5" step="0.05" value="1" />
+        </div>
+
+        <div class="row">
+          <label for="trail">Trail Glow <span class="value" id="trailVal"></span></label>
+          <input id="trail" type="range" min="0" max="1" step="0.05" value="0.5" />
+        </div>
       </div>
 
       <div class="buttons">
@@ -239,11 +256,12 @@
         <button id="pause">Pause</button>
         <button id="clearMarbles">Clear Marbles</button>
         <button id="clearTracks">Clear Tracks</button>
+        <button id="undo">Undo Build</button>
         <button class="wide" id="demo">Reset Demo Course</button>
       </div>
 
       <div class="tip">
-        Drag to draw a line track. Click to place a peg when Peg mode is selected. Right-click near a piece to remove it.
+        Drag for line tracks and shuttle pegs. Click for peg bumpers and motor arms. Right-click near any piece to remove it.
       </div>
     </aside>
 
@@ -264,16 +282,23 @@
       bounce: document.getElementById("bounce"),
       friction: document.getElementById("friction"),
       marbleSize: document.getElementById("marbleSize"),
+      timeScale: document.getElementById("timeScale"),
+      motorPower: document.getElementById("motorPower"),
+      trail: document.getElementById("trail"),
       gravityVal: document.getElementById("gravityVal"),
       bounceVal: document.getElementById("bounceVal"),
       frictionVal: document.getElementById("frictionVal"),
       sizeVal: document.getElementById("sizeVal"),
+      timeVal: document.getElementById("timeVal"),
+      motorVal: document.getElementById("motorVal"),
+      trailVal: document.getElementById("trailVal"),
       spawn: document.getElementById("spawn"),
       burst: document.getElementById("burst"),
       rain: document.getElementById("rain"),
       pause: document.getElementById("pause"),
       clearMarbles: document.getElementById("clearMarbles"),
       clearTracks: document.getElementById("clearTracks"),
+      undo: document.getElementById("undo"),
       demo: document.getElementById("demo")
     };
 
@@ -284,20 +309,29 @@
       bounce: Number(ui.bounce.value),
       friction: Number(ui.friction.value),
       airDrag: 0.02,
-      maxMarbles: 260
+      maxMarbles: 26000,
+      timeScale: Number(ui.timeScale.value),
+      motorPower: Number(ui.motorPower.value),
+      trail: Number(ui.trail.value)
     };
 
     const state = {
       marbles: [],
       segments: [],
       pegs: [],
+      motors: [],
+      shuttles: [],
+      motorSegments: [],
+      shuttleBodies: [],
+      buildHistory: [],
       paused: false,
       raining: false,
       rainTimer: 0,
       pointerDown: false,
       drawStart: null,
       pointer: { x: 0, y: 0 },
-      fps: 0
+      fps: 0,
+      simTime: 0
     };
 
     function resizeCanvas() {
@@ -313,6 +347,19 @@
     function randomColor() {
       const palette = ["#ec6f4a", "#0d8b96", "#f6c65b", "#628f2f", "#2b6488", "#b65a7a"];
       return palette[Math.floor(Math.random() * palette.length)];
+    }
+
+    function distanceSq(ax, ay, bx, by) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function rememberBuild(group, ref) {
+      state.buildHistory.push({ group, ref });
+      if (state.buildHistory.length > 600) {
+        state.buildHistory.shift();
+      }
     }
 
     function spawnMarble(x = world.width * 0.18, y = 28, speedX = 0) {
@@ -332,21 +379,66 @@
       });
     }
 
-    function distanceSq(ax, ay, bx, by) {
-      const dx = ax - bx;
-      const dy = ay - by;
-      return dx * dx + dy * dy;
-    }
-
     function addSegment(x1, y1, x2, y2) {
       if (distanceSq(x1, y1, x2, y2) < 100) {
         return;
       }
-      state.segments.push({ x1, y1, x2, y2 });
+      const seg = { x1, y1, x2, y2 };
+      state.segments.push(seg);
+      rememberBuild("segments", seg);
     }
 
     function addPeg(x, y, r = 9) {
-      state.pegs.push({ x, y, r });
+      const peg = { x, y, r };
+      state.pegs.push(peg);
+      rememberBuild("pegs", peg);
+    }
+
+    function addMotor(x, y, length = 94, speed = 2.1) {
+      const motor = {
+        x,
+        y,
+        length,
+        speed,
+        phase: Math.random() * Math.PI * 2
+      };
+      state.motors.push(motor);
+      rememberBuild("motors", motor);
+      syncMovingPartCaches();
+    }
+
+    function addShuttle(ax, ay, bx, by, r = 10, speed = 1.55) {
+      if (distanceSq(ax, ay, bx, by) < 324) {
+        return;
+      }
+      const shuttle = {
+        ax,
+        ay,
+        bx,
+        by,
+        r,
+        speed,
+        phase: Math.random() * Math.PI * 2
+      };
+      state.shuttles.push(shuttle);
+      rememberBuild("shuttles", shuttle);
+      syncMovingPartCaches();
+    }
+
+    function undoBuild() {
+      const item = state.buildHistory.pop();
+      if (!item) {
+        return;
+      }
+      const list = state[item.group];
+      if (!Array.isArray(list)) {
+        return;
+      }
+      const idx = list.lastIndexOf(item.ref);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+      }
+      syncMovingPartCaches();
     }
 
     function clearWorld(keepTracks = false) {
@@ -354,30 +446,40 @@
       if (!keepTracks) {
         state.segments.length = 0;
         state.pegs.length = 0;
+        state.motors.length = 0;
+        state.shuttles.length = 0;
+        state.buildHistory.length = 0;
       }
+      syncMovingPartCaches();
     }
 
     function resetDemoCourse() {
       clearWorld(false);
       const w = world.width;
       const h = world.height;
-      const laneY = h * 0.15;
+      const laneY = h * 0.14;
 
-      addSegment(30, laneY, w * 0.36, laneY + 18);
-      addSegment(w * 0.36, laneY + 18, w * 0.58, laneY + 84);
-      addSegment(w * 0.58, laneY + 84, w * 0.82, laneY + 54);
-      addSegment(w * 0.14, h * 0.42, w * 0.52, h * 0.58);
-      addSegment(w * 0.52, h * 0.58, w * 0.9, h * 0.7);
+      addSegment(24, laneY, w * 0.3, laneY + 22);
+      addSegment(w * 0.3, laneY + 22, w * 0.54, laneY + 88);
+      addSegment(w * 0.54, laneY + 88, w * 0.8, laneY + 58);
+      addSegment(w * 0.08, h * 0.34, w * 0.32, h * 0.49);
+      addSegment(w * 0.44, h * 0.42, w * 0.93, h * 0.63);
       addSegment(w * 0.12, h * 0.72, w * 0.62, h * 0.87);
+      addSegment(w * 0.62, h * 0.87, w * 0.94, h * 0.9);
 
-      for (let i = 0; i < 9; i += 1) {
-        const px = w * 0.26 + i * (w * 0.06);
-        const py = h * 0.27 + ((i % 2) * h * 0.045);
-        addPeg(px, py, 10);
+      for (let i = 0; i < 7; i += 1) {
+        const px = w * 0.2 + i * (w * 0.07);
+        const py = h * 0.24 + ((i % 2) * h * 0.05);
+        addPeg(px, py, 9);
       }
 
-      for (let i = 0; i < 3; i += 1) {
-        spawnMarble(50 + i * 22, 12, 14);
+      addMotor(w * 0.36, h * 0.57, 112, 2.35);
+      addMotor(w * 0.73, h * 0.76, 98, -2.65);
+      addShuttle(w * 0.12, h * 0.56, w * 0.4, h * 0.62, 10, 1.8);
+      addShuttle(w * 0.59, h * 0.2, w * 0.84, h * 0.3, 9, 1.45);
+
+      for (let i = 0; i < 4; i += 1) {
+        spawnMarble(42 + i * 18, 10, 17);
       }
     }
 
@@ -395,6 +497,48 @@
         y: s.y1 + t * vy,
         t
       };
+    }
+
+    function syncMovingPartCaches() {
+      state.motorSegments.length = 0;
+      state.shuttleBodies.length = 0;
+
+      for (const motor of state.motors) {
+        const omega = motor.speed * world.motorPower;
+        const theta = state.simTime * omega + motor.phase;
+        const half = motor.length * 0.5;
+        const dx = Math.cos(theta) * half;
+        const dy = Math.sin(theta) * half;
+        state.motorSegments.push({
+          x1: motor.x - dx,
+          y1: motor.y - dy,
+          x2: motor.x + dx,
+          y2: motor.y + dy,
+          omega,
+          cx: motor.x,
+          cy: motor.y
+        });
+      }
+
+      for (const shuttle of state.shuttles) {
+        const omega = shuttle.speed * world.motorPower;
+        const angle = state.simTime * omega + shuttle.phase;
+        const t = 0.5 + 0.5 * Math.sin(angle);
+        const dt = 0.5 * omega * Math.cos(angle);
+        const dx = shuttle.bx - shuttle.ax;
+        const dy = shuttle.by - shuttle.ay;
+        state.shuttleBodies.push({
+          x: shuttle.ax + dx * t,
+          y: shuttle.ay + dy * t,
+          vx: dx * dt,
+          vy: dy * dt,
+          r: shuttle.r,
+          ax: shuttle.ax,
+          ay: shuttle.ay,
+          bx: shuttle.bx,
+          by: shuttle.by
+        });
+      }
     }
 
     function resolveMarbleSegment(m, s) {
@@ -425,18 +569,28 @@
       m.x += nx * penetration;
       m.y += ny * penetration;
 
-      const vn = m.vx * nx + m.vy * ny;
+      let svx = 0;
+      let svy = 0;
+      if (typeof s.omega === "number") {
+        svx = -s.omega * (cp.y - s.cy);
+        svy = s.omega * (cp.x - s.cx);
+      }
+
+      const rvx = m.vx - svx;
+      const rvy = m.vy - svy;
+      const vn = rvx * nx + rvy * ny;
       if (vn < 0) {
         const e = world.bounce;
-        m.vx -= (1 + e) * vn * nx;
-        m.vy -= (1 + e) * vn * ny;
+        const rvxAfter = rvx - (1 + e) * vn * nx;
+        const rvyAfter = rvy - (1 + e) * vn * ny;
 
         const tx = -ny;
         const ty = nx;
-        const vt = m.vx * tx + m.vy * ty;
+        const vt = rvxAfter * tx + rvyAfter * ty;
         const grip = world.friction;
-        m.vx -= vt * grip * tx;
-        m.vy -= vt * grip * ty;
+
+        m.vx = rvxAfter - vt * grip * tx + svx;
+        m.vy = rvyAfter - vt * grip * ty + svy;
       }
     }
 
@@ -464,10 +618,15 @@
       m.x += nx * penetration;
       m.y += ny * penetration;
 
-      const vn = m.vx * nx + m.vy * ny;
+      const pvx = p.vx || 0;
+      const pvy = p.vy || 0;
+      const rvx = m.vx - pvx;
+      const rvy = m.vy - pvy;
+      const vn = rvx * nx + rvy * ny;
       if (vn < 0) {
-        m.vx -= (1 + world.bounce) * vn * nx;
-        m.vy -= (1 + world.bounce) * vn * ny;
+        const e = world.bounce;
+        m.vx = rvx - (1 + e) * vn * nx + pvx;
+        m.vy = rvy - (1 + e) * vn * ny + pvy;
       }
     }
 
@@ -519,24 +678,41 @@
       b.vy += impulseY / b.mass;
     }
 
+    function limitSpeed(m, maxSpeed = 1800) {
+      const speed = Math.hypot(m.vx, m.vy);
+      if (speed > maxSpeed) {
+        const factor = maxSpeed / speed;
+        m.vx *= factor;
+        m.vy *= factor;
+      }
+    }
+
     function step(dt) {
+      const simDt = dt * world.timeScale;
+      if (simDt <= 0) {
+        return;
+      }
+
+      state.simTime += simDt;
+      syncMovingPartCaches();
+
       if (state.raining) {
-        state.rainTimer -= dt;
+        state.rainTimer -= simDt;
         if (state.rainTimer <= 0) {
-          spawnMarble(30 + Math.random() * (world.width * 0.4), 8, (Math.random() - 0.5) * 30);
-          state.rainTimer = 0.07;
+          spawnMarble(30 + Math.random() * (world.width * 0.42), 8, (Math.random() - 0.5) * 45);
+          state.rainTimer = 0.06;
         }
       }
 
       for (const m of state.marbles) {
-        m.vy += world.gravity * dt;
+        m.vy += world.gravity * simDt;
 
-        const damp = Math.max(0, 1 - world.airDrag * dt * 4);
+        const damp = Math.max(0, 1 - world.airDrag * simDt * 4);
         m.vx *= damp;
         m.vy *= damp;
 
-        m.x += m.vx * dt;
-        m.y += m.vy * dt;
+        m.x += m.vx * simDt;
+        m.y += m.vy * simDt;
 
         if (m.x - m.r < 0) {
           m.x = m.r;
@@ -565,13 +741,23 @@
             resolveMarbleSegment(m, s);
           }
 
+          for (const motorSegment of state.motorSegments) {
+            resolveMarbleSegment(m, motorSegment);
+          }
+
           for (const p of state.pegs) {
             resolveMarblePeg(m, p);
+          }
+
+          for (const shuttle of state.shuttleBodies) {
+            resolveMarblePeg(m, shuttle);
           }
 
           for (let j = i + 1; j < state.marbles.length; j += 1) {
             resolveMarbleMarble(m, state.marbles[j]);
           }
+
+          limitSpeed(m);
         }
       }
     }
@@ -619,6 +805,30 @@
       }
     }
 
+    function drawMotors() {
+      ctx.lineCap = "round";
+      for (const arm of state.motorSegments) {
+        ctx.strokeStyle = "#0b6b73";
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(arm.x1, arm.y1);
+        ctx.lineTo(arm.x2, arm.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(arm.x1, arm.y1 - 0.6);
+        ctx.lineTo(arm.x2, arm.y2 - 0.6);
+        ctx.stroke();
+
+        ctx.fillStyle = "#f3b54f";
+        ctx.beginPath();
+        ctx.arc(arm.cx, arm.cy, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     function drawPegs() {
       for (const p of state.pegs) {
         const ring = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, 1, p.x, p.y, p.r);
@@ -632,8 +842,49 @@
       }
     }
 
+    function drawShuttles() {
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = "rgba(236, 111, 74, 0.55)";
+      ctx.lineWidth = 2;
+      for (const p of state.shuttleBodies) {
+        ctx.beginPath();
+        ctx.moveTo(p.ax, p.ay);
+        ctx.lineTo(p.bx, p.by);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      for (const p of state.shuttleBodies) {
+        const ring = ctx.createRadialGradient(p.x - p.r * 0.45, p.y - p.r * 0.45, 1, p.x, p.y, p.r);
+        ring.addColorStop(0, "#fff");
+        ring.addColorStop(0.42, "#ff9465");
+        ring.addColorStop(1, "#9f3d2f");
+        ctx.fillStyle = ring;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     function drawMarbles() {
       for (const m of state.marbles) {
+        const speed = Math.hypot(m.vx, m.vy);
+        const streakLength = Math.min(38, speed * 0.03 * world.trail * 1.6);
+        if (streakLength > 2.5) {
+          const inv = 1 / speed;
+          const sx = m.x - m.vx * inv * streakLength;
+          const sy = m.y - m.vy * inv * streakLength;
+          const streak = ctx.createLinearGradient(m.x, m.y, sx, sy);
+          streak.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+          streak.addColorStop(1, "rgba(255, 255, 255, 0)");
+          ctx.strokeStyle = streak;
+          ctx.lineWidth = Math.max(1.4, m.r * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(m.x, m.y);
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+        }
+
         const grad = ctx.createRadialGradient(m.x - m.r * 0.35, m.y - m.r * 0.35, 1, m.x, m.y, m.r);
         grad.addColorStop(0, "#ffffff");
         grad.addColorStop(0.35, m.color);
@@ -646,10 +897,15 @@
     }
 
     function drawDraft() {
-      if (!state.pointerDown || !state.drawStart || ui.tool.value !== "line") {
+      if (!state.pointerDown || !state.drawStart) {
         return;
       }
-      ctx.strokeStyle = "rgba(13, 139, 150, 0.95)";
+
+      if (ui.tool.value !== "line" && ui.tool.value !== "shuttle") {
+        return;
+      }
+
+      ctx.strokeStyle = ui.tool.value === "line" ? "rgba(13, 139, 150, 0.95)" : "rgba(236, 111, 74, 0.95)";
       ctx.lineWidth = 3;
       ctx.setLineDash([6, 5]);
       ctx.beginPath();
@@ -666,6 +922,8 @@
         "marbles: " + state.marbles.length + "\n" +
         "tracks:  " + state.segments.length + "\n" +
         "pegs:    " + state.pegs.length + "\n" +
+        "motors:  " + state.motors.length + "\n" +
+        "shuttle: " + state.shuttles.length + "\n" +
         "fps:     " + fps;
     }
 
@@ -685,9 +943,12 @@
         }
       }
 
+      syncMovingPartCaches();
       drawBackground();
       drawSegments();
+      drawMotors();
       drawPegs();
+      drawShuttles();
       drawMarbles();
       drawDraft();
       updateHud(now - (frame.lastNow || now));
@@ -701,16 +962,27 @@
       world.gravity = Number(ui.gravity.value);
       world.bounce = Number(ui.bounce.value);
       world.friction = Number(ui.friction.value);
+      world.timeScale = Number(ui.timeScale.value);
+      world.motorPower = Number(ui.motorPower.value);
+      world.trail = Number(ui.trail.value);
+
       ui.gravityVal.textContent = world.gravity.toFixed(0);
       ui.bounceVal.textContent = world.bounce.toFixed(2);
       ui.frictionVal.textContent = world.friction.toFixed(2);
       ui.sizeVal.textContent = Number(ui.marbleSize.value).toFixed(0) + " px";
+      ui.timeVal.textContent = world.timeScale.toFixed(2) + "x";
+      ui.motorVal.textContent = world.motorPower.toFixed(2) + "x";
+      ui.trailVal.textContent = world.trail.toFixed(2);
+      syncMovingPartCaches();
     }
 
     ui.gravity.addEventListener("input", updateUiValueLabels);
     ui.bounce.addEventListener("input", updateUiValueLabels);
     ui.friction.addEventListener("input", updateUiValueLabels);
     ui.marbleSize.addEventListener("input", updateUiValueLabels);
+    ui.timeScale.addEventListener("input", updateUiValueLabels);
+    ui.motorPower.addEventListener("input", updateUiValueLabels);
+    ui.trail.addEventListener("input", updateUiValueLabels);
 
     ui.spawn.addEventListener("click", () => {
       spawnMarble(world.width * 0.12, 12, 20);
@@ -739,6 +1011,14 @@
     ui.clearTracks.addEventListener("click", () => {
       state.segments.length = 0;
       state.pegs.length = 0;
+      state.motors.length = 0;
+      state.shuttles.length = 0;
+      state.buildHistory.length = 0;
+      syncMovingPartCaches();
+    });
+
+    ui.undo.addEventListener("click", () => {
+      undoBuild();
     });
 
     ui.demo.addEventListener("click", () => {
@@ -759,8 +1039,10 @@
       state.pointerDown = true;
       state.pointer = pos;
 
-      if (ui.tool.value === "line") {
+      if (ui.tool.value === "line" || ui.tool.value === "shuttle") {
         state.drawStart = pos;
+      } else if (ui.tool.value === "motor") {
+        addMotor(pos.x, pos.y, 94, 2.1);
       } else {
         addPeg(pos.x, pos.y, 9);
       }
@@ -772,8 +1054,12 @@
 
     canvas.addEventListener("pointerup", (evt) => {
       const pos = getPointerPosition(evt);
-      if (state.pointerDown && state.drawStart && ui.tool.value === "line") {
-        addSegment(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+      if (state.pointerDown && state.drawStart) {
+        if (ui.tool.value === "line") {
+          addSegment(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+        } else if (ui.tool.value === "shuttle") {
+          addShuttle(state.drawStart.x, state.drawStart.y, pos.x, pos.y, 9, 1.6);
+        }
       }
       state.pointerDown = false;
       state.drawStart = null;
@@ -787,14 +1073,44 @@
     canvas.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
       const pos = getPointerPosition(evt);
+      syncMovingPartCaches();
 
       let removed = false;
-      for (let i = state.pegs.length - 1; i >= 0; i -= 1) {
-        const p = state.pegs[i];
+
+      for (let i = state.shuttleBodies.length - 1; i >= 0; i -= 1) {
+        const p = state.shuttleBodies[i];
         if (distanceSq(pos.x, pos.y, p.x, p.y) < (p.r + 10) * (p.r + 10)) {
-          state.pegs.splice(i, 1);
+          state.shuttles.splice(i, 1);
           removed = true;
           break;
+        }
+      }
+
+      if (!removed) {
+        for (let i = state.pegs.length - 1; i >= 0; i -= 1) {
+          const p = state.pegs[i];
+          if (distanceSq(pos.x, pos.y, p.x, p.y) < (p.r + 10) * (p.r + 10)) {
+            state.pegs.splice(i, 1);
+            removed = true;
+            break;
+          }
+        }
+      }
+
+      if (!removed) {
+        for (let i = state.motorSegments.length - 1; i >= 0; i -= 1) {
+          const s = state.motorSegments[i];
+          if (distanceSq(pos.x, pos.y, s.cx, s.cy) < 14 * 14) {
+            state.motors.splice(i, 1);
+            removed = true;
+            break;
+          }
+          const cp = closestPointOnSegment(pos.x, pos.y, s);
+          if (distanceSq(pos.x, pos.y, cp.x, cp.y) < 120) {
+            state.motors.splice(i, 1);
+            removed = true;
+            break;
+          }
         }
       }
 
@@ -802,16 +1118,30 @@
         for (let i = state.segments.length - 1; i >= 0; i -= 1) {
           const s = state.segments[i];
           const cp = closestPointOnSegment(pos.x, pos.y, s);
-          if (distanceSq(pos.x, pos.y, cp.x, cp.y) < 110) {
+          if (distanceSq(pos.x, pos.y, cp.x, cp.y) < 120) {
             state.segments.splice(i, 1);
             break;
           }
         }
       }
+
+      syncMovingPartCaches();
+    });
+
+    window.addEventListener("keydown", (evt) => {
+      const key = evt.key.toLowerCase();
+      if (evt.code === "Space") {
+        evt.preventDefault();
+        spawnMarble(world.width * 0.14, 10, 24);
+      }
+      if (key === "u") {
+        undoBuild();
+      }
     });
 
     window.addEventListener("resize", () => {
       resizeCanvas();
+      syncMovingPartCaches();
     });
 
     resizeCanvas();
