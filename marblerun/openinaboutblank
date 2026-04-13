@@ -1,0 +1,3299 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open Marble Run in about:blank (Standalone)</title>
+</head>
+<body>
+  <template id="marbleRunSource"><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marble Run Simulator</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+    :root {
+      --ink: #1e1f26;
+      --panel: #fffaf1;
+      --line: #d9d0bf;
+      --shadow: 0 14px 38px rgba(18, 24, 40, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(1400px 700px at 120% -30%, rgba(13, 139, 150, 0.2), transparent 65%),
+        radial-gradient(1200px 600px at -20% 120%, rgba(236, 111, 74, 0.24), transparent 68%),
+        linear-gradient(180deg, #fffdf7 0%, #f0eadf 100%);
+    }
+
+    body.dark {
+      --ink: #e8eef4;
+      --line: #344351;
+      background:
+        radial-gradient(1200px 620px at 130% -30%, rgba(24, 143, 173, 0.23), transparent 65%),
+        radial-gradient(1000px 500px at -20% 120%, rgba(192, 95, 68, 0.2), transparent 68%),
+        linear-gradient(180deg, #0f1419 0%, #111b24 100%);
+    }
+
+    .topbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+      background: rgba(255, 252, 244, 0.82);
+      backdrop-filter: blur(8px);
+    }
+
+    body.dark .topbar {
+      background: rgba(20, 29, 37, 0.9);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .tabs {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .tab-btn {
+      width: auto;
+      white-space: nowrap;
+      border-radius: 10px;
+      border: 1px solid #ccbfa2;
+      padding: 8px 10px;
+      background: linear-gradient(180deg, #fff 0%, #f4e9d1 100%);
+      color: #1f2731;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .tab-btn.active {
+      border-color: #0d8b96;
+      box-shadow: 0 0 0 2px rgba(13, 139, 150, 0.18) inset;
+    }
+
+    body.dark .tab-btn {
+      border-color: #415262;
+      background: linear-gradient(180deg, #1e2a35 0%, #1a2430 100%);
+      color: #dce6ef;
+    }
+
+    body.dark .tab-btn.active {
+      border-color: #22a8b5;
+      box-shadow: 0 0 0 2px rgba(34, 168, 181, 0.28) inset;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .top-actions button {
+      width: auto;
+      min-width: 92px;
+    }
+
+    .app {
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255, 250, 241, 0.96), rgba(255, 245, 224, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+      backdrop-filter: blur(8px);
+    }
+
+    body.dark .panel {
+      background: linear-gradient(180deg, rgba(24, 34, 42, 0.96), rgba(18, 27, 35, 0.96));
+      border-color: #2f3d4a;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.52rem;
+      letter-spacing: 0.02em;
+    }
+
+    .sub {
+      margin: 0;
+      font-size: 0.9rem;
+      color: rgba(30, 31, 38, 0.82);
+    }
+
+    .controls {
+      display: grid;
+      gap: 8px;
+    }
+
+    .group {
+      border: 1px solid #dfd6c6;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.55);
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    body.dark .group {
+      border-color: #31404e;
+      background: rgba(15, 23, 31, 0.58);
+    }
+
+    .group-title {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.72;
+      font-weight: 700;
+    }
+
+    .row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .row label {
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+      gap: 8px;
+    }
+
+    .value {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.74rem;
+      opacity: 0.85;
+    }
+
+    input[type="range"],
+    input[type="number"],
+    select,
+    button {
+      width: 100%;
+      border-radius: 11px;
+      border: 1px solid #d5ccb8;
+      background: #fff;
+      font: inherit;
+      color: inherit;
+    }
+
+    body.dark input[type="range"],
+    body.dark input[type="number"],
+    body.dark select,
+    body.dark button {
+      border-color: #425466;
+      background: #16212b;
+      color: #d9e6f2;
+    }
+
+    input[type="range"] {
+      accent-color: #0d8b96;
+    }
+
+    select,
+    button {
+      padding: 8px 10px;
+      font-size: 0.88rem;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+      background: linear-gradient(180deg, #fff 0%, #fff5de 100%);
+    }
+
+    body.dark button {
+      background: linear-gradient(180deg, #223140 0%, #18232f 100%);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(30, 31, 38, 0.15);
+      border-color: #c4b89b;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .buttons button.wide {
+      grid-column: span 2;
+    }
+
+    .canvas-shell {
+      position: relative;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid #d5cdbb;
+      box-shadow: var(--shadow);
+      min-height: 240px;
+      background: linear-gradient(180deg, rgba(252, 248, 239, 0.95), rgba(244, 237, 226, 0.95));
+    }
+
+    body.dark .canvas-shell {
+      border-color: #2e3c4a;
+      background: linear-gradient(180deg, rgba(16, 24, 32, 0.96), rgba(13, 20, 28, 0.96));
+    }
+
+    #sim {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(229, 220, 200, 0.9);
+      background: rgba(255, 252, 246, 0.86);
+      font-size: 0.78rem;
+      font-family: "IBM Plex Mono", monospace;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      white-space: pre;
+    }
+
+    body.dark .hud {
+      border-color: rgba(81, 99, 115, 0.9);
+      background: rgba(19, 29, 37, 0.86);
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .editor-grid .row {
+      gap: 4px;
+    }
+
+    #toolPreview,
+    #partPreview {
+      width: 100%;
+      border: 1px solid #d9d0bf;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #fffef9 0%, #f8f0df 100%);
+    }
+
+    #toolPreview {
+      height: 90px;
+    }
+
+    #partPreview {
+      height: 120px;
+    }
+
+    .tip {
+      border-radius: 12px;
+      border: 1px dashed #c7bba0;
+      background: rgba(255, 248, 233, 0.86);
+      padding: 8px;
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+
+    body.dark .tip {
+      border-color: #4b5a67;
+      background: rgba(20, 31, 39, 0.86);
+    }
+
+    @media (max-width: 1080px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+
+      .panel {
+        max-height: 52vh;
+      }
+
+      .canvas-shell {
+        min-height: 44vh;
+      }
+    }
+  </style>
+</head>
+<body class="dark">
+  <div class="topbar">
+    <div class="tabs" id="runTabs"></div>
+    <div class="top-actions">
+      <button id="newRunTab">New Tab</button>
+      <button id="saveMbr">Save .mbr</button>
+      <button id="loadMbr">Load .mbr</button>
+      <button id="themeToggle">Light Mode</button>
+      <input id="loadMbrInput" type="file" accept=".mbr,application/json" hidden />
+    </div>
+  </div>
+
+  <div class="app">
+    <aside class="panel">
+      <header>
+        <h1>Marble Run</h1>
+        <p class="sub">Static, moving, spinning, pads, and trigger zones with targetable start/stop logic.</p>
+      </header>
+
+      <div class="controls">
+        <div class="group">
+          <div class="group-title">Build Tool</div>
+          <div class="row">
+            <label for="tool">Part Type</label>
+            <select id="tool">
+              <option value="line">Line Track</option>
+              <option value="peg">Peg Bumper</option>
+              <option value="block">Block</option>
+              <option value="circle">Circle</option>
+              <option value="wedge">Wedge</option>
+              <option value="curveLarge">Curve (Large)</option>
+              <option value="curveSmall">Curve (Small)</option>
+              <option value="sMoveBlock">S-Move Block</option>
+              <option value="sMoveCircle">S-Move Circle</option>
+              <option value="sMoveWedge">S-Move Wedge</option>
+              <option value="lMoveBlock">L-Move Block</option>
+              <option value="lMoveCircle">L-Move Circle</option>
+              <option value="lMoveWedge">L-Move Wedge</option>
+              <option value="wMoveBlock">W-Move Block</option>
+              <option value="wMoveCircle">W-Move Circle</option>
+              <option value="wMoveWedge">W-Move Wedge</option>
+              <option value="spinBlock">Spin Block</option>
+              <option value="spinCircle">Spin Circle</option>
+              <option value="spinWedge">Spin Wedge</option>
+              <option value="spinGear">Spin Gear</option>
+              <option value="goal">Goal</option>
+              <option value="teleport">Teleport Pad</option>
+              <option value="boost">Boost Pad</option>
+              <option value="hazard">Hazard</option>
+              <option value="trigger">Trigger Zone (Drag)</option>
+              <option value="select">Select/Edit</option>
+            </select>
+          </div>
+          <canvas id="toolPreview" width="300" height="90"></canvas>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Physics</div>
+          <div class="row">
+            <label for="gravity">Gravity <span class="value" id="gravityVal"></span></label>
+            <input id="gravity" type="range" min="200" max="1800" step="10" value="920" />
+          </div>
+          <div class="row">
+            <label for="bounce">Bounce <span class="value" id="bounceVal"></span></label>
+            <input id="bounce" type="range" min="0.05" max="0.95" step="0.01" value="0.44" />
+          </div>
+          <div class="row">
+            <label for="friction">Surface Grip <span class="value" id="frictionVal"></span></label>
+            <input id="friction" type="range" min="0" max="0.45" step="0.01" value="0.1" />
+          </div>
+          <div class="row">
+            <label for="marbleSize">Marble Size <span class="value" id="sizeVal"></span></label>
+            <input id="marbleSize" type="range" min="6" max="20" step="1" value="10" />
+          </div>
+          <div class="row">
+            <label for="timeScale">Sim Speed <span class="value" id="timeVal"></span></label>
+            <input id="timeScale" type="range" min="0.25" max="2" step="0.05" value="1" />
+          </div>
+          <div class="row">
+            <label for="trail">Trail Glow <span class="value" id="trailVal"></span></label>
+            <input id="trail" type="range" min="0" max="1" step="0.05" value="0.55" />
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Moving Part Tuning</div>
+          <div class="row">
+            <label for="motorPower">Global Motor Power <span class="value" id="motorVal"></span></label>
+            <input id="motorPower" type="range" min="0.2" max="3" step="0.05" value="1" />
+          </div>
+          <div class="row">
+            <label for="partSize">Part Size <span class="value" id="partSizeVal"></span></label>
+            <input id="partSize" type="range" min="18" max="160" step="2" value="56" />
+          </div>
+          <div class="row">
+            <label for="moveDistance">Move Distance <span class="value" id="moveDistVal"></span></label>
+            <input id="moveDistance" type="range" min="8" max="260" step="2" value="90" />
+          </div>
+          <div class="row">
+            <label for="moveSpeed">Move Speed <span class="value" id="moveSpeedVal"></span></label>
+            <input id="moveSpeed" type="range" min="0.1" max="4" step="0.05" value="1.4" />
+          </div>
+          <div class="row">
+            <label for="spinSpeed">Spin Speed <span class="value" id="spinSpeedVal"></span></label>
+            <input id="spinSpeed" type="range" min="-8" max="8" step="0.1" value="2.6" />
+          </div>
+          <div class="row">
+            <label for="moveAngle">Move Angle <span class="value" id="moveAngleVal"></span></label>
+            <input id="moveAngle" type="range" min="0" max="360" step="1" value="0" />
+          </div>
+          <div class="row">
+            <label for="phase">Phase Offset <span class="value" id="phaseVal"></span></label>
+            <input id="phase" type="range" min="0" max="360" step="1" value="0" />
+          </div>
+          <div class="row">
+            <label for="movingTriggerLink">Activating Trigger</label>
+            <select id="movingTriggerLink">
+              <option value="">Any Trigger Target</option>
+              <option value="__manual__">Manual Only</option>
+            </select>
+          </div>
+          <button id="applySelected">Apply Slider Tuning To Selected</button>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Selected Item Editor</div>
+          <canvas id="partPreview" width="300" height="120"></canvas>
+          <div class="row">
+            <label>Item <span class="value" id="selectedItemMeta">none</span></label>
+          </div>
+          <div class="row">
+            <label for="selectedActive">Active</label>
+            <select id="selectedActive">
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="editor-grid">
+            <div class="row">
+              <label for="selectedX">Center X</label>
+              <input id="selectedX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedY">Center Y</label>
+              <input id="selectedY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedFromX">From X</label>
+              <input id="selectedFromX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedFromY">From Y</label>
+              <input id="selectedFromY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedToX">To X</label>
+              <input id="selectedToX" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedToY">To Y</label>
+              <input id="selectedToY" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedAngle">Angle</label>
+              <input id="selectedAngle" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedSize">Size</label>
+              <input id="selectedSize" type="number" step="1" />
+            </div>
+          </div>
+          <button id="updateSelectedFromMenu">Update Selected Item</button>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Trigger Zone Config</div>
+          <div class="row">
+            <label for="triggerAction">Action</label>
+            <select id="triggerAction">
+              <option value="toggle">Toggle</option>
+              <option value="start">Start</option>
+              <option value="stop">Stop</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="triggerTarget">Target</label>
+            <select id="triggerTarget">
+              <option value="all-moving">All Moving Parts</option>
+              <option value="smooth">Smooth Movers</option>
+              <option value="linear">Linear Movers</option>
+              <option value="warp">Warp Movers</option>
+              <option value="spinners">Spinners</option>
+              <option value="selected">Selected Part</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="spawn">Spawn 1</button>
+        <button id="burst">Burst 20</button>
+        <button id="rain">Start Rain</button>
+        <button id="pause">Pause</button>
+        <button id="clearMarbles">Clear Marbles</button>
+        <button id="clearTracks">Clear All Parts</button>
+        <button id="undo">Undo Build</button>
+        <button class="wide" id="demo">Reset Demo Course</button>
+      </div>
+
+      <div class="tip" id="selectionInfo">Selected part: none</div>
+      <div class="tip">Click any item to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
+    </aside>
+
+    <section class="canvas-shell">
+      <canvas id="sim"></canvas>
+      <div id="hud" class="hud"></div>
+    </section>
+  </div>
+
+  <script>
+    const TAU = Math.PI * 2;
+
+    const canvas = document.getElementById("sim");
+    const ctx = canvas.getContext("2d");
+    const hud = document.getElementById("hud");
+    const toolPreviewCanvas = document.getElementById("toolPreview");
+    const toolPreviewCtx = toolPreviewCanvas.getContext("2d");
+    const previewCanvas = document.getElementById("partPreview");
+    const previewCtx = previewCanvas.getContext("2d");
+
+    const ui = {
+      runTabs: document.getElementById("runTabs"),
+      newRunTab: document.getElementById("newRunTab"),
+      saveMbr: document.getElementById("saveMbr"),
+      loadMbr: document.getElementById("loadMbr"),
+      loadMbrInput: document.getElementById("loadMbrInput"),
+      themeToggle: document.getElementById("themeToggle"),
+      tool: document.getElementById("tool"),
+      gravity: document.getElementById("gravity"),
+      bounce: document.getElementById("bounce"),
+      friction: document.getElementById("friction"),
+      marbleSize: document.getElementById("marbleSize"),
+      timeScale: document.getElementById("timeScale"),
+      motorPower: document.getElementById("motorPower"),
+      trail: document.getElementById("trail"),
+      partSize: document.getElementById("partSize"),
+      moveDistance: document.getElementById("moveDistance"),
+      moveSpeed: document.getElementById("moveSpeed"),
+      spinSpeed: document.getElementById("spinSpeed"),
+      moveAngle: document.getElementById("moveAngle"),
+      phase: document.getElementById("phase"),
+      movingTriggerLink: document.getElementById("movingTriggerLink"),
+      triggerAction: document.getElementById("triggerAction"),
+      triggerTarget: document.getElementById("triggerTarget"),
+      applySelected: document.getElementById("applySelected"),
+      selectedItemMeta: document.getElementById("selectedItemMeta"),
+      selectedActive: document.getElementById("selectedActive"),
+      selectedX: document.getElementById("selectedX"),
+      selectedY: document.getElementById("selectedY"),
+      selectedFromX: document.getElementById("selectedFromX"),
+      selectedFromY: document.getElementById("selectedFromY"),
+      selectedToX: document.getElementById("selectedToX"),
+      selectedToY: document.getElementById("selectedToY"),
+      selectedAngle: document.getElementById("selectedAngle"),
+      selectedSize: document.getElementById("selectedSize"),
+      updateSelectedFromMenu: document.getElementById("updateSelectedFromMenu"),
+      selectionInfo: document.getElementById("selectionInfo"),
+      gravityVal: document.getElementById("gravityVal"),
+      bounceVal: document.getElementById("bounceVal"),
+      frictionVal: document.getElementById("frictionVal"),
+      sizeVal: document.getElementById("sizeVal"),
+      timeVal: document.getElementById("timeVal"),
+      motorVal: document.getElementById("motorVal"),
+      trailVal: document.getElementById("trailVal"),
+      partSizeVal: document.getElementById("partSizeVal"),
+      moveDistVal: document.getElementById("moveDistVal"),
+      moveSpeedVal: document.getElementById("moveSpeedVal"),
+      spinSpeedVal: document.getElementById("spinSpeedVal"),
+      moveAngleVal: document.getElementById("moveAngleVal"),
+      phaseVal: document.getElementById("phaseVal"),
+      spawn: document.getElementById("spawn"),
+      burst: document.getElementById("burst"),
+      rain: document.getElementById("rain"),
+      pause: document.getElementById("pause"),
+      clearMarbles: document.getElementById("clearMarbles"),
+      clearTracks: document.getElementById("clearTracks"),
+      undo: document.getElementById("undo"),
+      demo: document.getElementById("demo")
+    };
+
+    const world = {
+      width: 0,
+      height: 0,
+      gravity: Number(ui.gravity.value),
+      bounce: Number(ui.bounce.value),
+      friction: Number(ui.friction.value),
+      airDrag: 0.02,
+      maxMarbles: 420,
+      timeScale: Number(ui.timeScale.value),
+      motorPower: Number(ui.motorPower.value),
+      trail: Number(ui.trail.value),
+      partSize: Number(ui.partSize.value),
+      moveDistance: Number(ui.moveDistance.value),
+      moveSpeed: Number(ui.moveSpeed.value),
+      spinSpeed: Number(ui.spinSpeed.value),
+      moveAngle: Number(ui.moveAngle.value) * (Math.PI / 180),
+      phase: Number(ui.phase.value) * (Math.PI / 180)
+    };
+
+    const state = {
+      marbles: [],
+      lineSegments: [],
+      pegs: [],
+      parts: [],
+      pads: [],
+      triggers: [],
+      colliders: {
+        segments: [],
+        circles: []
+      },
+      partPoses: new Map(),
+      buildHistory: [],
+      paused: false,
+      raining: false,
+      rainTimer: 0,
+      pointerDown: false,
+      drawStart: null,
+      pointer: { x: 0, y: 0 },
+      fps: 0,
+      simTime: 0,
+      selectedPartId: null,
+      score: 0,
+      teleporterCooldown: 0,
+      dragMode: null,
+      dragLast: null,
+      selectionRect: null,
+      runs: [],
+      activeRunIndex: -1,
+      nextRunId: 1,
+      darkMode: true
+    };
+
+    const TOOL_PRESETS = {
+      block: { shape: "block", motion: "static" },
+      circle: { shape: "circle", motion: "static" },
+      wedge: { shape: "wedge", motion: "static" },
+      curveLarge: { shape: "curveLarge", motion: "static" },
+      curveSmall: { shape: "curveSmall", motion: "static" },
+      sMoveBlock: { shape: "block", motion: "smooth" },
+      sMoveCircle: { shape: "circle", motion: "smooth" },
+      sMoveWedge: { shape: "wedge", motion: "smooth" },
+      lMoveBlock: { shape: "block", motion: "linear" },
+      lMoveCircle: { shape: "circle", motion: "linear" },
+      lMoveWedge: { shape: "wedge", motion: "linear" },
+      wMoveBlock: { shape: "block", motion: "warp" },
+      wMoveCircle: { shape: "circle", motion: "warp" },
+      wMoveWedge: { shape: "wedge", motion: "warp" },
+      spinBlock: { shape: "block", motion: "spin" },
+      spinCircle: { shape: "circle", motion: "spin" },
+      spinWedge: { shape: "wedge", motion: "spin" },
+      spinGear: { shape: "gear", motion: "spin" },
+      goal: { shape: "padSquare", motion: "static", padType: "goal" },
+      teleport: { shape: "padSquare", motion: "static", padType: "teleport" },
+      boost: { shape: "padSquare", motion: "static", padType: "boost" },
+      hazard: { shape: "padSquare", motion: "static", padType: "hazard" }
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function normalizeAngle(angle) {
+      let a = angle;
+      while (a < 0) {
+        a += TAU;
+      }
+      while (a >= TAU) {
+        a -= TAU;
+      }
+      return a;
+    }
+
+    function randomColor() {
+      const palette = ["#ec6f4a", "#0d8b96", "#f6c65b", "#628f2f", "#2b6488", "#b65a7a"];
+      return palette[Math.floor(Math.random() * palette.length)];
+    }
+
+    function distanceSq(ax, ay, bx, by) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function isPathMover(part) {
+      return !!part && (part.motion === "smooth" || part.motion === "linear" || part.motion === "warp");
+    }
+
+    function syncPartPathFromCenter(part) {
+      if (!part) {
+        return;
+      }
+      if (!isPathMover(part)) {
+        part.fromX = part.x;
+        part.fromY = part.y;
+        part.toX = part.x;
+        part.toY = part.y;
+        return;
+      }
+
+      const half = part.moveDistance * 0.5;
+      const dx = Math.cos(part.moveAngle) * half;
+      const dy = Math.sin(part.moveAngle) * half;
+      part.fromX = part.x - dx;
+      part.fromY = part.y - dy;
+      part.toX = part.x + dx;
+      part.toY = part.y + dy;
+    }
+
+    function ensurePartPathEndpoints(part) {
+      if (!part) {
+        return;
+      }
+      if (
+        typeof part.fromX !== "number" ||
+        typeof part.fromY !== "number" ||
+        typeof part.toX !== "number" ||
+        typeof part.toY !== "number"
+      ) {
+        syncPartPathFromCenter(part);
+      }
+    }
+
+    function syncPartCenterFromPath(part) {
+      if (!part) {
+        return;
+      }
+      ensurePartPathEndpoints(part);
+      part.x = (part.fromX + part.toX) * 0.5;
+      part.y = (part.fromY + part.toY) * 0.5;
+      const dx = part.toX - part.fromX;
+      const dy = part.toY - part.fromY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0.0001) {
+        part.moveDistance = dist;
+        part.moveAngle = Math.atan2(dy, dx);
+      }
+    }
+
+    function formatNum(value) {
+      return Number.isFinite(value) ? value.toFixed(1) : "";
+    }
+
+    function parseNum(input, fallback) {
+      const v = Number(input.value);
+      return Number.isFinite(v) ? v : fallback;
+    }
+
+    function isTypingTarget(target) {
+      if (!target) {
+        return false;
+      }
+      const tag = (target.tagName || "").toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
+    }
+
+    function cloneData(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function makeEmptySceneData() {
+      return {
+        marbles: [],
+        lineSegments: [],
+        pegs: [],
+        parts: [],
+        pads: [],
+        triggers: [],
+        buildHistory: [],
+        score: 0,
+        simTime: 0,
+        selectedPartId: null
+      };
+    }
+
+    function exportCurrentSceneData() {
+      return {
+        marbles: cloneData(state.marbles),
+        lineSegments: cloneData(state.lineSegments),
+        pegs: cloneData(state.pegs),
+        parts: cloneData(state.parts),
+        pads: cloneData(state.pads),
+        triggers: cloneData(state.triggers),
+        buildHistory: cloneData(state.buildHistory),
+        score: state.score,
+        simTime: state.simTime,
+        selectedPartId: state.selectedPartId
+      };
+    }
+
+    function importSceneData(data) {
+      const safe = data || makeEmptySceneData();
+      state.marbles = cloneData(safe.marbles || []);
+      state.lineSegments = cloneData(safe.lineSegments || []);
+      state.pegs = cloneData(safe.pegs || []);
+      state.parts = cloneData(safe.parts || []);
+      state.pads = cloneData(safe.pads || []);
+      state.triggers = cloneData(safe.triggers || []);
+      state.buildHistory = cloneData(safe.buildHistory || []);
+      state.score = Number.isFinite(safe.score) ? safe.score : 0;
+      state.simTime = Number.isFinite(safe.simTime) ? safe.simTime : 0;
+      state.selectedPartId = safe.selectedPartId || null;
+      if (!findPartById(state.selectedPartId)) {
+        state.selectedPartId = null;
+      }
+      state.pointerDown = false;
+      state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
+      rebuildTriggerLinkOptions();
+      updateSelectionInfo();
+    }
+
+    function saveActiveRunData() {
+      if (state.activeRunIndex < 0 || state.activeRunIndex >= state.runs.length) {
+        return;
+      }
+      state.runs[state.activeRunIndex].data = exportCurrentSceneData();
+    }
+
+    function renderRunTabs() {
+      ui.runTabs.innerHTML = "";
+      for (let i = 0; i < state.runs.length; i += 1) {
+        const run = state.runs[i];
+        const btn = document.createElement("button");
+        btn.className = "tab-btn" + (i === state.activeRunIndex ? " active" : "");
+        btn.textContent = run.name;
+        btn.addEventListener("click", () => {
+          switchToRun(i);
+        });
+        ui.runTabs.appendChild(btn);
+      }
+    }
+
+    function switchToRun(index) {
+      if (index < 0 || index >= state.runs.length) {
+        return;
+      }
+      if (state.activeRunIndex === index) {
+        return;
+      }
+      saveActiveRunData();
+      state.activeRunIndex = index;
+      importSceneData(state.runs[index].data || makeEmptySceneData());
+      renderRunTabs();
+    }
+
+    function createRunTab(name = null, seedData = null, activate = true) {
+      const runId = state.nextRunId;
+      state.nextRunId += 1;
+      const run = {
+        id: runId,
+        name: name || "Run " + runId,
+        data: seedData ? cloneData(seedData) : makeEmptySceneData()
+      };
+      state.runs.push(run);
+      if (activate) {
+        if (state.activeRunIndex >= 0) {
+          saveActiveRunData();
+        }
+        state.activeRunIndex = state.runs.length - 1;
+        importSceneData(run.data);
+      }
+      renderRunTabs();
+      return run;
+    }
+
+    function applyTheme() {
+      document.body.classList.toggle("dark", state.darkMode);
+      ui.themeToggle.textContent = state.darkMode ? "Light Mode" : "Dark Mode";
+    }
+
+    function saveToMbrFile() {
+      saveActiveRunData();
+      const payload = {
+        format: "marblerun.mbr",
+        version: 1,
+        theme: state.darkMode ? "dark" : "light",
+        activeRunId: state.runs[state.activeRunIndex] ? state.runs[state.activeRunIndex].id : null,
+        uiValues: {
+          gravity: ui.gravity.value,
+          bounce: ui.bounce.value,
+          friction: ui.friction.value,
+          marbleSize: ui.marbleSize.value,
+          timeScale: ui.timeScale.value,
+          trail: ui.trail.value,
+          motorPower: ui.motorPower.value,
+          partSize: ui.partSize.value,
+          moveDistance: ui.moveDistance.value,
+          moveSpeed: ui.moveSpeed.value,
+          spinSpeed: ui.spinSpeed.value,
+          moveAngle: ui.moveAngle.value,
+          phase: ui.phase.value
+        },
+        runs: state.runs.map((run) => ({
+          id: run.id,
+          name: run.name,
+          data: run.data
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "marble-run-" + Date.now() + ".mbr";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadFromMbrPayload(payload) {
+      if (!payload || !Array.isArray(payload.runs) || payload.runs.length === 0) {
+        throw new Error("Invalid .mbr file");
+      }
+
+      if (payload.uiValues) {
+        const keys = Object.keys(payload.uiValues);
+        for (const key of keys) {
+          if (ui[key]) {
+            ui[key].value = payload.uiValues[key];
+          }
+        }
+      }
+
+      updateUiValueLabels();
+
+      state.runs = payload.runs.map((run) => ({
+        id: Number.isFinite(run.id) ? run.id : state.nextRunId++,
+        name: typeof run.name === "string" && run.name.trim() ? run.name : "Run",
+        data: cloneData(run.data || makeEmptySceneData())
+      }));
+
+      const maxId = state.runs.reduce((m, run) => Math.max(m, run.id), 0);
+      state.nextRunId = Math.max(maxId + 1, state.nextRunId);
+
+      state.darkMode = payload.theme !== "light";
+      applyTheme();
+
+      const desiredId = payload.activeRunId;
+      let idx = state.runs.findIndex((run) => run.id === desiredId);
+      if (idx < 0) {
+        idx = 0;
+      }
+      state.activeRunIndex = idx;
+      importSceneData(state.runs[idx].data);
+      renderRunTabs();
+    }
+
+    function nearestPointOnSegment(px, py, s) {
+      const vx = s.x2 - s.x1;
+      const vy = s.y2 - s.y1;
+      const lenSq = vx * vx + vy * vy;
+      if (lenSq < 0.000001) {
+        return { x: s.x1, y: s.y1, t: 0 };
+      }
+      let t = ((px - s.x1) * vx + (py - s.y1) * vy) / lenSq;
+      t = clamp(t, 0, 1);
+      return {
+        x: s.x1 + t * vx,
+        y: s.y1 + t * vy,
+        t
+      };
+    }
+
+    function resizeCanvas() {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const rect = canvas.getBoundingClientRect();
+      world.width = rect.width;
+      world.height = rect.height;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function updateUiValueLabels() {
+      world.gravity = Number(ui.gravity.value);
+      world.bounce = Number(ui.bounce.value);
+      world.friction = Number(ui.friction.value);
+      world.timeScale = Number(ui.timeScale.value);
+      world.motorPower = Number(ui.motorPower.value);
+      world.trail = Number(ui.trail.value);
+      world.partSize = Number(ui.partSize.value);
+      world.moveDistance = Number(ui.moveDistance.value);
+      world.moveSpeed = Number(ui.moveSpeed.value);
+      world.spinSpeed = Number(ui.spinSpeed.value);
+      world.moveAngle = Number(ui.moveAngle.value) * (Math.PI / 180);
+      world.phase = Number(ui.phase.value) * (Math.PI / 180);
+
+      ui.gravityVal.textContent = world.gravity.toFixed(0);
+      ui.bounceVal.textContent = world.bounce.toFixed(2);
+      ui.frictionVal.textContent = world.friction.toFixed(2);
+      ui.sizeVal.textContent = Number(ui.marbleSize.value).toFixed(0) + " px";
+      ui.timeVal.textContent = world.timeScale.toFixed(2) + "x";
+      ui.motorVal.textContent = world.motorPower.toFixed(2) + "x";
+      ui.trailVal.textContent = world.trail.toFixed(2);
+      ui.partSizeVal.textContent = world.partSize.toFixed(0) + " px";
+      ui.moveDistVal.textContent = world.moveDistance.toFixed(0) + " px";
+      ui.moveSpeedVal.textContent = world.moveSpeed.toFixed(2);
+      ui.spinSpeedVal.textContent = world.spinSpeed.toFixed(1) + " rad/s";
+      ui.moveAngleVal.textContent = Number(ui.moveAngle.value).toFixed(0) + " deg";
+      ui.phaseVal.textContent = Number(ui.phase.value).toFixed(0) + " deg";
+    }
+
+    function rememberBuild(group, ref) {
+      state.buildHistory.push({ group, ref });
+      if (state.buildHistory.length > 900) {
+        state.buildHistory.shift();
+      }
+    }
+
+    function spawnMarble(x = world.width * 0.16, y = 26, speedX = 0) {
+      if (state.marbles.length >= world.maxMarbles) {
+        state.marbles.shift();
+      }
+      const r = Number(ui.marbleSize.value);
+      state.marbles.push({
+        x,
+        y,
+        vx: speedX,
+        vy: 0,
+        r,
+        mass: Math.max(1, r * 0.34),
+        color: randomColor(),
+        triggerState: Object.create(null),
+        cooldown: Object.create(null)
+      });
+    }
+
+    function addLine(x1, y1, x2, y2) {
+      if (distanceSq(x1, y1, x2, y2) < 100) {
+        return;
+      }
+      const seg = { x1, y1, x2, y2 };
+      state.lineSegments.push(seg);
+      rememberBuild("lineSegments", seg);
+    }
+
+    function addPeg(x, y, r = 9) {
+      const peg = { x, y, r };
+      state.pegs.push(peg);
+      rememberBuild("pegs", peg);
+    }
+
+    function createPart(tool, x, y) {
+      const preset = TOOL_PRESETS[tool];
+      if (!preset) {
+        return null;
+      }
+      const id = "p-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 9999).toString(36);
+      const part = {
+        id,
+        tool,
+        x,
+        y,
+        shape: preset.shape,
+        motion: preset.motion,
+        padType: preset.padType || null,
+        size: world.partSize,
+        moveDistance: world.moveDistance,
+        moveSpeed: world.moveSpeed,
+        spinSpeed: world.spinSpeed,
+        moveAngle: world.moveAngle,
+        phase: world.phase,
+        baseAngle: world.moveAngle,
+        active: true,
+        teleporterIndex: -1,
+        activationTriggerId: ""
+      };
+
+      if (part.motion === "spin") {
+        part.moveDistance = 0;
+      }
+
+      if (part.padType) {
+        part.active = true;
+      }
+
+      syncPartPathFromCenter(part);
+
+      return part;
+    }
+
+    function addPart(tool, x, y) {
+      const part = createPart(tool, x, y);
+      if (!part) {
+        return;
+      }
+      if (part.padType) {
+        state.pads.push(part);
+        rememberBuild("pads", part);
+      } else {
+        state.parts.push(part);
+        rememberBuild("parts", part);
+      }
+      setSelectedPart(part.id);
+    }
+
+    function addTriggerZone(ax, ay, bx, by) {
+      const x = Math.min(ax, bx);
+      const y = Math.min(ay, by);
+      const w = Math.max(20, Math.abs(ax - bx));
+      const h = Math.max(20, Math.abs(ay - by));
+      const id = "t-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 9999).toString(36);
+      const trigger = {
+        id,
+        x,
+        y,
+        w,
+        h,
+        action: ui.triggerAction.value,
+        target: ui.triggerTarget.value,
+        selectedPartId: state.selectedPartId,
+        flash: 0
+      };
+      state.triggers.push(trigger);
+      rememberBuild("triggers", trigger);
+      rebuildTriggerLinkOptions();
+    }
+
+    function findPartById(id) {
+      if (!id) {
+        return null;
+      }
+      for (const part of state.parts) {
+        if (part.id === id) {
+          return part;
+        }
+      }
+      for (const pad of state.pads) {
+        if (pad.id === id) {
+          return pad;
+        }
+      }
+      return null;
+    }
+
+    function rebuildTriggerLinkOptions() {
+      const prev = ui.movingTriggerLink.value;
+      const options = [
+        { value: "", label: "Any Trigger Target" },
+        { value: "__manual__", label: "Manual Only" }
+      ];
+
+      for (let i = 0; i < state.triggers.length; i += 1) {
+        const t = state.triggers[i];
+        options.push({
+          value: t.id,
+          label: "Trigger " + (i + 1) + " (" + t.action + " -> " + t.target + ")"
+        });
+      }
+
+      ui.movingTriggerLink.innerHTML = "";
+      for (const opt of options) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.textContent = opt.label;
+        ui.movingTriggerLink.appendChild(el);
+      }
+
+      if (options.some((o) => o.value === prev)) {
+        ui.movingTriggerLink.value = prev;
+      } else {
+        ui.movingTriggerLink.value = "";
+      }
+    }
+
+    function setSelectedPart(partOrId) {
+      const id = typeof partOrId === "string" ? partOrId : partOrId ? partOrId.id : null;
+      state.selectedPartId = id;
+      updateSelectionInfo();
+    }
+
+    function syncSelectedEditorFromPart() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        ui.selectedItemMeta.textContent = "none";
+        ui.selectedActive.value = "on";
+        ui.selectedX.value = "";
+        ui.selectedY.value = "";
+        ui.selectedFromX.value = "";
+        ui.selectedFromY.value = "";
+        ui.selectedToX.value = "";
+        ui.selectedToY.value = "";
+        ui.selectedAngle.value = "";
+        ui.selectedSize.value = "";
+        ui.selectedActive.disabled = true;
+        ui.selectedX.disabled = true;
+        ui.selectedY.disabled = true;
+        ui.selectedFromX.disabled = true;
+        ui.selectedFromY.disabled = true;
+        ui.selectedToX.disabled = true;
+        ui.selectedToY.disabled = true;
+        ui.selectedAngle.disabled = true;
+        ui.selectedSize.disabled = true;
+        ui.movingTriggerLink.disabled = true;
+        ui.movingTriggerLink.value = "";
+        ui.updateSelectedFromMenu.disabled = true;
+        return;
+      }
+
+      ensurePartPathEndpoints(part);
+
+      ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
+      ui.selectedActive.value = part.active ? "on" : "off";
+      ui.selectedX.value = formatNum(part.x);
+      ui.selectedY.value = formatNum(part.y);
+      ui.selectedFromX.value = formatNum(part.fromX);
+      ui.selectedFromY.value = formatNum(part.fromY);
+      ui.selectedToX.value = formatNum(part.toX);
+      ui.selectedToY.value = formatNum(part.toY);
+      ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
+      ui.selectedSize.value = formatNum(part.size);
+      ui.selectedX.disabled = isPathMover(part);
+      ui.selectedY.disabled = isPathMover(part);
+      ui.selectedAngle.disabled = false;
+      ui.selectedSize.disabled = false;
+      ui.updateSelectedFromMenu.disabled = false;
+
+      const disableMotion = !isPathMover(part);
+      ui.selectedFromX.disabled = disableMotion;
+      ui.selectedFromY.disabled = disableMotion;
+      ui.selectedToX.disabled = disableMotion;
+      ui.selectedToY.disabled = disableMotion;
+      ui.selectedActive.disabled = part.motion === "static" || !!part.padType;
+
+      const canLinkTrigger = part.motion !== "static" && !part.padType;
+      ui.movingTriggerLink.disabled = !canLinkTrigger;
+      if (canLinkTrigger) {
+        const v = part.activationTriggerId || "";
+        if (Array.from(ui.movingTriggerLink.options).some((o) => o.value === v)) {
+          ui.movingTriggerLink.value = v;
+        } else {
+          ui.movingTriggerLink.value = "";
+          part.activationTriggerId = "";
+        }
+      } else {
+        ui.movingTriggerLink.value = "";
+      }
+    }
+
+    function applySelectedEditorValues() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return;
+      }
+
+      part.baseAngle = parseNum(ui.selectedAngle, part.baseAngle * (180 / Math.PI)) * (Math.PI / 180);
+      part.size = clamp(parseNum(ui.selectedSize, part.size), 12, 260);
+      part.active = ui.selectedActive.value !== "off";
+      if (part.motion !== "static" && !part.padType) {
+        part.activationTriggerId = ui.movingTriggerLink.value;
+      }
+
+      if (isPathMover(part)) {
+        part.fromX = parseNum(ui.selectedFromX, part.fromX);
+        part.fromY = parseNum(ui.selectedFromY, part.fromY);
+        part.toX = parseNum(ui.selectedToX, part.toX);
+        part.toY = parseNum(ui.selectedToY, part.toY);
+        syncPartCenterFromPath(part);
+      } else {
+        part.x = parseNum(ui.selectedX, part.x);
+        part.y = parseNum(ui.selectedY, part.y);
+        syncPartPathFromCenter(part);
+      }
+
+      syncSelectedEditorFromPart();
+      updateSelectionInfo();
+    }
+
+    function updateSelectionInfo() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        ui.selectionInfo.textContent = "Selected part: none";
+        syncSelectedEditorFromPart();
+        return;
+      }
+      ensurePartPathEndpoints(part);
+      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + part.size.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
+      syncSelectedEditorFromPart();
+    }
+
+    function applyTuningToPart(part) {
+      if (!part || part.padType) {
+        return;
+      }
+      part.size = world.partSize;
+      part.moveDistance = world.moveDistance;
+      part.moveSpeed = world.moveSpeed;
+      part.spinSpeed = world.spinSpeed;
+      part.moveAngle = world.moveAngle;
+      part.phase = world.phase;
+      part.baseAngle = world.moveAngle;
+      if (part.motion !== "static") {
+        part.activationTriggerId = ui.movingTriggerLink.value;
+      }
+      if (isPathMover(part)) {
+        syncPartPathFromCenter(part);
+      }
+    }
+
+    function undoBuild() {
+      const item = state.buildHistory.pop();
+      if (!item) {
+        return;
+      }
+      const list = state[item.group];
+      if (!Array.isArray(list)) {
+        return;
+      }
+      const idx = list.lastIndexOf(item.ref);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+      }
+      if (item.group === "triggers") {
+        rebuildTriggerLinkOptions();
+      }
+      if (!findPartById(state.selectedPartId)) {
+        setSelectedPart(null);
+        return;
+      }
+      updateSelectionInfo();
+    }
+
+    function clearWorld(keepTracks = false) {
+      state.marbles.length = 0;
+      state.score = 0;
+      if (!keepTracks) {
+        state.lineSegments.length = 0;
+        state.pegs.length = 0;
+        state.parts.length = 0;
+        state.pads.length = 0;
+        state.triggers.length = 0;
+        state.buildHistory.length = 0;
+        setSelectedPart(null);
+        rebuildTriggerLinkOptions();
+        return;
+      }
+      updateSelectionInfo();
+    }
+
+    function triangleMotion(theta) {
+      const cycle = ((theta / Math.PI) % 2 + 2) % 2;
+      if (cycle < 1) {
+        return {
+          value: -1 + cycle * 2,
+          slope: 2 / Math.PI
+        };
+      }
+      return {
+        value: 3 - cycle * 2,
+        slope: -2 / Math.PI
+      };
+    }
+
+    function sawMotion(theta) {
+      const cycle = ((theta / TAU) % 1 + 1) % 1;
+      return {
+        value: -1 + cycle * 2,
+        slope: 1 / Math.PI
+      };
+    }
+
+    function computePartPose(part, time) {
+      let x = part.x;
+      let y = part.y;
+      let angle = part.baseAngle;
+      let vx = 0;
+      let vy = 0;
+      let omega = 0;
+
+      if (!part.active) {
+        return { x, y, angle, vx, vy, omega };
+      }
+
+      const power = world.motorPower;
+      const theta = time * part.moveSpeed * power + part.phase;
+      ensurePartPathEndpoints(part);
+
+      if (isPathMover(part)) {
+        const dx = part.toX - part.fromX;
+        const dy = part.toY - part.fromY;
+        let t = 0.5;
+        let dt = 0;
+
+        if (part.motion === "smooth") {
+          t = 0.5 + 0.5 * Math.sin(theta);
+          dt = 0.5 * Math.cos(theta) * part.moveSpeed * power;
+        } else if (part.motion === "linear") {
+          const wave = triangleMotion(theta);
+          t = 0.5 + 0.5 * wave.value;
+          dt = 0.5 * wave.slope * part.moveSpeed * power;
+        } else if (part.motion === "warp") {
+          const wave = sawMotion(theta);
+          t = 0.5 + 0.5 * wave.value;
+          dt = 0.5 * wave.slope * part.moveSpeed * power;
+        }
+
+        x = part.fromX + dx * t;
+        y = part.fromY + dy * t;
+        vx = dx * dt;
+        vy = dy * dt;
+      } else if (part.motion === "spin") {
+        const spin = part.spinSpeed * power;
+        angle += spin * time + part.phase;
+        omega += spin;
+      }
+
+      return {
+        x,
+        y,
+        angle: normalizeAngle(angle),
+        vx,
+        vy,
+        omega
+      };
+    }
+
+    function rotatePoint(x, y, angle) {
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      return {
+        x: x * c - y * s,
+        y: x * s + y * c
+      };
+    }
+
+    function worldPoint(pose, lx, ly) {
+      const p = rotatePoint(lx, ly, pose.angle);
+      return {
+        x: pose.x + p.x,
+        y: pose.y + p.y
+      };
+    }
+
+    function localVelocityToWorld(pose, wx, wy) {
+      return {
+        vx: pose.vx - pose.omega * (wy - pose.y),
+        vy: pose.vy + pose.omega * (wx - pose.x)
+      };
+    }
+
+    function pushSegment(s, vx = 0, vy = 0, omega = 0, cx = 0, cy = 0) {
+      state.colliders.segments.push({
+        x1: s.x1,
+        y1: s.y1,
+        x2: s.x2,
+        y2: s.y2,
+        vx,
+        vy,
+        omega,
+        cx,
+        cy
+      });
+    }
+
+    function pushCircle(c, vx = 0, vy = 0, omega = 0, cx = 0, cy = 0) {
+      state.colliders.circles.push({
+        x: c.x,
+        y: c.y,
+        r: c.r,
+        vx,
+        vy,
+        omega,
+        cx,
+        cy
+      });
+    }
+
+    function buildPartColliders(part, pose) {
+      const size = part.size;
+
+      if (part.shape === "circle") {
+        pushCircle({ x: pose.x, y: pose.y, r: size * 0.5 }, pose.vx, pose.vy, pose.omega, pose.x, pose.y);
+        return;
+      }
+
+      if (part.shape === "gear") {
+        const coreR = size * 0.34;
+        pushCircle({ x: pose.x, y: pose.y, r: coreR }, pose.vx, pose.vy, pose.omega, pose.x, pose.y);
+        const teeth = 8;
+        for (let i = 0; i < teeth; i += 1) {
+          const a = pose.angle + (i / teeth) * TAU;
+          const tx = pose.x + Math.cos(a) * (size * 0.48);
+          const ty = pose.y + Math.sin(a) * (size * 0.48);
+          const vel = localVelocityToWorld(pose, tx, ty);
+          pushCircle({ x: tx, y: ty, r: size * 0.09 }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
+        }
+        return;
+      }
+
+      if (part.shape === "block" || part.shape === "padSquare") {
+        const h = size * 0.5;
+        const a = worldPoint(pose, -h, -h);
+        const b = worldPoint(pose, h, -h);
+        const c = worldPoint(pose, h, h);
+        const d = worldPoint(pose, -h, h);
+        const vA = localVelocityToWorld(pose, a.x, a.y);
+        const vB = localVelocityToWorld(pose, b.x, b.y);
+        const vC = localVelocityToWorld(pose, c.x, c.y);
+        const vD = localVelocityToWorld(pose, d.x, d.y);
+        pushSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, (vA.vx + vB.vx) * 0.5, (vA.vy + vB.vy) * 0.5, pose.omega, pose.x, pose.y);
+        pushSegment({ x1: b.x, y1: b.y, x2: c.x, y2: c.y }, (vB.vx + vC.vx) * 0.5, (vB.vy + vC.vy) * 0.5, pose.omega, pose.x, pose.y);
+        pushSegment({ x1: c.x, y1: c.y, x2: d.x, y2: d.y }, (vC.vx + vD.vx) * 0.5, (vC.vy + vD.vy) * 0.5, pose.omega, pose.x, pose.y);
+        pushSegment({ x1: d.x, y1: d.y, x2: a.x, y2: a.y }, (vD.vx + vA.vx) * 0.5, (vD.vy + vA.vy) * 0.5, pose.omega, pose.x, pose.y);
+        return;
+      }
+
+      if (part.shape === "wedge") {
+        const h = size * 0.5;
+        const a = worldPoint(pose, -h, -h);
+        const b = worldPoint(pose, h, h);
+        const c = worldPoint(pose, -h, h);
+        const vA = localVelocityToWorld(pose, a.x, a.y);
+        const vB = localVelocityToWorld(pose, b.x, b.y);
+        const vC = localVelocityToWorld(pose, c.x, c.y);
+        pushSegment({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, (vA.vx + vB.vx) * 0.5, (vA.vy + vB.vy) * 0.5, pose.omega, pose.x, pose.y);
+        pushSegment({ x1: b.x, y1: b.y, x2: c.x, y2: c.y }, (vB.vx + vC.vx) * 0.5, (vB.vy + vC.vy) * 0.5, pose.omega, pose.x, pose.y);
+        pushSegment({ x1: c.x, y1: c.y, x2: a.x, y2: a.y }, (vC.vx + vA.vx) * 0.5, (vC.vy + vA.vy) * 0.5, pose.omega, pose.x, pose.y);
+        return;
+      }
+
+      if (part.shape === "curveLarge" || part.shape === "curveSmall") {
+        const radius = part.shape === "curveLarge" ? size * 0.7 : size * 0.45;
+        const thickness = size * 0.22;
+        const steps = 10;
+        for (let i = 0; i <= steps; i += 1) {
+          const t = i / steps;
+          const a = pose.angle + t * (Math.PI * 0.5);
+          const x = pose.x + Math.cos(a) * radius;
+          const y = pose.y + Math.sin(a) * radius;
+          const vel = localVelocityToWorld(pose, x, y);
+          pushCircle({ x, y, r: thickness * 0.45 }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
+        }
+      }
+    }
+
+    function rebuildColliderCache() {
+      state.colliders.segments.length = 0;
+      state.colliders.circles.length = 0;
+      state.partPoses.clear();
+
+      for (const seg of state.lineSegments) {
+        pushSegment(seg);
+      }
+
+      for (const peg of state.pegs) {
+        pushCircle(peg);
+      }
+
+      for (const part of state.parts) {
+        const pose = computePartPose(part, state.simTime);
+        state.partPoses.set(part.id, pose);
+        buildPartColliders(part, pose);
+      }
+
+      for (const pad of state.pads) {
+        const pose = computePartPose(pad, state.simTime);
+        state.partPoses.set(pad.id, pose);
+        buildPartColliders(pad, pose);
+      }
+    }
+
+    function resolveMarbleSegment(m, s) {
+      const cp = nearestPointOnSegment(m.x, m.y, s);
+      let nx = m.x - cp.x;
+      let ny = m.y - cp.y;
+      let distSq = nx * nx + ny * ny;
+
+      if (distSq <= 0.000001) {
+        const tx = s.x2 - s.x1;
+        const ty = s.y2 - s.y1;
+        const len = Math.hypot(tx, ty) || 1;
+        nx = -ty / len;
+        ny = tx / len;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      if (dist >= m.r) {
+        return;
+      }
+
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const penetration = m.r - dist;
+      m.x += nx * penetration;
+      m.y += ny * penetration;
+
+      const svx = (s.vx || 0) - (s.omega || 0) * (cp.y - (s.cy || 0));
+      const svy = (s.vy || 0) + (s.omega || 0) * (cp.x - (s.cx || 0));
+
+      const rvx = m.vx - svx;
+      const rvy = m.vy - svy;
+      const vn = rvx * nx + rvy * ny;
+
+      if (vn < 0) {
+        const e = world.bounce;
+        const rvxAfter = rvx - (1 + e) * vn * nx;
+        const rvyAfter = rvy - (1 + e) * vn * ny;
+
+        const tx = -ny;
+        const ty = nx;
+        const vt = rvxAfter * tx + rvyAfter * ty;
+        const grip = world.friction;
+
+        m.vx = rvxAfter - vt * grip * tx + svx;
+        m.vy = rvyAfter - vt * grip * ty + svy;
+      }
+    }
+
+    function resolveMarbleCircle(m, c) {
+      let nx = m.x - c.x;
+      let ny = m.y - c.y;
+      let distSq = nx * nx + ny * ny;
+      const minDist = m.r + c.r;
+
+      if (distSq >= minDist * minDist) {
+        return;
+      }
+
+      if (distSq <= 0.000001) {
+        nx = 1;
+        ny = 0;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const penetration = minDist - dist;
+      m.x += nx * penetration;
+      m.y += ny * penetration;
+
+      const centerY = c.cy ?? c.y;
+      const centerX = c.cx ?? c.x;
+      const cvx = (c.vx || 0) - (c.omega || 0) * (m.y - centerY);
+      const cvy = (c.vy || 0) + (c.omega || 0) * (m.x - centerX);
+
+      const rvx = m.vx - cvx;
+      const rvy = m.vy - cvy;
+      const vn = rvx * nx + rvy * ny;
+
+      if (vn < 0) {
+        const e = world.bounce;
+        m.vx = rvx - (1 + e) * vn * nx + cvx;
+        m.vy = rvy - (1 + e) * vn * ny + cvy;
+      }
+    }
+
+    function resolveMarbleMarble(a, b) {
+      let nx = b.x - a.x;
+      let ny = b.y - a.y;
+      let distSq = nx * nx + ny * ny;
+      const minDist = a.r + b.r;
+
+      if (distSq >= minDist * minDist) {
+        return;
+      }
+
+      if (distSq <= 0.000001) {
+        nx = 1;
+        ny = 0;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const overlap = minDist - dist;
+      const totalMass = a.mass + b.mass;
+      const aPush = overlap * (b.mass / totalMass);
+      const bPush = overlap * (a.mass / totalMass);
+
+      a.x -= nx * aPush;
+      a.y -= ny * aPush;
+      b.x += nx * bPush;
+      b.y += ny * bPush;
+
+      const relVelX = b.vx - a.vx;
+      const relVelY = b.vy - a.vy;
+      const relAlongNormal = relVelX * nx + relVelY * ny;
+      if (relAlongNormal > 0) {
+        return;
+      }
+
+      const e = world.bounce * 0.95;
+      const j = -(1 + e) * relAlongNormal / (1 / a.mass + 1 / b.mass);
+      const impulseX = j * nx;
+      const impulseY = j * ny;
+
+      a.vx -= impulseX / a.mass;
+      a.vy -= impulseY / a.mass;
+      b.vx += impulseX / b.mass;
+      b.vy += impulseY / b.mass;
+    }
+
+    function limitSpeed(m, maxSpeed = 1950) {
+      const speed = Math.hypot(m.vx, m.vy);
+      if (speed > maxSpeed) {
+        const factor = maxSpeed / speed;
+        m.vx *= factor;
+        m.vy *= factor;
+      }
+    }
+
+    function applyTriggerAction(part, action) {
+      if (!part || part.motion === "static" || part.padType) {
+        return;
+      }
+      if (action === "start") {
+        part.active = true;
+      } else if (action === "stop") {
+        part.active = false;
+      } else {
+        part.active = !part.active;
+      }
+    }
+
+    function getTriggerTargets(trigger) {
+      const list = [];
+      if (trigger.target === "all-moving") {
+        for (const part of state.parts) {
+          if (part.motion !== "static") {
+            list.push(part);
+          }
+        }
+      } else if (trigger.target === "smooth") {
+        for (const part of state.parts) {
+          if (part.motion === "smooth") {
+            list.push(part);
+          }
+        }
+      } else if (trigger.target === "linear") {
+        for (const part of state.parts) {
+          if (part.motion === "linear") {
+            list.push(part);
+          }
+        }
+      } else if (trigger.target === "warp") {
+        for (const part of state.parts) {
+          if (part.motion === "warp") {
+            list.push(part);
+          }
+        }
+      } else if (trigger.target === "spinners") {
+        for (const part of state.parts) {
+          if (part.motion === "spin") {
+            list.push(part);
+          }
+        }
+      } else if (trigger.target === "selected") {
+        const found = findPartById(trigger.selectedPartId);
+        if (found && found.motion !== "static" && !found.padType) {
+          list.push(found);
+        }
+      }
+      return list;
+    }
+
+    function fireTrigger(trigger) {
+      const targets = getTriggerTargets(trigger);
+      for (const part of targets) {
+        if (part.activationTriggerId === "__manual__") {
+          continue;
+        }
+        if (part.activationTriggerId && part.activationTriggerId !== trigger.id) {
+          continue;
+        }
+        applyTriggerAction(part, trigger.action);
+      }
+      trigger.flash = 0.22;
+    }
+
+    function handleTriggerZones(m) {
+      for (const trigger of state.triggers) {
+        const inside = m.x >= trigger.x && m.x <= trigger.x + trigger.w && m.y >= trigger.y && m.y <= trigger.y + trigger.h;
+        const wasInside = !!m.triggerState[trigger.id];
+        if (inside && !wasInside) {
+          fireTrigger(trigger);
+        }
+        m.triggerState[trigger.id] = inside;
+      }
+    }
+
+    function teleportPairForPad(pad) {
+      const teleports = state.pads.filter((p) => p.padType === "teleport");
+      if (teleports.length < 2) {
+        return null;
+      }
+      const idx = teleports.indexOf(pad);
+      if (idx < 0) {
+        return null;
+      }
+      return teleports[(idx + 1) % teleports.length];
+    }
+
+    function applyPads(m, dt) {
+      for (const key of Object.keys(m.cooldown)) {
+        m.cooldown[key] = Math.max(0, m.cooldown[key] - dt);
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        const half = pad.size * 0.5;
+        if (Math.abs(m.x - pose.x) > half + m.r || Math.abs(m.y - pose.y) > half + m.r) {
+          continue;
+        }
+
+        if (pad.padType === "goal") {
+          if ((m.cooldown.goal || 0) <= 0) {
+            state.score += 1;
+            m.cooldown.goal = 0.2;
+            m.y = -100;
+          }
+          continue;
+        }
+
+        if (pad.padType === "hazard") {
+          if ((m.cooldown.hazard || 0) <= 0) {
+            m.cooldown.hazard = 0.2;
+            m.y = world.height + 200;
+          }
+          continue;
+        }
+
+        if (pad.padType === "boost") {
+          const boostMag = 240;
+          const a = pad.baseAngle;
+          m.vx += Math.cos(a) * boostMag * dt;
+          m.vy += Math.sin(a) * boostMag * dt;
+          continue;
+        }
+
+        if (pad.padType === "teleport") {
+          if ((m.cooldown.teleport || 0) > 0) {
+            continue;
+          }
+          const target = teleportPairForPad(pad);
+          if (!target) {
+            continue;
+          }
+          const targetPose = state.partPoses.get(target.id);
+          if (!targetPose) {
+            continue;
+          }
+          m.x = targetPose.x;
+          m.y = targetPose.y - pad.size * 0.6;
+          m.cooldown.teleport = 0.4;
+        }
+      }
+    }
+
+    function getPointerPosition(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+      };
+    }
+
+    function selectNearestPart(x, y, maxDist = 44) {
+      rebuildColliderCache();
+      let bestPart = null;
+      let bestDist = maxDist * maxDist;
+
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = part;
+        }
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = pad;
+        }
+      }
+
+      setSelectedPart(bestPart ? bestPart.id : null);
+    }
+
+    function getNearestSelectableAt(x, y, maxDist = 44) {
+      rebuildColliderCache();
+      let bestPart = null;
+      let bestDist = maxDist * maxDist;
+
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = part;
+        }
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = pad;
+        }
+      }
+
+      return bestPart;
+    }
+
+    function getSelectedHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!part || !isPathMover(part)) {
+        return null;
+      }
+      ensurePartPathEndpoints(part);
+      if (distanceSq(x, y, part.fromX, part.fromY) <= 12 * 12) {
+        return "from";
+      }
+      if (distanceSq(x, y, part.toX, part.toY) <= 12 * 12) {
+        return "to";
+      }
+      return null;
+    }
+
+    function getSelectedResizeHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return false;
+      }
+      rebuildColliderCache();
+      const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+      const hx = pose.x + part.size * 0.62;
+      const hy = pose.y - part.size * 0.62;
+      return distanceSq(x, y, hx, hy) <= 13 * 13;
+    }
+
+    function moveSelectedPartBy(dx, dy) {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return;
+      }
+      part.x += dx;
+      part.y += dy;
+      ensurePartPathEndpoints(part);
+      part.fromX += dx;
+      part.fromY += dy;
+      part.toX += dx;
+      part.toY += dy;
+      syncSelectedEditorFromPart();
+    }
+
+    function deleteSelectedItem() {
+      const id = state.selectedPartId;
+      if (!id) {
+        return false;
+      }
+
+      const partIdx = state.parts.findIndex((part) => part.id === id);
+      if (partIdx >= 0) {
+        state.parts.splice(partIdx, 1);
+        setSelectedPart(null);
+        return true;
+      }
+
+      const padIdx = state.pads.findIndex((part) => part.id === id);
+      if (padIdx >= 0) {
+        state.pads.splice(padIdx, 1);
+        setSelectedPart(null);
+        return true;
+      }
+
+      return false;
+    }
+
+    function removeNearestPiece(x, y) {
+      rebuildColliderCache();
+
+      for (let i = state.triggers.length - 1; i >= 0; i -= 1) {
+        const t = state.triggers[i];
+        if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
+          state.triggers.splice(i, 1);
+          rebuildTriggerLinkOptions();
+          return;
+        }
+      }
+
+      for (let i = state.pads.length - 1; i >= 0; i -= 1) {
+        const p = state.pads[i];
+        const pose = state.partPoses.get(p.id);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.65) * (p.size * 0.65)) {
+          state.pads.splice(i, 1);
+          if (state.selectedPartId === p.id) {
+            setSelectedPart(null);
+          }
+          return;
+        }
+      }
+
+      for (let i = state.parts.length - 1; i >= 0; i -= 1) {
+        const p = state.parts[i];
+        const pose = state.partPoses.get(p.id);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.7) * (p.size * 0.7)) {
+          state.parts.splice(i, 1);
+          if (state.selectedPartId === p.id) {
+            setSelectedPart(null);
+          }
+          return;
+        }
+      }
+
+      for (let i = state.pegs.length - 1; i >= 0; i -= 1) {
+        const p = state.pegs[i];
+        if (distanceSq(x, y, p.x, p.y) < (p.r + 10) * (p.r + 10)) {
+          state.pegs.splice(i, 1);
+          return;
+        }
+      }
+
+      for (let i = state.lineSegments.length - 1; i >= 0; i -= 1) {
+        const s = state.lineSegments[i];
+        const cp = nearestPointOnSegment(x, y, s);
+        if (distanceSq(x, y, cp.x, cp.y) < 120) {
+          state.lineSegments.splice(i, 1);
+          return;
+        }
+      }
+    }
+
+    function step(dt) {
+      const simDt = dt * world.timeScale;
+      if (simDt <= 0) {
+        return;
+      }
+
+      state.simTime += simDt;
+      rebuildColliderCache();
+
+      for (const trigger of state.triggers) {
+        if (trigger.flash > 0) {
+          trigger.flash = Math.max(0, trigger.flash - simDt);
+        }
+      }
+
+      if (state.raining) {
+        state.rainTimer -= simDt;
+        if (state.rainTimer <= 0) {
+          spawnMarble(24 + Math.random() * (world.width * 0.46), 8, (Math.random() - 0.5) * 45);
+          state.rainTimer = 0.065;
+        }
+      }
+
+      for (let i = state.marbles.length - 1; i >= 0; i -= 1) {
+        const m = state.marbles[i];
+
+        m.vy += world.gravity * simDt;
+
+        const damp = Math.max(0, 1 - world.airDrag * simDt * 4);
+        m.vx *= damp;
+        m.vy *= damp;
+
+        m.x += m.vx * simDt;
+        m.y += m.vy * simDt;
+
+        if (m.x - m.r < 0) {
+          m.x = m.r;
+          m.vx = Math.abs(m.vx) * world.bounce;
+        }
+        if (m.x + m.r > world.width) {
+          m.x = world.width - m.r;
+          m.vx = -Math.abs(m.vx) * world.bounce;
+        }
+        if (m.y - m.r < 0) {
+          m.y = m.r;
+          m.vy = Math.abs(m.vy) * world.bounce;
+        }
+        if (m.y + m.r > world.height - 4) {
+          m.y = world.height - 4 - m.r;
+          m.vy = -Math.abs(m.vy) * world.bounce;
+          m.vx *= (1 - world.friction * 0.35);
+        }
+
+        applyPads(m, simDt);
+        handleTriggerZones(m);
+
+        if (m.y > world.height + 180 || m.y < -220) {
+          state.marbles.splice(i, 1);
+        }
+      }
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        for (let i = 0; i < state.marbles.length; i += 1) {
+          const m = state.marbles[i];
+
+          for (const s of state.colliders.segments) {
+            resolveMarbleSegment(m, s);
+          }
+
+          for (const c of state.colliders.circles) {
+            resolveMarbleCircle(m, c);
+          }
+
+          for (let j = i + 1; j < state.marbles.length; j += 1) {
+            resolveMarbleMarble(m, state.marbles[j]);
+          }
+
+          limitSpeed(m);
+        }
+      }
+    }
+
+    function drawBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, world.height);
+      g.addColorStop(0, "#fff8ea");
+      g.addColorStop(1, "#efe5d2");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, world.width, world.height);
+
+      ctx.strokeStyle = "rgba(140, 132, 118, 0.17)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < world.width; x += 28) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, world.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < world.height; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(world.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawLineSegments() {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const s of state.lineSegments) {
+        ctx.strokeStyle = "#5f5848";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1);
+        ctx.lineTo(s.x2, s.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1 - 0.8);
+        ctx.lineTo(s.x2, s.y2 - 0.8);
+        ctx.stroke();
+      }
+    }
+
+    function drawPegs() {
+      for (const p of state.pegs) {
+        const ring = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, 1, p.x, p.y, p.r);
+        ring.addColorStop(0, "#fff");
+        ring.addColorStop(0.45, "#f4d796");
+        ring.addColorStop(1, "#c28c2f");
+        ctx.fillStyle = ring;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    function partColor(part) {
+      if (part.padType === "goal") {
+        return "#8fff4f";
+      }
+      if (part.padType === "teleport") {
+        return "#5a6dff";
+      }
+      if (part.padType === "boost") {
+        return "#ffe24d";
+      }
+      if (part.padType === "hazard") {
+        return "#ff5252";
+      }
+
+      if (part.motion === "smooth") {
+        return "#e07f5d";
+      }
+      if (part.motion === "linear") {
+        return "#4b83d0";
+      }
+      if (part.motion === "warp") {
+        return "#8f63d6";
+      }
+      if (part.motion === "spin") {
+        return "#0d8b96";
+      }
+      return "#ffffff";
+    }
+
+    function drawPartShape(drawCtx, part, pose, color, selected) {
+      const size = part.size;
+      const half = size * 0.5;
+
+      drawCtx.save();
+      drawCtx.translate(pose.x, pose.y);
+      drawCtx.rotate(pose.angle);
+
+      if (part.shape === "block" || part.shape === "padSquare") {
+        drawCtx.fillStyle = color;
+        drawCtx.fillRect(-half, -half, size, size);
+      } else if (part.shape === "circle") {
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, half, 0, TAU);
+        drawCtx.fill();
+      } else if (part.shape === "wedge") {
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.moveTo(-half, -half);
+        drawCtx.lineTo(half, half);
+        drawCtx.lineTo(-half, half);
+        drawCtx.closePath();
+        drawCtx.fill();
+      } else if (part.shape === "curveLarge" || part.shape === "curveSmall") {
+        const radius = part.shape === "curveLarge" ? size * 0.72 : size * 0.46;
+        const thick = size * 0.2;
+        drawCtx.strokeStyle = color;
+        drawCtx.lineWidth = thick;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, radius, 0, Math.PI * 0.5);
+        drawCtx.stroke();
+      } else if (part.shape === "gear") {
+        const coreR = size * 0.34;
+        drawCtx.fillStyle = color;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, coreR, 0, TAU);
+        drawCtx.fill();
+        for (let i = 0; i < 8; i += 1) {
+          const a = (i / 8) * TAU;
+          const tx = Math.cos(a) * size * 0.45;
+          const ty = Math.sin(a) * size * 0.45;
+          drawCtx.fillRect(tx - size * 0.06, ty - size * 0.06, size * 0.12, size * 0.12);
+        }
+      }
+
+      if (selected) {
+        drawCtx.strokeStyle = "#ff9e40";
+        drawCtx.lineWidth = 2;
+        drawCtx.strokeRect(-half - 4, -half - 4, size + 8, size + 8);
+      }
+
+      drawCtx.restore();
+    }
+
+    function drawParts() {
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        const base = partColor(part);
+        const selected = part.id === state.selectedPartId;
+
+        if (isPathMover(part)) {
+          ensurePartPathEndpoints(part);
+          const ax = part.fromX;
+          const ay = part.fromY;
+          const bx = part.toX;
+          const by = part.toY;
+          ctx.strokeStyle = "rgba(60, 58, 48, 0.24)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        drawPartShape(ctx, part, pose, base, selected);
+
+        if (!part.active && part.motion !== "static") {
+          ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
+          ctx.font = "700 12px Space Grotesk";
+          ctx.fillText("OFF", pose.x - 14, pose.y + 4);
+        }
+      }
+    }
+
+    function drawPads() {
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        const selected = pad.id === state.selectedPartId;
+        drawPartShape(ctx, pad, pose, partColor(pad), selected);
+      }
+    }
+
+    function drawSelectedHandles() {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return;
+      }
+
+      const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+      const hx = pose.x + part.size * 0.62;
+      const hy = pose.y - part.size * 0.62;
+
+      ctx.fillStyle = "#0d8b96";
+      ctx.fillRect(hx - 6, hy - 6, 12, 12);
+      ctx.strokeStyle = "rgba(12, 62, 68, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+
+      if (!isPathMover(part)) {
+        return;
+      }
+
+      ensurePartPathEndpoints(part);
+
+      ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(part.fromX, part.fromY);
+      ctx.lineTo(part.toX, part.toY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#ff9e40";
+      ctx.beginPath();
+      ctx.arc(part.fromX, part.fromY, 7, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "#2fbf71";
+      ctx.beginPath();
+      ctx.arc(part.toX, part.toY, 7, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(20, 28, 36, 0.9)";
+      ctx.font = "700 11px IBM Plex Mono";
+      ctx.fillText("FROM", part.fromX + 10, part.fromY - 8);
+      ctx.fillText("TO", part.toX + 10, part.toY - 8);
+    }
+
+    function selectPartInRect(x1, y1, x2, y2) {
+      const minX = Math.min(x1, x2);
+      const minY = Math.min(y1, y2);
+      const maxX = Math.max(x1, x2);
+      const maxY = Math.max(y1, y2);
+
+      rebuildColliderCache();
+      let chosen = null;
+      let bestDist = Number.POSITIVE_INFINITY;
+      const cx = (minX + maxX) * 0.5;
+      const cy = (minY + maxY) * 0.5;
+
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
+          continue;
+        }
+        const d = distanceSq(cx, cy, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          chosen = part;
+        }
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
+          continue;
+        }
+        const d = distanceSq(cx, cy, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          chosen = pad;
+        }
+      }
+
+      setSelectedPart(chosen ? chosen.id : null);
+    }
+
+    function prepareMiniCanvas(cnv, drawCtx, targetHeight) {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      cnv.style.height = targetHeight.toFixed(0) + "px";
+      const rect = cnv.getBoundingClientRect();
+      const bw = Math.max(1, Math.floor(rect.width * dpr));
+      const bh = Math.max(1, Math.floor(rect.height * dpr));
+      if (cnv.width !== bw || cnv.height !== bh) {
+        cnv.width = bw;
+        cnv.height = bh;
+      }
+      drawCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { width: rect.width, height: rect.height };
+    }
+
+    function drawSelectedPreview() {
+      const part = findPartById(state.selectedPartId);
+      const previewHeight = clamp(part ? part.size * 2.1 : 120, 120, 260);
+      const dims = prepareMiniCanvas(previewCanvas, previewCtx, previewHeight);
+      const w = dims.width;
+      const h = dims.height;
+
+      previewCtx.clearRect(0, 0, w, h);
+
+      const g = previewCtx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#fffef9");
+      g.addColorStop(1, "#f1e6d1");
+      previewCtx.fillStyle = g;
+      previewCtx.fillRect(0, 0, w, h);
+
+      if (!part) {
+        previewCtx.fillStyle = "rgba(30, 31, 38, 0.55)";
+        previewCtx.font = "700 14px Space Grotesk";
+        previewCtx.fillText("No selected item", 12, 24);
+        return;
+      }
+
+      const cx = w * 0.5;
+      const cy = h * 0.6;
+      const p = {
+        ...part,
+        x: cx,
+        y: cy
+      };
+
+      ensurePartPathEndpoints(part);
+
+      if (isPathMover(part)) {
+        const dx = part.toX - part.fromX;
+        const dy = part.toY - part.fromY;
+        p.fromX = cx - dx * 0.32;
+        p.fromY = cy - dy * 0.32;
+        p.toX = cx + dx * 0.32;
+        p.toY = cy + dy * 0.32;
+
+        previewCtx.strokeStyle = "rgba(60, 58, 48, 0.35)";
+        previewCtx.lineWidth = 2;
+        previewCtx.setLineDash([5, 4]);
+        previewCtx.beginPath();
+        previewCtx.moveTo(p.fromX, p.fromY);
+        previewCtx.lineTo(p.toX, p.toY);
+        previewCtx.stroke();
+        previewCtx.setLineDash([]);
+
+        previewCtx.fillStyle = "#ff9e40";
+        previewCtx.beginPath();
+        previewCtx.arc(p.fromX, p.fromY, 4, 0, TAU);
+        previewCtx.fill();
+
+        previewCtx.fillStyle = "#2fbf71";
+        previewCtx.beginPath();
+        previewCtx.arc(p.toX, p.toY, 4, 0, TAU);
+        previewCtx.fill();
+      }
+
+      const previewPose = computePartPose(p, state.simTime);
+      drawPartShape(previewCtx, p, previewPose, partColor(p), true);
+    }
+
+    function drawToolPreview() {
+      const dims = prepareMiniCanvas(toolPreviewCanvas, toolPreviewCtx, 90);
+      const w = dims.width;
+      const h = dims.height;
+      toolPreviewCtx.clearRect(0, 0, w, h);
+
+      const g = toolPreviewCtx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#fffef9");
+      g.addColorStop(1, "#f2e8d4");
+      toolPreviewCtx.fillStyle = g;
+      toolPreviewCtx.fillRect(0, 0, w, h);
+
+      const tool = ui.tool.value;
+      if (tool === "line") {
+        toolPreviewCtx.strokeStyle = "#5f5848";
+        toolPreviewCtx.lineWidth = 6;
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.moveTo(24, h * 0.72);
+        toolPreviewCtx.lineTo(w - 24, h * 0.28);
+        toolPreviewCtx.stroke();
+        return;
+      }
+
+      if (tool === "peg") {
+        const r = 16;
+        const cx = w * 0.5;
+        const cy = h * 0.52;
+        const ring = toolPreviewCtx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, 1, cx, cy, r);
+        ring.addColorStop(0, "#fff");
+        ring.addColorStop(0.45, "#f4d796");
+        ring.addColorStop(1, "#c28c2f");
+        toolPreviewCtx.fillStyle = ring;
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.arc(cx, cy, r, 0, TAU);
+        toolPreviewCtx.fill();
+        return;
+      }
+
+      if (tool === "trigger") {
+        toolPreviewCtx.fillStyle = "rgba(14, 160, 169, 0.16)";
+        toolPreviewCtx.strokeStyle = "rgba(14, 160, 169, 0.86)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.fillRect(40, 18, w - 80, h - 34);
+        toolPreviewCtx.strokeRect(40, 18, w - 80, h - 34);
+        return;
+      }
+
+      if (tool === "select") {
+        toolPreviewCtx.fillStyle = "rgba(255, 158, 64, 0.18)";
+        toolPreviewCtx.strokeStyle = "rgba(255, 158, 64, 0.95)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.fillRect(44, 20, w - 88, h - 40);
+        toolPreviewCtx.strokeRect(44, 20, w - 88, h - 40);
+        return;
+      }
+
+      const p = createPart(tool, w * 0.5, h * 0.58);
+      if (!p) {
+        return;
+      }
+
+      p.size = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      syncPartPathFromCenter(p);
+
+      if (isPathMover(p)) {
+        const dx = p.toX - p.fromX;
+        const dy = p.toY - p.fromY;
+        p.fromX = p.x - dx * 0.28;
+        p.fromY = p.y - dy * 0.28;
+        p.toX = p.x + dx * 0.28;
+        p.toY = p.y + dy * 0.28;
+        toolPreviewCtx.strokeStyle = "rgba(60, 58, 48, 0.26)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.setLineDash([4, 4]);
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.moveTo(p.fromX, p.fromY);
+        toolPreviewCtx.lineTo(p.toX, p.toY);
+        toolPreviewCtx.stroke();
+        toolPreviewCtx.setLineDash([]);
+      }
+
+      const pose = computePartPose(p, state.simTime);
+      drawPartShape(toolPreviewCtx, p, pose, partColor(p), false);
+    }
+
+    function drawTriggers() {
+      for (const t of state.triggers) {
+        const flash = t.flash > 0 ? 0.28 : 0.14;
+        ctx.fillStyle = "rgba(14, 160, 169, " + flash.toFixed(3) + ")";
+        ctx.strokeStyle = "rgba(14, 160, 169, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(t.x, t.y, t.w, t.h);
+        ctx.strokeRect(t.x, t.y, t.w, t.h);
+
+        ctx.fillStyle = "rgba(20, 28, 36, 0.82)";
+        ctx.font = "700 11px IBM Plex Mono";
+        ctx.fillText(t.action + " -> " + t.target, t.x + 4, t.y + 14);
+      }
+    }
+
+    function drawMarbles() {
+      for (const m of state.marbles) {
+        const speed = Math.hypot(m.vx, m.vy);
+        const streakLength = Math.min(42, speed * 0.03 * world.trail * 1.8);
+        if (streakLength > 2.5 && speed > 0.0001) {
+          const inv = 1 / speed;
+          const sx = m.x - m.vx * inv * streakLength;
+          const sy = m.y - m.vy * inv * streakLength;
+          const streak = ctx.createLinearGradient(m.x, m.y, sx, sy);
+          streak.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+          streak.addColorStop(1, "rgba(255, 255, 255, 0)");
+          ctx.strokeStyle = streak;
+          ctx.lineWidth = Math.max(1.4, m.r * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(m.x, m.y);
+          ctx.lineTo(sx, sy);
+          ctx.stroke();
+        }
+
+        const grad = ctx.createRadialGradient(m.x - m.r * 0.35, m.y - m.r * 0.35, 1, m.x, m.y, m.r);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.35, m.color);
+        grad.addColorStop(1, "#29313a");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    function drawDraft() {
+      if (ui.tool.value === "select" && state.selectionRect) {
+        const r = state.selectionRect;
+        ctx.fillStyle = "rgba(255, 158, 64, 0.14)";
+        ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        return;
+      }
+
+      if (!state.pointerDown || !state.drawStart) {
+        return;
+      }
+
+      if (ui.tool.value !== "line" && ui.tool.value !== "trigger") {
+        return;
+      }
+
+      if (ui.tool.value === "line") {
+        ctx.strokeStyle = "rgba(13, 139, 150, 0.95)";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.moveTo(state.drawStart.x, state.drawStart.y);
+        ctx.lineTo(state.pointer.x, state.pointer.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        const x = Math.min(state.drawStart.x, state.pointer.x);
+        const y = Math.min(state.drawStart.y, state.pointer.y);
+        const w = Math.max(10, Math.abs(state.drawStart.x - state.pointer.x));
+        const h = Math.max(10, Math.abs(state.drawStart.y - state.pointer.y));
+        ctx.fillStyle = "rgba(14, 160, 169, 0.16)";
+        ctx.strokeStyle = "rgba(14, 160, 169, 0.86)";
+        ctx.lineWidth = 2;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
+      }
+    }
+
+    function updateHud(msPerFrame) {
+      const fps = msPerFrame > 0 ? Math.round(1000 / msPerFrame) : 0;
+      state.fps = fps;
+      const moving = state.parts.filter((p) => p.motion !== "static").length;
+      hud.textContent =
+        "marbles:  " + state.marbles.length + "\n" +
+        "lines:    " + state.lineSegments.length + "\n" +
+        "pegs:     " + state.pegs.length + "\n" +
+        "parts:    " + state.parts.length + "\n" +
+        "moving:   " + moving + "\n" +
+        "pads:     " + state.pads.length + "\n" +
+        "triggers: " + state.triggers.length + "\n" +
+        "score:    " + state.score + "\n" +
+        "fps:      " + fps;
+    }
+
+    function resetDemoCourse() {
+      clearWorld(false);
+      const w = world.width;
+      const h = world.height;
+
+      addLine(24, h * 0.12, w * 0.34, h * 0.16);
+      addLine(w * 0.34, h * 0.16, w * 0.56, h * 0.28);
+      addLine(w * 0.56, h * 0.28, w * 0.78, h * 0.25);
+      addLine(w * 0.1, h * 0.36, w * 0.4, h * 0.51);
+      addLine(w * 0.42, h * 0.5, w * 0.88, h * 0.62);
+      addLine(w * 0.12, h * 0.74, w * 0.7, h * 0.9);
+
+      for (let i = 0; i < 7; i += 1) {
+        addPeg(w * 0.2 + i * (w * 0.07), h * 0.23 + ((i % 2) * h * 0.05), 9);
+      }
+
+      const b1 = createPart("sMoveBlock", w * 0.28, h * 0.56);
+      b1.moveDistance = 160;
+      b1.moveAngle = Math.PI * 0.03;
+      b1.moveSpeed = 1.6;
+      syncPartPathFromCenter(b1);
+      state.parts.push(b1);
+      rememberBuild("parts", b1);
+
+      const b2 = createPart("lMoveWedge", w * 0.72, h * 0.72);
+      b2.moveDistance = 150;
+      b2.moveAngle = Math.PI * 0.85;
+      b2.moveSpeed = 1.25;
+      syncPartPathFromCenter(b2);
+      state.parts.push(b2);
+      rememberBuild("parts", b2);
+
+      const b3 = createPart("wMoveCircle", w * 0.64, h * 0.36);
+      b3.moveDistance = 190;
+      b3.moveSpeed = 0.95;
+      b3.moveAngle = Math.PI * 1.25;
+      syncPartPathFromCenter(b3);
+      state.parts.push(b3);
+      rememberBuild("parts", b3);
+
+      const s1 = createPart("spinGear", w * 0.49, h * 0.56);
+      s1.spinSpeed = 2.9;
+      s1.size = 74;
+      state.parts.push(s1);
+      rememberBuild("parts", s1);
+
+      const s2 = createPart("spinBlock", w * 0.83, h * 0.84);
+      s2.spinSpeed = -2.4;
+      s2.size = 64;
+      state.parts.push(s2);
+      rememberBuild("parts", s2);
+
+      const tpadA = createPart("teleport", w * 0.2, h * 0.62);
+      tpadA.size = 44;
+      state.pads.push(tpadA);
+      rememberBuild("pads", tpadA);
+
+      const tpadB = createPart("teleport", w * 0.9, h * 0.3);
+      tpadB.size = 44;
+      state.pads.push(tpadB);
+      rememberBuild("pads", tpadB);
+
+      const boost = createPart("boost", w * 0.54, h * 0.76);
+      boost.baseAngle = -Math.PI * 0.5;
+      state.pads.push(boost);
+      rememberBuild("pads", boost);
+
+      const goal = createPart("goal", w * 0.92, h * 0.91);
+      goal.size = 48;
+      state.pads.push(goal);
+      rememberBuild("pads", goal);
+
+      const hazard = createPart("hazard", w * 0.44, h * 0.9);
+      hazard.size = 44;
+      state.pads.push(hazard);
+      rememberBuild("pads", hazard);
+
+      addTriggerZone(w * 0.07, h * 0.18, w * 0.15, h * 0.3);
+      const last = state.triggers[state.triggers.length - 1];
+      last.action = "toggle";
+      last.target = "all-moving";
+      rebuildTriggerLinkOptions();
+
+      for (let i = 0; i < 5; i += 1) {
+        spawnMarble(30 + i * 18, 12, 20);
+      }
+    }
+
+    let previousTime = performance.now();
+    let accumulator = 0;
+    const fixedStep = 1 / 120;
+
+    function frame(now) {
+      const elapsed = Math.min(0.05, (now - previousTime) / 1000);
+      previousTime = now;
+
+      if (!state.paused) {
+        accumulator += elapsed;
+        while (accumulator >= fixedStep) {
+          step(fixedStep);
+          accumulator -= fixedStep;
+        }
+      }
+
+      rebuildColliderCache();
+      drawBackground();
+      drawLineSegments();
+      drawPegs();
+      drawTriggers();
+      drawParts();
+      drawPads();
+      drawSelectedHandles();
+      drawMarbles();
+      drawDraft();
+      drawSelectedPreview();
+      drawToolPreview();
+      updateHud(now - (frame.lastNow || now));
+      frame.lastNow = now;
+
+      requestAnimationFrame(frame);
+    }
+    frame.lastNow = 0;
+
+    ui.gravity.addEventListener("input", updateUiValueLabels);
+    ui.bounce.addEventListener("input", updateUiValueLabels);
+    ui.friction.addEventListener("input", updateUiValueLabels);
+    ui.marbleSize.addEventListener("input", updateUiValueLabels);
+    ui.timeScale.addEventListener("input", updateUiValueLabels);
+    ui.motorPower.addEventListener("input", updateUiValueLabels);
+    ui.trail.addEventListener("input", updateUiValueLabels);
+    ui.partSize.addEventListener("input", updateUiValueLabels);
+    ui.moveDistance.addEventListener("input", updateUiValueLabels);
+    ui.moveSpeed.addEventListener("input", updateUiValueLabels);
+    ui.spinSpeed.addEventListener("input", updateUiValueLabels);
+    ui.moveAngle.addEventListener("input", updateUiValueLabels);
+    ui.phase.addEventListener("input", updateUiValueLabels);
+
+    ui.applySelected.addEventListener("click", () => {
+      const part = findPartById(state.selectedPartId);
+      if (part) {
+        applyTuningToPart(part);
+      }
+      updateSelectionInfo();
+    });
+
+    ui.updateSelectedFromMenu.addEventListener("click", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedActive.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedFromX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedFromY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedToX.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedToY.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedAngle.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedSize.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.movingTriggerLink.addEventListener("change", () => {
+      const part = findPartById(state.selectedPartId);
+      if (!part || part.motion === "static" || part.padType) {
+        return;
+      }
+      part.activationTriggerId = ui.movingTriggerLink.value;
+      syncSelectedEditorFromPart();
+    });
+
+    ui.tool.addEventListener("change", () => {
+      drawToolPreview();
+    });
+
+    ui.newRunTab.addEventListener("click", () => {
+      createRunTab();
+    });
+
+    ui.saveMbr.addEventListener("click", () => {
+      saveToMbrFile();
+    });
+
+    ui.loadMbr.addEventListener("click", () => {
+      ui.loadMbrInput.click();
+    });
+
+    ui.loadMbrInput.addEventListener("change", async (evt) => {
+      const file = evt.target.files && evt.target.files[0];
+      ui.loadMbrInput.value = "";
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        loadFromMbrPayload(payload);
+      } catch (error) {
+        alert("Could not load .mbr file: " + (error && error.message ? error.message : "Invalid file"));
+      }
+    });
+
+    ui.themeToggle.addEventListener("click", () => {
+      state.darkMode = !state.darkMode;
+      applyTheme();
+    });
+
+    ui.spawn.addEventListener("click", () => {
+      spawnMarble(world.width * 0.12, 12, 24);
+    });
+
+    ui.burst.addEventListener("click", () => {
+      for (let i = 0; i < 20; i += 1) {
+        spawnMarble(world.width * 0.08 + Math.random() * 120, 10 - i * 2, (Math.random() - 0.5) * 65);
+      }
+    });
+
+    ui.rain.addEventListener("click", () => {
+      state.raining = !state.raining;
+      ui.rain.textContent = state.raining ? "Stop Rain" : "Start Rain";
+    });
+
+    ui.pause.addEventListener("click", () => {
+      state.paused = !state.paused;
+      ui.pause.textContent = state.paused ? "Resume" : "Pause";
+    });
+
+    ui.clearMarbles.addEventListener("click", () => {
+      clearWorld(true);
+    });
+
+    ui.clearTracks.addEventListener("click", () => {
+      clearWorld(false);
+    });
+
+    ui.undo.addEventListener("click", () => {
+      undoBuild();
+    });
+
+    ui.demo.addEventListener("click", () => {
+      resetDemoCourse();
+    });
+
+    canvas.addEventListener("pointerdown", (evt) => {
+      canvas.setPointerCapture(evt.pointerId);
+      const pos = getPointerPosition(evt);
+      state.pointerDown = true;
+      state.pointer = pos;
+      state.dragLast = pos;
+
+      if (ui.tool.value === "line" || ui.tool.value === "trigger") {
+        state.drawStart = pos;
+        state.dragMode = "draw";
+        return;
+      }
+
+      if (ui.tool.value === "select") {
+        if (getSelectedResizeHandleAt(pos.x, pos.y)) {
+          state.dragMode = "resize-part";
+          return;
+        }
+
+        const handle = getSelectedHandleAt(pos.x, pos.y);
+        if (handle) {
+          state.dragMode = handle === "from" ? "drag-from" : "drag-to";
+          return;
+        }
+
+        const selected = findPartById(state.selectedPartId);
+        rebuildColliderCache();
+        if (selected) {
+          const pose = state.partPoses.get(selected.id);
+          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < Math.max(14, selected.size * 0.6) ** 2) {
+            state.dragMode = "move-part";
+            return;
+          }
+        }
+
+        state.dragMode = "select-rect";
+        state.drawStart = pos;
+        state.selectionRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
+        return;
+      }
+
+      const clickedItem = getNearestSelectableAt(pos.x, pos.y, 24);
+      if (clickedItem && !evt.altKey) {
+        setSelectedPart(clickedItem.id);
+        state.pointerDown = false;
+        state.dragMode = null;
+        return;
+      }
+
+      if (ui.tool.value === "peg") {
+        addPeg(pos.x, pos.y, 9);
+        state.pointerDown = false;
+        return;
+      }
+
+      addPart(ui.tool.value, pos.x, pos.y);
+      state.pointerDown = false;
+      state.dragMode = null;
+    });
+
+    canvas.addEventListener("pointermove", (evt) => {
+      state.pointer = getPointerPosition(evt);
+
+      if (!state.pointerDown || ui.tool.value !== "select") {
+        return;
+      }
+
+      const part = findPartById(state.selectedPartId);
+      if (state.dragMode === "drag-from" && part && isPathMover(part)) {
+        part.fromX = state.pointer.x;
+        part.fromY = state.pointer.y;
+        syncPartCenterFromPath(part);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "drag-to" && part && isPathMover(part)) {
+        part.toX = state.pointer.x;
+        part.toY = state.pointer.y;
+        syncPartCenterFromPath(part);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "resize-part" && part) {
+        rebuildColliderCache();
+        const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+        const dist = Math.hypot(state.pointer.x - pose.x, state.pointer.y - pose.y);
+        part.size = clamp(dist / 0.62, 14, 260);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "move-part" && part && state.dragLast) {
+        const dx = state.pointer.x - state.dragLast.x;
+        const dy = state.pointer.y - state.dragLast.y;
+        moveSelectedPartBy(dx, dy);
+        state.dragLast = { x: state.pointer.x, y: state.pointer.y };
+        return;
+      }
+
+      if (state.dragMode === "select-rect" && state.drawStart) {
+        state.selectionRect = {
+          x: Math.min(state.drawStart.x, state.pointer.x),
+          y: Math.min(state.drawStart.y, state.pointer.y),
+          w: Math.abs(state.pointer.x - state.drawStart.x),
+          h: Math.abs(state.pointer.y - state.drawStart.y)
+        };
+      }
+    });
+
+    canvas.addEventListener("pointerup", (evt) => {
+      const pos = getPointerPosition(evt);
+
+      if (ui.tool.value === "select") {
+        if (state.dragMode === "select-rect" && state.drawStart) {
+          const w = Math.abs(pos.x - state.drawStart.x);
+          const h = Math.abs(pos.y - state.drawStart.y);
+          if (w < 6 && h < 6) {
+            selectNearestPart(pos.x, pos.y);
+          } else {
+            selectPartInRect(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+          }
+        }
+
+        state.pointerDown = false;
+        state.drawStart = null;
+        state.dragMode = null;
+        state.dragLast = null;
+        state.selectionRect = null;
+        return;
+      }
+
+      if (state.pointerDown && state.drawStart) {
+        if (ui.tool.value === "line") {
+          addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+        } else if (ui.tool.value === "trigger") {
+          addTriggerZone(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+        }
+      }
+      state.pointerDown = false;
+      state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      state.pointerDown = false;
+      state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
+    });
+
+    canvas.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const pos = getPointerPosition(evt);
+      removeNearestPiece(pos.x, pos.y);
+    });
+
+    window.addEventListener("keydown", (evt) => {
+      if (isTypingTarget(evt.target)) {
+        return;
+      }
+
+      const key = evt.key.toLowerCase();
+      if (evt.code === "Space") {
+        evt.preventDefault();
+        spawnMarble(world.width * 0.14, 10, 24);
+      }
+      if (evt.key === "Delete" || evt.key === "Backspace") {
+        evt.preventDefault();
+        deleteSelectedItem();
+      }
+      if (key === "u") {
+        undoBuild();
+      }
+      if (key === "p") {
+        state.paused = !state.paused;
+        ui.pause.textContent = state.paused ? "Resume" : "Pause";
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+    });
+
+    resizeCanvas();
+    updateUiValueLabels();
+    applyTheme();
+    rebuildTriggerLinkOptions();
+    createRunTab("Run 1", makeEmptySceneData(), true);
+    resetDemoCourse();
+    saveActiveRunData();
+    renderRunTabs();
+    drawToolPreview();
+    drawSelectedPreview();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
+  </template>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #101820;
+      color: #e8eef4;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+
+    .launcher {
+      display: grid;
+      gap: 12px;
+      text-align: center;
+      padding: 20px;
+      border: 1px solid #2f3f4f;
+      border-radius: 12px;
+      background: #172431;
+      width: min(92vw, 420px);
+    }
+
+    button {
+      border: 1px solid #3c5165;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #223446;
+      color: #e8eef4;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    #status {
+      min-height: 1.2em;
+      font-size: 13px;
+      color: #9fb4c8;
+    }
+  </style>
+
+  <div class="launcher">
+    <div>Marble Run Standalone Launcher</div>
+    <button id="openBtn" type="button">Open Marble Run in about:blank</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const source = document.getElementById("marbleRunSource");
+    const openBtn = document.getElementById("openBtn");
+    const status = document.getElementById("status");
+
+    function setStatus(message) {
+      status.textContent = message || "";
+    }
+
+    openBtn.addEventListener("click", () => {
+      if (!source) {
+        setStatus("Missing embedded Marble Run source.");
+        return;
+      }
+
+      const win = window.open("about:blank", "_blank");
+      if (!win) {
+        setStatus("Popup blocked. Allow popups and try again.");
+        return;
+      }
+
+      const html = "<!DOCTYPE html>\n" + source.innerHTML;
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      setStatus("Opened Marble Run in a new about:blank page.");
+    });
+  </script>
+</body>
+</html>
