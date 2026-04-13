@@ -195,12 +195,20 @@
       gap: 4px;
     }
 
+    #toolPreview,
     #partPreview {
       width: 100%;
-      height: 120px;
       border: 1px solid #d9d0bf;
       border-radius: 10px;
       background: linear-gradient(180deg, #fffef9 0%, #f8f0df 100%);
+    }
+
+    #toolPreview {
+      height: 90px;
+    }
+
+    #partPreview {
+      height: 120px;
     }
 
     .tip {
@@ -270,6 +278,7 @@
               <option value="select">Select/Edit</option>
             </select>
           </div>
+          <canvas id="toolPreview" width="300" height="90"></canvas>
         </div>
 
         <div class="group">
@@ -330,6 +339,13 @@
             <label for="phase">Phase Offset <span class="value" id="phaseVal"></span></label>
             <input id="phase" type="range" min="0" max="360" step="1" value="0" />
           </div>
+          <div class="row">
+            <label for="movingTriggerLink">Activating Trigger</label>
+            <select id="movingTriggerLink">
+              <option value="">Any Trigger Target</option>
+              <option value="__manual__">Manual Only</option>
+            </select>
+          </div>
           <button id="applySelected">Apply Slider Tuning To Selected</button>
         </div>
 
@@ -375,6 +391,10 @@
               <label for="selectedAngle">Angle</label>
               <input id="selectedAngle" type="number" step="1" />
             </div>
+            <div class="row">
+              <label for="selectedSize">Size</label>
+              <input id="selectedSize" type="number" step="1" />
+            </div>
           </div>
           <button id="updateSelectedFromMenu">Update Selected Item</button>
         </div>
@@ -415,7 +435,7 @@
       </div>
 
       <div class="tip" id="selectionInfo">Selected part: none</div>
-      <div class="tip">Drag with Line and Trigger tools. Click with other tools. Right-click to remove nearest object. Use Select/Edit to choose a part and then Apply To Selected.</div>
+      <div class="tip">Click any item to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
     </aside>
 
     <section class="canvas-shell">
@@ -430,6 +450,8 @@
     const canvas = document.getElementById("sim");
     const ctx = canvas.getContext("2d");
     const hud = document.getElementById("hud");
+    const toolPreviewCanvas = document.getElementById("toolPreview");
+    const toolPreviewCtx = toolPreviewCanvas.getContext("2d");
     const previewCanvas = document.getElementById("partPreview");
     const previewCtx = previewCanvas.getContext("2d");
 
@@ -448,6 +470,7 @@
       spinSpeed: document.getElementById("spinSpeed"),
       moveAngle: document.getElementById("moveAngle"),
       phase: document.getElementById("phase"),
+      movingTriggerLink: document.getElementById("movingTriggerLink"),
       triggerAction: document.getElementById("triggerAction"),
       triggerTarget: document.getElementById("triggerTarget"),
       applySelected: document.getElementById("applySelected"),
@@ -460,6 +483,7 @@
       selectedToX: document.getElementById("selectedToX"),
       selectedToY: document.getElementById("selectedToY"),
       selectedAngle: document.getElementById("selectedAngle"),
+      selectedSize: document.getElementById("selectedSize"),
       updateSelectedFromMenu: document.getElementById("updateSelectedFromMenu"),
       selectionInfo: document.getElementById("selectionInfo"),
       gravityVal: document.getElementById("gravityVal"),
@@ -765,7 +789,8 @@
         phase: world.phase,
         baseAngle: world.moveAngle,
         active: true,
-        teleporterIndex: -1
+        teleporterIndex: -1,
+        activationTriggerId: ""
       };
 
       if (part.motion === "spin") {
@@ -793,8 +818,7 @@
         state.parts.push(part);
         rememberBuild("parts", part);
       }
-      state.selectedPartId = part.id;
-      updateSelectionInfo();
+      setSelectedPart(part.id);
     }
 
     function addTriggerZone(ax, ay, bx, by) {
@@ -816,6 +840,7 @@
       };
       state.triggers.push(trigger);
       rememberBuild("triggers", trigger);
+      rebuildTriggerLinkOptions();
     }
 
     function findPartById(id) {
@@ -835,6 +860,42 @@
       return null;
     }
 
+    function rebuildTriggerLinkOptions() {
+      const prev = ui.movingTriggerLink.value;
+      const options = [
+        { value: "", label: "Any Trigger Target" },
+        { value: "__manual__", label: "Manual Only" }
+      ];
+
+      for (let i = 0; i < state.triggers.length; i += 1) {
+        const t = state.triggers[i];
+        options.push({
+          value: t.id,
+          label: "Trigger " + (i + 1) + " (" + t.action + " -> " + t.target + ")"
+        });
+      }
+
+      ui.movingTriggerLink.innerHTML = "";
+      for (const opt of options) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.textContent = opt.label;
+        ui.movingTriggerLink.appendChild(el);
+      }
+
+      if (options.some((o) => o.value === prev)) {
+        ui.movingTriggerLink.value = prev;
+      } else {
+        ui.movingTriggerLink.value = "";
+      }
+    }
+
+    function setSelectedPart(partOrId) {
+      const id = typeof partOrId === "string" ? partOrId : partOrId ? partOrId.id : null;
+      state.selectedPartId = id;
+      updateSelectionInfo();
+    }
+
     function syncSelectedEditorFromPart() {
       const part = findPartById(state.selectedPartId);
       if (!part) {
@@ -847,6 +908,7 @@
         ui.selectedToX.value = "";
         ui.selectedToY.value = "";
         ui.selectedAngle.value = "";
+        ui.selectedSize.value = "";
         ui.selectedActive.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
@@ -855,6 +917,9 @@
         ui.selectedToX.disabled = true;
         ui.selectedToY.disabled = true;
         ui.selectedAngle.disabled = true;
+        ui.selectedSize.disabled = true;
+        ui.movingTriggerLink.disabled = true;
+        ui.movingTriggerLink.value = "";
         ui.updateSelectedFromMenu.disabled = true;
         return;
       }
@@ -870,9 +935,11 @@
       ui.selectedToX.value = formatNum(part.toX);
       ui.selectedToY.value = formatNum(part.toY);
       ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
+      ui.selectedSize.value = formatNum(part.size);
       ui.selectedX.disabled = isPathMover(part);
       ui.selectedY.disabled = isPathMover(part);
       ui.selectedAngle.disabled = false;
+      ui.selectedSize.disabled = false;
       ui.updateSelectedFromMenu.disabled = false;
 
       const disableMotion = !isPathMover(part);
@@ -881,6 +948,20 @@
       ui.selectedToX.disabled = disableMotion;
       ui.selectedToY.disabled = disableMotion;
       ui.selectedActive.disabled = part.motion === "static" || !!part.padType;
+
+      const canLinkTrigger = part.motion !== "static" && !part.padType;
+      ui.movingTriggerLink.disabled = !canLinkTrigger;
+      if (canLinkTrigger) {
+        const v = part.activationTriggerId || "";
+        if (Array.from(ui.movingTriggerLink.options).some((o) => o.value === v)) {
+          ui.movingTriggerLink.value = v;
+        } else {
+          ui.movingTriggerLink.value = "";
+          part.activationTriggerId = "";
+        }
+      } else {
+        ui.movingTriggerLink.value = "";
+      }
     }
 
     function applySelectedEditorValues() {
@@ -890,7 +971,11 @@
       }
 
       part.baseAngle = parseNum(ui.selectedAngle, part.baseAngle * (180 / Math.PI)) * (Math.PI / 180);
+      part.size = clamp(parseNum(ui.selectedSize, part.size), 12, 260);
       part.active = ui.selectedActive.value !== "off";
+      if (part.motion !== "static" && !part.padType) {
+        part.activationTriggerId = ui.movingTriggerLink.value;
+      }
 
       if (isPathMover(part)) {
         part.fromX = parseNum(ui.selectedFromX, part.fromX);
@@ -931,6 +1016,9 @@
       part.moveAngle = world.moveAngle;
       part.phase = world.phase;
       part.baseAngle = world.moveAngle;
+      if (part.motion !== "static") {
+        part.activationTriggerId = ui.movingTriggerLink.value;
+      }
       if (isPathMover(part)) {
         syncPartPathFromCenter(part);
       }
@@ -949,8 +1037,12 @@
       if (idx >= 0) {
         list.splice(idx, 1);
       }
+      if (item.group === "triggers") {
+        rebuildTriggerLinkOptions();
+      }
       if (!findPartById(state.selectedPartId)) {
-        state.selectedPartId = null;
+        setSelectedPart(null);
+        return;
       }
       updateSelectionInfo();
     }
@@ -965,7 +1057,9 @@
         state.pads.length = 0;
         state.triggers.length = 0;
         state.buildHistory.length = 0;
-        state.selectedPartId = null;
+        setSelectedPart(null);
+        rebuildTriggerLinkOptions();
+        return;
       }
       updateSelectionInfo();
     }
@@ -1398,6 +1492,12 @@
     function fireTrigger(trigger) {
       const targets = getTriggerTargets(trigger);
       for (const part of targets) {
+        if (part.activationTriggerId === "__manual__") {
+          continue;
+        }
+        if (part.activationTriggerId && part.activationTriggerId !== trigger.id) {
+          continue;
+        }
         applyTriggerAction(part, trigger.action);
       }
       trigger.flash = 0.22;
@@ -1522,8 +1622,39 @@
         }
       }
 
-      state.selectedPartId = bestPart ? bestPart.id : null;
-      updateSelectionInfo();
+      setSelectedPart(bestPart ? bestPart.id : null);
+    }
+
+    function getNearestSelectableAt(x, y, maxDist = 44) {
+      rebuildColliderCache();
+      let bestPart = null;
+      let bestDist = maxDist * maxDist;
+
+      for (const part of state.parts) {
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = part;
+        }
+      }
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id);
+        if (!pose) {
+          continue;
+        }
+        const d = distanceSq(x, y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = pad;
+        }
+      }
+
+      return bestPart;
     }
 
     function getSelectedHandleAt(x, y) {
@@ -1539,6 +1670,18 @@
         return "to";
       }
       return null;
+    }
+
+    function getSelectedResizeHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return false;
+      }
+      rebuildColliderCache();
+      const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+      const hx = pose.x + part.size * 0.62;
+      const hy = pose.y - part.size * 0.62;
+      return distanceSq(x, y, hx, hy) <= 13 * 13;
     }
 
     function moveSelectedPartBy(dx, dy) {
@@ -1563,6 +1706,7 @@
         const t = state.triggers[i];
         if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
           state.triggers.splice(i, 1);
+          rebuildTriggerLinkOptions();
           return;
         }
       }
@@ -1573,9 +1717,8 @@
         if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.65) * (p.size * 0.65)) {
           state.pads.splice(i, 1);
           if (state.selectedPartId === p.id) {
-            state.selectedPartId = null;
+            setSelectedPart(null);
           }
-          updateSelectionInfo();
           return;
         }
       }
@@ -1586,9 +1729,8 @@
         if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.7) * (p.size * 0.7)) {
           state.parts.splice(i, 1);
           if (state.selectedPartId === p.id) {
-            state.selectedPartId = null;
+            setSelectedPart(null);
           }
-          updateSelectionInfo();
           return;
         }
       }
@@ -1881,9 +2023,24 @@
 
     function drawSelectedHandles() {
       const part = findPartById(state.selectedPartId);
-      if (!part || !isPathMover(part)) {
+      if (!part) {
         return;
       }
+
+      const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+      const hx = pose.x + part.size * 0.62;
+      const hy = pose.y - part.size * 0.62;
+
+      ctx.fillStyle = "#0d8b96";
+      ctx.fillRect(hx - 6, hy - 6, 12, 12);
+      ctx.strokeStyle = "rgba(12, 62, 68, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+
+      if (!isPathMover(part)) {
+        return;
+      }
+
       ensurePartPathEndpoints(part);
 
       ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
@@ -1953,13 +2110,30 @@
         }
       }
 
-      state.selectedPartId = chosen ? chosen.id : null;
-      updateSelectionInfo();
+      setSelectedPart(chosen ? chosen.id : null);
+    }
+
+    function prepareMiniCanvas(cnv, drawCtx, targetHeight) {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      cnv.style.height = targetHeight.toFixed(0) + "px";
+      const rect = cnv.getBoundingClientRect();
+      const bw = Math.max(1, Math.floor(rect.width * dpr));
+      const bh = Math.max(1, Math.floor(rect.height * dpr));
+      if (cnv.width !== bw || cnv.height !== bh) {
+        cnv.width = bw;
+        cnv.height = bh;
+      }
+      drawCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { width: rect.width, height: rect.height };
     }
 
     function drawSelectedPreview() {
-      const w = previewCanvas.width;
-      const h = previewCanvas.height;
+      const part = findPartById(state.selectedPartId);
+      const previewHeight = clamp(part ? part.size * 2.1 : 120, 120, 260);
+      const dims = prepareMiniCanvas(previewCanvas, previewCtx, previewHeight);
+      const w = dims.width;
+      const h = dims.height;
+
       previewCtx.clearRect(0, 0, w, h);
 
       const g = previewCtx.createLinearGradient(0, 0, 0, h);
@@ -1968,7 +2142,6 @@
       previewCtx.fillStyle = g;
       previewCtx.fillRect(0, 0, w, h);
 
-      const part = findPartById(state.selectedPartId);
       if (!part) {
         previewCtx.fillStyle = "rgba(30, 31, 38, 0.55)";
         previewCtx.font = "700 14px Space Grotesk";
@@ -1977,7 +2150,7 @@
       }
 
       const cx = w * 0.5;
-      const cy = h * 0.58;
+      const cy = h * 0.6;
       const p = {
         ...part,
         x: cx,
@@ -1989,10 +2162,10 @@
       if (isPathMover(part)) {
         const dx = part.toX - part.fromX;
         const dy = part.toY - part.fromY;
-        p.fromX = cx - dx * 0.4;
-        p.fromY = cy - dy * 0.4;
-        p.toX = cx + dx * 0.4;
-        p.toY = cy + dy * 0.4;
+        p.fromX = cx - dx * 0.32;
+        p.fromY = cy - dy * 0.32;
+        p.toX = cx + dx * 0.32;
+        p.toY = cy + dy * 0.32;
 
         previewCtx.strokeStyle = "rgba(60, 58, 48, 0.35)";
         previewCtx.lineWidth = 2;
@@ -2016,6 +2189,91 @@
 
       const previewPose = computePartPose(p, state.simTime);
       drawPartShape(previewCtx, p, previewPose, partColor(p), true);
+    }
+
+    function drawToolPreview() {
+      const dims = prepareMiniCanvas(toolPreviewCanvas, toolPreviewCtx, 90);
+      const w = dims.width;
+      const h = dims.height;
+      toolPreviewCtx.clearRect(0, 0, w, h);
+
+      const g = toolPreviewCtx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#fffef9");
+      g.addColorStop(1, "#f2e8d4");
+      toolPreviewCtx.fillStyle = g;
+      toolPreviewCtx.fillRect(0, 0, w, h);
+
+      const tool = ui.tool.value;
+      if (tool === "line") {
+        toolPreviewCtx.strokeStyle = "#5f5848";
+        toolPreviewCtx.lineWidth = 6;
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.moveTo(24, h * 0.72);
+        toolPreviewCtx.lineTo(w - 24, h * 0.28);
+        toolPreviewCtx.stroke();
+        return;
+      }
+
+      if (tool === "peg") {
+        const r = 16;
+        const cx = w * 0.5;
+        const cy = h * 0.52;
+        const ring = toolPreviewCtx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, 1, cx, cy, r);
+        ring.addColorStop(0, "#fff");
+        ring.addColorStop(0.45, "#f4d796");
+        ring.addColorStop(1, "#c28c2f");
+        toolPreviewCtx.fillStyle = ring;
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.arc(cx, cy, r, 0, TAU);
+        toolPreviewCtx.fill();
+        return;
+      }
+
+      if (tool === "trigger") {
+        toolPreviewCtx.fillStyle = "rgba(14, 160, 169, 0.16)";
+        toolPreviewCtx.strokeStyle = "rgba(14, 160, 169, 0.86)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.fillRect(40, 18, w - 80, h - 34);
+        toolPreviewCtx.strokeRect(40, 18, w - 80, h - 34);
+        return;
+      }
+
+      if (tool === "select") {
+        toolPreviewCtx.fillStyle = "rgba(255, 158, 64, 0.18)";
+        toolPreviewCtx.strokeStyle = "rgba(255, 158, 64, 0.95)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.fillRect(44, 20, w - 88, h - 40);
+        toolPreviewCtx.strokeRect(44, 20, w - 88, h - 40);
+        return;
+      }
+
+      const p = createPart(tool, w * 0.5, h * 0.58);
+      if (!p) {
+        return;
+      }
+
+      p.size = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      syncPartPathFromCenter(p);
+
+      if (isPathMover(p)) {
+        const dx = p.toX - p.fromX;
+        const dy = p.toY - p.fromY;
+        p.fromX = p.x - dx * 0.28;
+        p.fromY = p.y - dy * 0.28;
+        p.toX = p.x + dx * 0.28;
+        p.toY = p.y + dy * 0.28;
+        toolPreviewCtx.strokeStyle = "rgba(60, 58, 48, 0.26)";
+        toolPreviewCtx.lineWidth = 2;
+        toolPreviewCtx.setLineDash([4, 4]);
+        toolPreviewCtx.beginPath();
+        toolPreviewCtx.moveTo(p.fromX, p.fromY);
+        toolPreviewCtx.lineTo(p.toX, p.toY);
+        toolPreviewCtx.stroke();
+        toolPreviewCtx.setLineDash([]);
+      }
+
+      const pose = computePartPose(p, state.simTime);
+      drawPartShape(toolPreviewCtx, p, pose, partColor(p), false);
     }
 
     function drawTriggers() {
@@ -2201,6 +2459,7 @@
       const last = state.triggers[state.triggers.length - 1];
       last.action = "toggle";
       last.target = "all-moving";
+      rebuildTriggerLinkOptions();
 
       for (let i = 0; i < 5; i += 1) {
         spawnMarble(30 + i * 18, 12, 20);
@@ -2234,6 +2493,7 @@
       drawMarbles();
       drawDraft();
       drawSelectedPreview();
+      drawToolPreview();
       updateHud(now - (frame.lastNow || now));
       frame.lastNow = now;
 
@@ -2299,6 +2559,23 @@
       applySelectedEditorValues();
     });
 
+    ui.selectedSize.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.movingTriggerLink.addEventListener("change", () => {
+      const part = findPartById(state.selectedPartId);
+      if (!part || part.motion === "static" || part.padType) {
+        return;
+      }
+      part.activationTriggerId = ui.movingTriggerLink.value;
+      syncSelectedEditorFromPart();
+    });
+
+    ui.tool.addEventListener("change", () => {
+      drawToolPreview();
+    });
+
     ui.spawn.addEventListener("click", () => {
       spawnMarble(world.width * 0.12, 12, 24);
     });
@@ -2349,6 +2626,11 @@
       }
 
       if (ui.tool.value === "select") {
+        if (getSelectedResizeHandleAt(pos.x, pos.y)) {
+          state.dragMode = "resize-part";
+          return;
+        }
+
         const handle = getSelectedHandleAt(pos.x, pos.y);
         if (handle) {
           state.dragMode = handle === "from" ? "drag-from" : "drag-to";
@@ -2368,6 +2650,14 @@
         state.dragMode = "select-rect";
         state.drawStart = pos;
         state.selectionRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
+        return;
+      }
+
+      const clickedItem = getNearestSelectableAt(pos.x, pos.y, 24);
+      if (clickedItem && !evt.altKey) {
+        setSelectedPart(clickedItem.id);
+        state.pointerDown = false;
+        state.dragMode = null;
         return;
       }
 
@@ -2402,6 +2692,15 @@
         part.toX = state.pointer.x;
         part.toY = state.pointer.y;
         syncPartCenterFromPath(part);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "resize-part" && part) {
+        rebuildColliderCache();
+        const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+        const dist = Math.hypot(state.pointer.x - pose.x, state.pointer.y - pose.y);
+        part.size = clamp(dist / 0.62, 14, 260);
         syncSelectedEditorFromPart();
         return;
       }
