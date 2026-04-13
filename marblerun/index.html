@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marble Run Simulator</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+    :root {
+      --ink: #1e1f26;
+      --paper: #f7f4ec;
+      --panel: #fffaf1;
+      --accent-a: #ec6f4a;
+      --accent-b: #0d8b96;
+      --accent-c: #f6c65b;
+      --line: #dbd4c3;
+      --shadow: 0 14px 38px rgba(18, 24, 40, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1400px 700px at 120% -30%, rgba(13, 139, 150, 0.2), transparent 65%),
+        radial-gradient(1200px 600px at -20% 120%, rgba(236, 111, 74, 0.24), transparent 68%),
+        linear-gradient(180deg, #fffdf7 0%, #f0eadf 100%);
+    }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255, 250, 241, 0.96), rgba(255, 245, 224, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: auto;
+      backdrop-filter: blur(8px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      letter-spacing: 0.02em;
+    }
+
+    .sub {
+      margin: 0;
+      font-size: 0.92rem;
+      color: rgba(30, 31, 38, 0.8);
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .row label {
+      font-size: 0.83rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+    }
+
+    .value {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      opacity: 0.85;
+    }
+
+    input[type="range"],
+    select,
+    button {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid #d7ceb8;
+      background: #fff;
+      font: inherit;
+      color: inherit;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent-b);
+    }
+
+    select,
+    button {
+      padding: 9px 11px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+      background: linear-gradient(180deg, #fff 0%, #fff5de 100%);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(30, 31, 38, 0.15);
+      border-color: #c4b89b;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .buttons button.wide {
+      grid-column: span 2;
+    }
+
+    .canvas-shell {
+      position: relative;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid #d5cdbb;
+      box-shadow: var(--shadow);
+      min-height: 240px;
+      background: linear-gradient(180deg, rgba(252, 248, 239, 0.95), rgba(244, 237, 226, 0.95));
+    }
+
+    #sim {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(229, 220, 200, 0.9);
+      background: rgba(255, 252, 246, 0.86);
+      font-size: 0.78rem;
+      font-family: "IBM Plex Mono", monospace;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      white-space: pre;
+    }
+
+    .tip {
+      border-radius: 12px;
+      border: 1px dashed #c7bba0;
+      background: rgba(255, 248, 233, 0.85);
+      padding: 9px;
+      font-size: 0.79rem;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 940px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+
+      .panel {
+        max-height: 46vh;
+      }
+
+      .canvas-shell {
+        min-height: 44vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <header>
+        <h1>Marble Run</h1>
+        <p class="sub">Draw tracks, drop marbles, and tune physics in real time.</p>
+      </header>
+
+      <div class="controls">
+        <div class="row">
+          <label for="tool">Build Tool</label>
+          <select id="tool">
+            <option value="line">Line track</option>
+            <option value="peg">Peg bumper</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="gravity">Gravity <span class="value" id="gravityVal"></span></label>
+          <input id="gravity" type="range" min="200" max="1800" step="10" value="920" />
+        </div>
+
+        <div class="row">
+          <label for="bounce">Bounce <span class="value" id="bounceVal"></span></label>
+          <input id="bounce" type="range" min="0.05" max="0.95" step="0.01" value="0.44" />
+        </div>
+
+        <div class="row">
+          <label for="friction">Surface Grip <span class="value" id="frictionVal"></span></label>
+          <input id="friction" type="range" min="0" max="0.4" step="0.01" value="0.1" />
+        </div>
+
+        <div class="row">
+          <label for="marbleSize">Marble Size <span class="value" id="sizeVal"></span></label>
+          <input id="marbleSize" type="range" min="6" max="20" step="1" value="10" />
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="spawn">Spawn 1</button>
+        <button id="burst">Burst 20</button>
+        <button id="rain">Start Rain</button>
+        <button id="pause">Pause</button>
+        <button id="clearMarbles">Clear Marbles</button>
+        <button id="clearTracks">Clear Tracks</button>
+        <button class="wide" id="demo">Reset Demo Course</button>
+      </div>
+
+      <div class="tip">
+        Drag to draw a line track. Click to place a peg when Peg mode is selected. Right-click near a piece to remove it.
+      </div>
+    </aside>
+
+    <section class="canvas-shell">
+      <canvas id="sim"></canvas>
+      <div id="hud" class="hud"></div>
+    </section>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("sim");
+    const ctx = canvas.getContext("2d");
+    const hud = document.getElementById("hud");
+
+    const ui = {
+      tool: document.getElementById("tool"),
+      gravity: document.getElementById("gravity"),
+      bounce: document.getElementById("bounce"),
+      friction: document.getElementById("friction"),
+      marbleSize: document.getElementById("marbleSize"),
+      gravityVal: document.getElementById("gravityVal"),
+      bounceVal: document.getElementById("bounceVal"),
+      frictionVal: document.getElementById("frictionVal"),
+      sizeVal: document.getElementById("sizeVal"),
+      spawn: document.getElementById("spawn"),
+      burst: document.getElementById("burst"),
+      rain: document.getElementById("rain"),
+      pause: document.getElementById("pause"),
+      clearMarbles: document.getElementById("clearMarbles"),
+      clearTracks: document.getElementById("clearTracks"),
+      demo: document.getElementById("demo")
+    };
+
+    const world = {
+      width: 0,
+      height: 0,
+      gravity: Number(ui.gravity.value),
+      bounce: Number(ui.bounce.value),
+      friction: Number(ui.friction.value),
+      airDrag: 0.02,
+      maxMarbles: 260
+    };
+
+    const state = {
+      marbles: [],
+      segments: [],
+      pegs: [],
+      paused: false,
+      raining: false,
+      rainTimer: 0,
+      pointerDown: false,
+      drawStart: null,
+      pointer: { x: 0, y: 0 },
+      fps: 0
+    };
+
+    function resizeCanvas() {
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const rect = canvas.getBoundingClientRect();
+      world.width = rect.width;
+      world.height = rect.height;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function randomColor() {
+      const palette = ["#ec6f4a", "#0d8b96", "#f6c65b", "#628f2f", "#2b6488", "#b65a7a"];
+      return palette[Math.floor(Math.random() * palette.length)];
+    }
+
+    function spawnMarble(x = world.width * 0.18, y = 28, speedX = 0) {
+      if (state.marbles.length >= world.maxMarbles) {
+        state.marbles.shift();
+      }
+      const r = Number(ui.marbleSize.value);
+      const mass = Math.max(1, r * 0.35);
+      state.marbles.push({
+        x,
+        y,
+        vx: speedX,
+        vy: 0,
+        r,
+        mass,
+        color: randomColor()
+      });
+    }
+
+    function distanceSq(ax, ay, bx, by) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function addSegment(x1, y1, x2, y2) {
+      if (distanceSq(x1, y1, x2, y2) < 100) {
+        return;
+      }
+      state.segments.push({ x1, y1, x2, y2 });
+    }
+
+    function addPeg(x, y, r = 9) {
+      state.pegs.push({ x, y, r });
+    }
+
+    function clearWorld(keepTracks = false) {
+      state.marbles.length = 0;
+      if (!keepTracks) {
+        state.segments.length = 0;
+        state.pegs.length = 0;
+      }
+    }
+
+    function resetDemoCourse() {
+      clearWorld(false);
+      const w = world.width;
+      const h = world.height;
+      const laneY = h * 0.15;
+
+      addSegment(30, laneY, w * 0.36, laneY + 18);
+      addSegment(w * 0.36, laneY + 18, w * 0.58, laneY + 84);
+      addSegment(w * 0.58, laneY + 84, w * 0.82, laneY + 54);
+      addSegment(w * 0.14, h * 0.42, w * 0.52, h * 0.58);
+      addSegment(w * 0.52, h * 0.58, w * 0.9, h * 0.7);
+      addSegment(w * 0.12, h * 0.72, w * 0.62, h * 0.87);
+
+      for (let i = 0; i < 9; i += 1) {
+        const px = w * 0.26 + i * (w * 0.06);
+        const py = h * 0.27 + ((i % 2) * h * 0.045);
+        addPeg(px, py, 10);
+      }
+
+      for (let i = 0; i < 3; i += 1) {
+        spawnMarble(50 + i * 22, 12, 14);
+      }
+    }
+
+    function closestPointOnSegment(px, py, s) {
+      const vx = s.x2 - s.x1;
+      const vy = s.y2 - s.y1;
+      const lenSq = vx * vx + vy * vy;
+      if (lenSq < 0.000001) {
+        return { x: s.x1, y: s.y1, t: 0 };
+      }
+      let t = ((px - s.x1) * vx + (py - s.y1) * vy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      return {
+        x: s.x1 + t * vx,
+        y: s.y1 + t * vy,
+        t
+      };
+    }
+
+    function resolveMarbleSegment(m, s) {
+      const cp = closestPointOnSegment(m.x, m.y, s);
+      let nx = m.x - cp.x;
+      let ny = m.y - cp.y;
+      let distSq = nx * nx + ny * ny;
+
+      if (distSq <= 0.000001) {
+        const tx = s.x2 - s.x1;
+        const ty = s.y2 - s.y1;
+        const len = Math.hypot(tx, ty) || 1;
+        nx = -ty / len;
+        ny = tx / len;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      if (dist >= m.r) {
+        return;
+      }
+
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const penetration = m.r - dist;
+      m.x += nx * penetration;
+      m.y += ny * penetration;
+
+      const vn = m.vx * nx + m.vy * ny;
+      if (vn < 0) {
+        const e = world.bounce;
+        m.vx -= (1 + e) * vn * nx;
+        m.vy -= (1 + e) * vn * ny;
+
+        const tx = -ny;
+        const ty = nx;
+        const vt = m.vx * tx + m.vy * ty;
+        const grip = world.friction;
+        m.vx -= vt * grip * tx;
+        m.vy -= vt * grip * ty;
+      }
+    }
+
+    function resolveMarblePeg(m, p) {
+      let nx = m.x - p.x;
+      let ny = m.y - p.y;
+      let distSq = nx * nx + ny * ny;
+      const minDist = m.r + p.r;
+      if (distSq >= minDist * minDist) {
+        return;
+      }
+
+      if (distSq <= 0.000001) {
+        nx = 1;
+        ny = 0;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const penetration = minDist - dist;
+      m.x += nx * penetration;
+      m.y += ny * penetration;
+
+      const vn = m.vx * nx + m.vy * ny;
+      if (vn < 0) {
+        m.vx -= (1 + world.bounce) * vn * nx;
+        m.vy -= (1 + world.bounce) * vn * ny;
+      }
+    }
+
+    function resolveMarbleMarble(a, b) {
+      let nx = b.x - a.x;
+      let ny = b.y - a.y;
+      let distSq = nx * nx + ny * ny;
+      const minDist = a.r + b.r;
+      if (distSq >= minDist * minDist) {
+        return;
+      }
+
+      if (distSq <= 0.000001) {
+        nx = 1;
+        ny = 0;
+        distSq = 1;
+      }
+
+      const dist = Math.sqrt(distSq);
+      const invDist = 1 / dist;
+      nx *= invDist;
+      ny *= invDist;
+
+      const overlap = minDist - dist;
+      const totalMass = a.mass + b.mass;
+      const aPush = overlap * (b.mass / totalMass);
+      const bPush = overlap * (a.mass / totalMass);
+
+      a.x -= nx * aPush;
+      a.y -= ny * aPush;
+      b.x += nx * bPush;
+      b.y += ny * bPush;
+
+      const relVelX = b.vx - a.vx;
+      const relVelY = b.vy - a.vy;
+      const relAlongNormal = relVelX * nx + relVelY * ny;
+      if (relAlongNormal > 0) {
+        return;
+      }
+
+      const e = world.bounce * 0.95;
+      const j = -(1 + e) * relAlongNormal / (1 / a.mass + 1 / b.mass);
+      const impulseX = j * nx;
+      const impulseY = j * ny;
+
+      a.vx -= impulseX / a.mass;
+      a.vy -= impulseY / a.mass;
+      b.vx += impulseX / b.mass;
+      b.vy += impulseY / b.mass;
+    }
+
+    function step(dt) {
+      if (state.raining) {
+        state.rainTimer -= dt;
+        if (state.rainTimer <= 0) {
+          spawnMarble(30 + Math.random() * (world.width * 0.4), 8, (Math.random() - 0.5) * 30);
+          state.rainTimer = 0.07;
+        }
+      }
+
+      for (const m of state.marbles) {
+        m.vy += world.gravity * dt;
+
+        const damp = Math.max(0, 1 - world.airDrag * dt * 4);
+        m.vx *= damp;
+        m.vy *= damp;
+
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+
+        if (m.x - m.r < 0) {
+          m.x = m.r;
+          m.vx = Math.abs(m.vx) * world.bounce;
+        }
+        if (m.x + m.r > world.width) {
+          m.x = world.width - m.r;
+          m.vx = -Math.abs(m.vx) * world.bounce;
+        }
+        if (m.y - m.r < 0) {
+          m.y = m.r;
+          m.vy = Math.abs(m.vy) * world.bounce;
+        }
+        if (m.y + m.r > world.height - 6) {
+          m.y = world.height - 6 - m.r;
+          m.vy = -Math.abs(m.vy) * world.bounce;
+          m.vx *= (1 - world.friction * 0.35);
+        }
+      }
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        for (let i = 0; i < state.marbles.length; i += 1) {
+          const m = state.marbles[i];
+
+          for (const s of state.segments) {
+            resolveMarbleSegment(m, s);
+          }
+
+          for (const p of state.pegs) {
+            resolveMarblePeg(m, p);
+          }
+
+          for (let j = i + 1; j < state.marbles.length; j += 1) {
+            resolveMarbleMarble(m, state.marbles[j]);
+          }
+        }
+      }
+    }
+
+    function drawBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, world.height);
+      g.addColorStop(0, "#fff8ea");
+      g.addColorStop(1, "#efe5d2");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, world.width, world.height);
+
+      ctx.strokeStyle = "rgba(140, 132, 118, 0.17)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < world.width; x += 28) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, world.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < world.height; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(world.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawSegments() {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const s of state.segments) {
+        ctx.strokeStyle = "#5f5848";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1);
+        ctx.lineTo(s.x2, s.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1 - 0.8);
+        ctx.lineTo(s.x2, s.y2 - 0.8);
+        ctx.stroke();
+      }
+    }
+
+    function drawPegs() {
+      for (const p of state.pegs) {
+        const ring = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, 1, p.x, p.y, p.r);
+        ring.addColorStop(0, "#fff");
+        ring.addColorStop(0.45, "#f4d796");
+        ring.addColorStop(1, "#c28c2f");
+        ctx.fillStyle = ring;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawMarbles() {
+      for (const m of state.marbles) {
+        const grad = ctx.createRadialGradient(m.x - m.r * 0.35, m.y - m.r * 0.35, 1, m.x, m.y, m.r);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.35, m.color);
+        grad.addColorStop(1, "#29313a");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawDraft() {
+      if (!state.pointerDown || !state.drawStart || ui.tool.value !== "line") {
+        return;
+      }
+      ctx.strokeStyle = "rgba(13, 139, 150, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(state.drawStart.x, state.drawStart.y);
+      ctx.lineTo(state.pointer.x, state.pointer.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function updateHud(msPerFrame) {
+      const fps = msPerFrame > 0 ? Math.round(1000 / msPerFrame) : 0;
+      state.fps = fps;
+      hud.textContent =
+        "marbles: " + state.marbles.length + "\n" +
+        "tracks:  " + state.segments.length + "\n" +
+        "pegs:    " + state.pegs.length + "\n" +
+        "fps:     " + fps;
+    }
+
+    let previousTime = performance.now();
+    let accumulator = 0;
+    const fixedStep = 1 / 120;
+
+    function frame(now) {
+      const elapsed = Math.min(0.05, (now - previousTime) / 1000);
+      previousTime = now;
+
+      if (!state.paused) {
+        accumulator += elapsed;
+        while (accumulator >= fixedStep) {
+          step(fixedStep);
+          accumulator -= fixedStep;
+        }
+      }
+
+      drawBackground();
+      drawSegments();
+      drawPegs();
+      drawMarbles();
+      drawDraft();
+      updateHud(now - (frame.lastNow || now));
+      frame.lastNow = now;
+
+      requestAnimationFrame(frame);
+    }
+    frame.lastNow = 0;
+
+    function updateUiValueLabels() {
+      world.gravity = Number(ui.gravity.value);
+      world.bounce = Number(ui.bounce.value);
+      world.friction = Number(ui.friction.value);
+      ui.gravityVal.textContent = world.gravity.toFixed(0);
+      ui.bounceVal.textContent = world.bounce.toFixed(2);
+      ui.frictionVal.textContent = world.friction.toFixed(2);
+      ui.sizeVal.textContent = Number(ui.marbleSize.value).toFixed(0) + " px";
+    }
+
+    ui.gravity.addEventListener("input", updateUiValueLabels);
+    ui.bounce.addEventListener("input", updateUiValueLabels);
+    ui.friction.addEventListener("input", updateUiValueLabels);
+    ui.marbleSize.addEventListener("input", updateUiValueLabels);
+
+    ui.spawn.addEventListener("click", () => {
+      spawnMarble(world.width * 0.12, 12, 20);
+    });
+
+    ui.burst.addEventListener("click", () => {
+      for (let i = 0; i < 20; i += 1) {
+        spawnMarble(world.width * 0.08 + Math.random() * 120, 10 - i * 2, (Math.random() - 0.5) * 65);
+      }
+    });
+
+    ui.rain.addEventListener("click", () => {
+      state.raining = !state.raining;
+      ui.rain.textContent = state.raining ? "Stop Rain" : "Start Rain";
+    });
+
+    ui.pause.addEventListener("click", () => {
+      state.paused = !state.paused;
+      ui.pause.textContent = state.paused ? "Resume" : "Pause";
+    });
+
+    ui.clearMarbles.addEventListener("click", () => {
+      clearWorld(true);
+    });
+
+    ui.clearTracks.addEventListener("click", () => {
+      state.segments.length = 0;
+      state.pegs.length = 0;
+    });
+
+    ui.demo.addEventListener("click", () => {
+      resetDemoCourse();
+    });
+
+    function getPointerPosition(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+      };
+    }
+
+    canvas.addEventListener("pointerdown", (evt) => {
+      canvas.setPointerCapture(evt.pointerId);
+      const pos = getPointerPosition(evt);
+      state.pointerDown = true;
+      state.pointer = pos;
+
+      if (ui.tool.value === "line") {
+        state.drawStart = pos;
+      } else {
+        addPeg(pos.x, pos.y, 9);
+      }
+    });
+
+    canvas.addEventListener("pointermove", (evt) => {
+      state.pointer = getPointerPosition(evt);
+    });
+
+    canvas.addEventListener("pointerup", (evt) => {
+      const pos = getPointerPosition(evt);
+      if (state.pointerDown && state.drawStart && ui.tool.value === "line") {
+        addSegment(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+      }
+      state.pointerDown = false;
+      state.drawStart = null;
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      state.pointerDown = false;
+      state.drawStart = null;
+    });
+
+    canvas.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const pos = getPointerPosition(evt);
+
+      let removed = false;
+      for (let i = state.pegs.length - 1; i >= 0; i -= 1) {
+        const p = state.pegs[i];
+        if (distanceSq(pos.x, pos.y, p.x, p.y) < (p.r + 10) * (p.r + 10)) {
+          state.pegs.splice(i, 1);
+          removed = true;
+          break;
+        }
+      }
+
+      if (!removed) {
+        for (let i = state.segments.length - 1; i >= 0; i -= 1) {
+          const s = state.segments[i];
+          const cp = closestPointOnSegment(pos.x, pos.y, s);
+          if (distanceSq(pos.x, pos.y, cp.x, cp.y) < 110) {
+            state.segments.splice(i, 1);
+            break;
+          }
+        }
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+    });
+
+    resizeCanvas();
+    updateUiValueLabels();
+    resetDemoCourse();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
