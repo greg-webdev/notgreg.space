@@ -199,7 +199,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-      overflow: auto;
+      overflow-y: auto;
+      overflow-x: hidden;
       backdrop-filter: blur(8px);
     }
 
@@ -711,11 +712,12 @@
 
     .shortcut-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 6px;
     }
 
     .shortcut-grid input {
+      min-width: 0;
       text-transform: lowercase;
       font-family: "IBM Plex Mono", monospace;
     }
@@ -5532,6 +5534,7 @@
   </script>
 </body>
 </html>
+
 
 
 
