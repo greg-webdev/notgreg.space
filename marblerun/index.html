@@ -718,6 +718,52 @@
       display: none !important;
     }
 
+    .debug-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+
+    .debug-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #0d8b96;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+    }
+
+    .debug-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .debug-terminal {
+      margin: 0;
+      min-height: 120px;
+      max-height: 220px;
+      overflow: auto;
+      border-radius: 10px;
+      border: 1px solid #2f4f3e;
+      background: #0f1711;
+      color: #89f7a1;
+      padding: 8px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    body.dark .debug-terminal {
+      border-color: #35674d;
+      background: #0b1410;
+      color: #93fcb0;
+    }
+
     @media (max-width: 1080px) {
       .app {
         grid-template-columns: 1fr;
@@ -985,6 +1031,14 @@
               <input id="shortcutDelete" placeholder="delete" />
             </div>
           </div>
+          <div class="row">
+            <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
+            <div class="debug-actions">
+              <button id="clearDebugLogs">Clear Logs</button>
+              <button id="downloadDebugLogs">Download Logs</button>
+            </div>
+            <pre id="debugTerminal" class="debug-terminal">Debug terminal idle. Enable Debug Mode to capture simulation logs.</pre>
+          </div>
         </div>
       </div>
 
@@ -1121,6 +1175,10 @@
       shortcutSpawn: document.getElementById("shortcutSpawn"),
       shortcutPause: document.getElementById("shortcutPause"),
       shortcutDelete: document.getElementById("shortcutDelete"),
+      debugMode: document.getElementById("debugMode"),
+      clearDebugLogs: document.getElementById("clearDebugLogs"),
+      downloadDebugLogs: document.getElementById("downloadDebugLogs"),
+      debugTerminal: document.getElementById("debugTerminal"),
       spawn: document.getElementById("spawn"),
       burst: document.getElementById("burst"),
       rain: document.getElementById("rain"),
@@ -1183,9 +1241,14 @@
       dragLast: null,
       selectionRect: null,
       triggerJobs: [],
+      nextMarbleId: 1,
       runs: [],
       activeRunIndex: -1,
       nextRunId: 1,
+      debugMode: false,
+      debugStepAccumulator: 0,
+      debugLogLines: [],
+      debugLogLimit: 30000,
       darkMode: true,
       animationsEnabled: true,
       viewScale: 1,
@@ -1235,7 +1298,8 @@
       spring: { shape: "padSquare", motion: "static", padType: "spring" },
       sticky: { shape: "padSquare", motion: "static", padType: "sticky" },
       chaos: { shape: "padSquare", motion: "static", padType: "chaos" },
-      spawn: { shape: "padSquare", motion: "static", padType: "spawn" }
+      spawn: { shape: "padSquare", motion: "static", padType: "spawn" },
+      putobjecthere: { shape: "padSquare", motion: "static", padType: "putobjecthere" }
     };
 
     const TOOL_MENU_GROUPS = [
@@ -1290,7 +1354,8 @@
           ["spring", "Spring Pad"],
           ["sticky", "Sticky Pad"],
           ["chaos", "Chaos Pad"],
-          ["spawn", "Spawn Zone"]
+          ["spawn", "Spawn Zone"],
+          ["putobjecthere", "PutObjectHere Pad"]
         ]
       },
       {
@@ -1345,6 +1410,7 @@
       sticky: "STK",
       chaos: "RND",
       spawn: "SPWN",
+      putobjecthere: "PUT",
       select: "SEL"
     };
 
@@ -1621,6 +1687,131 @@
     function parseOptionalNum(input) {
       const v = Number(input.value);
       return Number.isFinite(v) ? v : null;
+    }
+
+    function stringifyDebugDetails(details) {
+      if (details == null) {
+        return "";
+      }
+      if (typeof details === "string") {
+        return details;
+      }
+      if (typeof details === "number" || typeof details === "boolean") {
+        return String(details);
+      }
+      if (Array.isArray(details)) {
+        return details.map((entry) => stringifyDebugDetails(entry)).join(", ");
+      }
+      if (typeof details === "object") {
+        const parts = [];
+        for (const key of Object.keys(details)) {
+          parts.push(key + "=" + stringifyDebugDetails(details[key]));
+        }
+        return parts.join(" ");
+      }
+      return String(details);
+    }
+
+    function appendDebugTerminalLine(line) {
+      const existing = ui.debugTerminal.textContent;
+      const next = existing && !existing.includes("Debug terminal idle") ? existing + "\n" + line : line;
+      const maxChars = 280000;
+      ui.debugTerminal.textContent = next.length > maxChars ? next.slice(next.length - maxChars) : next;
+      ui.debugTerminal.scrollTop = ui.debugTerminal.scrollHeight;
+    }
+
+    function debugLog(event, details = null, force = false) {
+      if (!force && !state.debugMode) {
+        return;
+      }
+      const detailText = stringifyDebugDetails(details);
+      const stamp = new Date().toISOString().slice(11, 23);
+      const line = "[" + stamp + "] t=" + state.simTime.toFixed(3) + "s " + event + (detailText ? " | " + detailText : "");
+      state.debugLogLines.push(line);
+      if (state.debugLogLines.length > state.debugLogLimit) {
+        state.debugLogLines.splice(0, state.debugLogLines.length - state.debugLogLimit);
+      }
+      appendDebugTerminalLine(line);
+      console.log(line);
+    }
+
+    function clearDebugLogs() {
+      state.debugLogLines.length = 0;
+      ui.debugTerminal.textContent = "Debug terminal idle. Enable Debug Mode to capture simulation logs.";
+      if (state.debugMode) {
+        debugLog("DEBUG_LOGS_CLEARED", null, true);
+      }
+    }
+
+    function setDebugMode(enabled) {
+      state.debugMode = !!enabled;
+      ui.debugMode.checked = state.debugMode;
+      debugLog(state.debugMode ? "DEBUG_MODE_ON" : "DEBUG_MODE_OFF", { marbles: state.marbles.length }, true);
+    }
+
+    function downloadDebugLogs() {
+      const lines = state.debugLogLines.length ? state.debugLogLines : ["No debug logs captured."];
+      const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "marblerun-debug-" + Date.now() + ".log";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      debugLog("DEBUG_LOGS_DOWNLOADED", { count: lines.length }, true);
+    }
+
+    function debugPadEvent(m, pad, eventName, details = null, throttleSec = 0.08) {
+      const key = "dbg-" + eventName + "-" + pad.id;
+      if ((m.cooldown[key] || 0) > 0) {
+        return;
+      }
+      m.cooldown[key] = throttleSec;
+      debugLog("PAD_" + eventName.toUpperCase(), {
+        marble: m.id,
+        pad: (pad.padType || "pad") + ":" + pad.id.slice(-4),
+        details: details
+      });
+    }
+
+    function findPutObjectHereTarget(pad) {
+      if (pad && findPartById(pad.putObjectPartId) && pad.putObjectPartId !== pad.id) {
+        return findPartById(pad.putObjectPartId);
+      }
+
+      const chosen = findPartById(state.selectedPartId);
+      if (chosen && chosen.id !== pad.id) {
+        return chosen;
+      }
+
+      const padPose = state.partPoses.get(pad.id) || { x: pad.x, y: pad.y };
+      let best = null;
+      let bestDist = Infinity;
+      for (const part of state.parts) {
+        if (part.id === pad.id) {
+          continue;
+        }
+        const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
+        const d = distanceSq(padPose.x, padPose.y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          best = part;
+        }
+      }
+      for (const candidatePad of state.pads) {
+        if (candidatePad.id === pad.id) {
+          continue;
+        }
+        const pose = state.partPoses.get(candidatePad.id) || { x: candidatePad.x, y: candidatePad.y };
+        const d = distanceSq(padPose.x, padPose.y, pose.x, pose.y);
+        if (d < bestDist) {
+          bestDist = d;
+          best = candidatePad;
+        }
+      }
+      return best;
     }
 
     function normalizeShortcutString(value) {
@@ -2128,6 +2319,16 @@
     function importSceneData(data) {
       const safe = data || makeEmptySceneData();
       state.marbles = cloneData(safe.marbles || []);
+      let maxMarbleId = 0;
+      for (const marble of state.marbles) {
+        if (!Number.isInteger(marble.id) || marble.id <= 0) {
+          maxMarbleId += 1;
+          marble.id = maxMarbleId;
+        } else {
+          maxMarbleId = Math.max(maxMarbleId, marble.id);
+        }
+      }
+      state.nextMarbleId = Math.max(maxMarbleId + 1, 1);
       state.lineSegments = cloneData(safe.lineSegments || []);
       state.pegs = cloneData(safe.pegs || []);
       state.parts = cloneData(safe.parts || []);
@@ -2148,6 +2349,7 @@
       state.triggerJobs = [];
       state.selectedPartId = safe.selectedPartId || null;
       state.selectedLineIndex = Number.isInteger(safe.selectedLineIndex) ? safe.selectedLineIndex : -1;
+      state.selectedTriggerId = null;
       clearExtraSelection();
       if (!findPartById(state.selectedPartId)) {
         state.selectedPartId = null;
@@ -2308,7 +2510,8 @@
           spinSpeed: ui.spinSpeed.value,
           moveAngle: ui.moveAngle.value,
           phase: ui.phase.value,
-          maxMarblesSetting: ui.maxMarblesSetting.value
+          maxMarblesSetting: ui.maxMarblesSetting.value,
+          debugMode: state.debugMode ? "1" : "0"
         },
         shortcuts: cloneData(state.shortcuts),
         runs: state.runs.map((run) => ({
@@ -2338,9 +2541,19 @@
         const keys = Object.keys(payload.uiValues);
         for (const key of keys) {
           if (ui[key]) {
-            ui[key].value = payload.uiValues[key];
+            if (ui[key].type === "checkbox") {
+              const raw = payload.uiValues[key];
+              ui[key].checked = raw === true || raw === "1" || raw === "true";
+            } else {
+              ui[key].value = payload.uiValues[key];
+            }
           }
         }
+      }
+
+      if (payload.uiValues && Object.prototype.hasOwnProperty.call(payload.uiValues, "debugMode")) {
+        const raw = payload.uiValues.debugMode;
+        setDebugMode(raw === true || raw === "1" || raw === "true");
       }
 
       if (payload.shortcuts && typeof payload.shortcuts === "object") {
@@ -2465,6 +2678,7 @@
       }
       const r = Number(ui.marbleSize.value);
       state.marbles.push({
+        id: state.nextMarbleId,
         x,
         y,
         vx: speedX,
@@ -2475,6 +2689,13 @@
         triggerState: Object.create(null),
         cooldown: Object.create(null)
       });
+      debugLog("MARBLE_SPAWN", {
+        id: state.nextMarbleId,
+        x: x.toFixed(1),
+        y: y.toFixed(1),
+        vx: speedX.toFixed(1)
+      });
+      state.nextMarbleId += 1;
     }
 
     function addLine(x1, y1, x2, y2) {
@@ -2485,6 +2706,10 @@
       const seg = { x1, y1, x2, y2 };
       state.lineSegments.push(seg);
       rememberBuild("lineSegments", seg);
+      debugLog("LINE_ADDED", {
+        from: x1.toFixed(1) + "," + y1.toFixed(1),
+        to: x2.toFixed(1) + "," + y2.toFixed(1)
+      });
       return true;
     }
 
@@ -2493,6 +2718,7 @@
       const peg = { x, y, r };
       state.pegs.push(peg);
       rememberBuild("pegs", peg);
+      debugLog("PEG_ADDED", { x: x.toFixed(1), y: y.toFixed(1), r: r.toFixed(1) });
     }
 
     function addPegAsResizablePart(x, y, r = 9) {
@@ -2534,7 +2760,8 @@
         baseAngle: world.moveAngle,
         active: true,
         teleporterIndex: -1,
-        activationTriggerId: ""
+        activationTriggerId: "",
+        putObjectPartId: ""
       };
 
       if (part.motion === "spin") {
@@ -2543,6 +2770,9 @@
 
       if (part.padType) {
         part.active = true;
+        if (part.padType === "putobjecthere") {
+          part.putObjectPartId = state.selectedPartId || "";
+        }
       }
 
       normalizePartGeometry(part);
@@ -2564,6 +2794,13 @@
         state.parts.push(part);
         rememberBuild("parts", part);
       }
+      debugLog("PART_ADDED", {
+        id: part.id.slice(-4),
+        tool: part.tool,
+        x: part.x.toFixed(1),
+        y: part.y.toFixed(1),
+        padType: part.padType || "none"
+      });
       setSelectedPart(part.id);
       switchToEditMode();
       setMenuTab("selected");
@@ -2598,6 +2835,12 @@
       state.triggers.push(trigger);
       rememberBuild("triggers", trigger);
       rebuildTriggerLinkOptions();
+      debugLog("TRIGGER_ADDED", {
+        id: trigger.id.slice(-4),
+        action: trigger.action,
+        target: trigger.target,
+        rect: trigger.x.toFixed(1) + "," + trigger.y.toFixed(1) + " " + trigger.w.toFixed(1) + "x" + trigger.h.toFixed(1)
+      });
     }
 
     function findPartById(id) {
@@ -2761,6 +3004,11 @@
       normalizeTriggerConfig(trigger);
 
       rebuildTriggerLinkOptions();
+      debugLog("TRIGGER_UPDATED", {
+        id: trigger.id.slice(-4),
+        action: trigger.action,
+        target: trigger.target
+      });
       updateSelectionInfo();
     }
 
@@ -3153,8 +3401,10 @@
       }
       if (!findPartById(state.selectedPartId) && state.selectedLineIndex < 0) {
         setSelectedPart(null);
+        debugLog("UNDO_BUILD", { group: item.group, mode: "selection-reset" });
         return;
       }
+      debugLog("UNDO_BUILD", { group: item.group });
       updateSelectionInfo();
     }
 
@@ -3168,12 +3418,15 @@
         state.parts.length = 0;
         state.pads.length = 0;
         state.triggers.length = 0;
+        state.triggerJobs.length = 0;
         state.buildHistory.length = 0;
         state.selectedLineIndex = -1;
         setSelectedPart(null);
         rebuildTriggerLinkOptions();
+        debugLog("WORLD_CLEARED", { keepTracks: false });
         return;
       }
+      debugLog("WORLD_CLEARED", { keepTracks: true });
       updateSelectionInfo();
     }
 
@@ -3621,6 +3874,12 @@
       const movePart = findPartById(movePartId);
       if (movePart && Number.isFinite(trigger.sequenceMoveX) && Number.isFinite(trigger.sequenceMoveY)) {
         movePartToPosition(movePart, trigger.sequenceMoveX, trigger.sequenceMoveY);
+        debugLog("TRIGGER_SEQUENCE_MOVE", {
+          trigger: trigger.id.slice(-4),
+          part: movePart.id.slice(-4),
+          x: trigger.sequenceMoveX.toFixed(1),
+          y: trigger.sequenceMoveY.toFixed(1)
+        });
       }
 
       if (!Number.isFinite(trigger.sequenceTeleportX) || !Number.isFinite(trigger.sequenceTeleportY)) {
@@ -3633,6 +3892,12 @@
         teleportX: trigger.sequenceTeleportX,
         teleportY: trigger.sequenceTeleportY
       });
+      debugLog("TRIGGER_SEQUENCE_QUEUED", {
+        trigger: trigger.id.slice(-4),
+        wait: (trigger.sequenceWaitSec || 0).toFixed(2),
+        x: trigger.sequenceTeleportX.toFixed(1),
+        y: trigger.sequenceTeleportY.toFixed(1)
+      });
     }
 
     function processTriggerJobs(dt) {
@@ -3643,6 +3908,12 @@
           continue;
         }
         teleportAllMarblesTo(job.teleportX, job.teleportY);
+        debugLog("TRIGGER_SEQUENCE_TELEPORT", {
+          trigger: (job.triggerId || "").slice(-4),
+          marbles: state.marbles.length,
+          x: job.teleportX.toFixed(1),
+          y: job.teleportY.toFixed(1)
+        });
         state.triggerJobs.splice(i, 1);
       }
     }
@@ -3691,6 +3962,11 @@
 
     function fireTrigger(trigger) {
       normalizeTriggerConfig(trigger);
+      debugLog("TRIGGER_FIRED", {
+        id: trigger.id.slice(-4),
+        action: trigger.action,
+        target: trigger.target
+      });
       if (trigger.action === "sequence") {
         queueTriggerSequence(trigger);
       } else {
@@ -3713,6 +3989,7 @@
         const inside = m.x >= trigger.x && m.x <= trigger.x + trigger.w && m.y >= trigger.y && m.y <= trigger.y + trigger.h;
         const wasInside = !!m.triggerState[trigger.id];
         if (inside && !wasInside) {
+          debugLog("TRIGGER_ENTER", { marble: m.id, trigger: trigger.id.slice(-4) });
           fireTrigger(trigger);
         }
         m.triggerState[trigger.id] = inside;
@@ -3777,6 +4054,7 @@
             state.score += 1;
             m.cooldown.goal = 0.2;
             m.y = -100;
+            debugPadEvent(m, pad, "goal", { score: state.score }, 0.2);
           }
           continue;
         }
@@ -3785,6 +4063,7 @@
           if ((m.cooldown.hazard || 0) <= 0) {
             m.cooldown.hazard = 0.2;
             m.y = world.height + 200;
+            debugPadEvent(m, pad, "hazard", { y: m.y.toFixed(1) }, 0.2);
           }
           continue;
         }
@@ -3794,6 +4073,7 @@
           const a = pad.baseAngle;
           m.vx += Math.cos(a) * boostMag * dt;
           m.vy += Math.sin(a) * boostMag * dt;
+          debugPadEvent(m, pad, "boost", { vx: m.vx.toFixed(1), vy: m.vy.toFixed(1) }, 0.12);
           continue;
         }
 
@@ -3801,6 +4081,7 @@
           if ((m.cooldown.spring || 0) <= 0) {
             m.vy = Math.min(m.vy, -340);
             m.cooldown.spring = 0.1;
+            debugPadEvent(m, pad, "spring", { vy: m.vy.toFixed(1) }, 0.1);
           }
           continue;
         }
@@ -3809,6 +4090,7 @@
           const drag = Math.max(0, 1 - dt * 6.5);
           m.vx *= drag;
           m.vy *= drag;
+          debugPadEvent(m, pad, "sticky", { vx: m.vx.toFixed(1), vy: m.vy.toFixed(1) }, 0.15);
           continue;
         }
 
@@ -3817,11 +4099,34 @@
             m.vx += (Math.random() - 0.5) * 480;
             m.vy += (Math.random() - 0.5) * 420;
             m.cooldown.chaos = 0.12;
+            debugPadEvent(m, pad, "chaos", { vx: m.vx.toFixed(1), vy: m.vy.toFixed(1) }, 0.12);
           }
           continue;
         }
 
         if (pad.padType === "spawn") {
+          debugPadEvent(m, pad, "spawn_touch", null, 0.25);
+          continue;
+        }
+
+        if (pad.padType === "putobjecthere") {
+          if ((m.cooldown.putobjecthere || 0) > 0) {
+            continue;
+          }
+          const target = findPutObjectHereTarget(pad);
+          if (target) {
+            const lift = getPartMaxExtent(target) * 0.6;
+            movePartToPosition(target, pose.x, pose.y - lift);
+            pad.putObjectPartId = target.id;
+            debugPadEvent(m, pad, "putobjecthere", {
+              object: target.id.slice(-4),
+              x: pose.x.toFixed(1),
+              y: (pose.y - lift).toFixed(1)
+            }, 0.2);
+          } else {
+            debugPadEvent(m, pad, "putobjecthere_none", null, 0.25);
+          }
+          m.cooldown.putobjecthere = 0.2;
           continue;
         }
 
@@ -3836,6 +4141,7 @@
           m.x = destination.x;
           m.y = destination.y;
           m.cooldown.teleport = 0.4;
+          debugPadEvent(m, pad, "teleport", { x: m.x.toFixed(1), y: m.y.toFixed(1) }, 0.2);
         }
       }
     }
@@ -4632,6 +4938,20 @@
 
         processTriggerJobs(subDt);
 
+        if (state.debugMode) {
+          state.debugStepAccumulator -= subDt;
+          if (state.debugStepAccumulator <= 0) {
+            debugLog("STEP", {
+              marbles: state.marbles.length,
+              parts: state.parts.length,
+              pads: state.pads.length,
+              triggers: state.triggers.length,
+              triggerJobs: state.triggerJobs.length
+            });
+            state.debugStepAccumulator = 0.2;
+          }
+        }
+
         for (const trigger of state.triggers) {
           if (trigger.flash > 0) {
             trigger.flash = Math.max(0, trigger.flash - subDt);
@@ -4663,6 +4983,10 @@
           handleTriggerZones(m);
 
           if (m.y > world.height + 180 || m.y < -220) {
+            debugLog("MARBLE_REMOVED", {
+              id: m.id,
+              y: m.y.toFixed(1)
+            });
             state.marbles.splice(i, 1);
           }
         }
@@ -4779,6 +5103,9 @@
       }
       if (part.padType === "spawn") {
         return "#7de0ff";
+      }
+      if (part.padType === "putobjecthere") {
+        return "#f9b85c";
       }
 
       if (part.motion === "smooth") {
@@ -5699,6 +6026,18 @@
     ui.shortcutPause.addEventListener("change", readShortcutInputs);
     ui.shortcutDelete.addEventListener("change", readShortcutInputs);
 
+    ui.debugMode.addEventListener("change", () => {
+      setDebugMode(ui.debugMode.checked);
+    });
+
+    ui.clearDebugLogs.addEventListener("click", () => {
+      clearDebugLogs();
+    });
+
+    ui.downloadDebugLogs.addEventListener("click", () => {
+      downloadDebugLogs();
+    });
+
     ui.spawn.addEventListener("click", () => {
       spawnMarble(null, null, 24);
     });
@@ -6071,6 +6410,8 @@
     initSliderVisuals();
     updateUiValueLabels();
     refreshShortcutInputs();
+    clearDebugLogs();
+    setDebugMode(false);
     setViewScale(1);
     applyTheme();
     applyAnimationPreference();
