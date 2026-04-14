@@ -110,11 +110,19 @@
       gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      align-items: center;
     }
 
     .top-actions button {
       width: auto;
       min-width: 92px;
+    }
+
+    .zoom-chip {
+      min-width: 70px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      text-align: center;
     }
 
     .app {
@@ -140,10 +148,43 @@
       backdrop-filter: blur(8px);
     }
 
+    .panel::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    .panel::-webkit-scrollbar-track {
+      background: rgba(226, 215, 194, 0.42);
+      border-radius: 999px;
+    }
+
+    .panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #d6a76e, #bd8454);
+      border-radius: 999px;
+      border: 2px solid rgba(255, 246, 231, 0.9);
+    }
+
+    .panel {
+      scrollbar-width: thin;
+      scrollbar-color: #c79361 rgba(226, 215, 194, 0.42);
+    }
+
     body.dark .panel {
       background: linear-gradient(180deg, rgba(24, 34, 42, 0.96), rgba(18, 27, 35, 0.96));
       border-color: #2f3d4a;
       box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    }
+
+    body.dark .panel::-webkit-scrollbar-track {
+      background: rgba(35, 48, 61, 0.7);
+    }
+
+    body.dark .panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #2cb2bf, #1f8994);
+      border-color: rgba(14, 24, 31, 0.92);
+    }
+
+    body.dark .panel {
+      scrollbar-color: #29a9b6 rgba(35, 48, 61, 0.7);
     }
 
     h1 {
@@ -228,6 +269,140 @@
 
     input[type="range"] {
       accent-color: #0d8b96;
+      appearance: none;
+      height: 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 117, 96, 0.5);
+      background: linear-gradient(90deg, rgba(13, 139, 150, 0.95) 0%, rgba(13, 139, 150, 0.95) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) 100%);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(15, 61, 68, 0.9);
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(15, 61, 68, 0.9);
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    body.dark input[type="range"] {
+      border-color: rgba(94, 119, 142, 0.6);
+      background: linear-gradient(90deg, rgba(36, 187, 202, 0.95) 0%, rgba(36, 187, 202, 0.95) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) 100%);
+    }
+
+    body.dark input[type="range"]::-webkit-slider-thumb,
+    body.dark input[type="range"]::-moz-range-thumb {
+      border-color: rgba(51, 171, 183, 0.95);
+      background: #d8f8fb;
+    }
+
+    .range-preview {
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(160, 142, 112, 0.58);
+      background: rgba(255, 248, 232, 0.78);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .range-preview-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f6b55d 0%, #e66d4f 38%, #0d8b96 100%);
+      transition: width 120ms ease;
+    }
+
+    .range-preview-value {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.68rem;
+      color: rgba(34, 40, 46, 0.84);
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    body.dark .range-preview {
+      border-color: rgba(75, 97, 121, 0.72);
+      background: rgba(20, 31, 39, 0.88);
+    }
+
+    body.dark .range-preview-fill {
+      background: linear-gradient(90deg, #1ea9b7 0%, #37d0de 48%, #9ef7ff 100%);
+    }
+
+    body.dark .range-preview-value {
+      color: rgba(214, 241, 247, 0.9);
+      text-shadow: none;
+    }
+
+    .tool-selects {
+      display: none;
+    }
+
+    .tool-category-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .tool-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .tool-chip {
+      border: 1px solid rgba(170, 152, 125, 0.6);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 8px;
+      font-size: 0.76rem;
+      line-height: 1.2;
+      font-weight: 600;
+      display: grid;
+      gap: 3px;
+      min-height: 54px;
+      text-align: left;
+    }
+
+    .tool-chip .chip-icon {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.7rem;
+      opacity: 0.86;
+      letter-spacing: 0.04em;
+    }
+
+    .tool-chip.active {
+      border-color: #0d8b96;
+      box-shadow: 0 0 0 2px rgba(13, 139, 150, 0.2) inset;
+      background: linear-gradient(180deg, #fff4e0, #ffead3);
+    }
+
+    body.dark .tool-chip {
+      border-color: rgba(72, 93, 112, 0.8);
+      background: rgba(23, 34, 44, 0.95);
+    }
+
+    body.dark .tool-chip.active {
+      border-color: #2cb2bf;
+      box-shadow: 0 0 0 2px rgba(44, 178, 191, 0.26) inset;
+      background: linear-gradient(180deg, #1d3d49, #17323c);
     }
 
     select,
@@ -345,6 +520,21 @@
       background: rgba(20, 31, 39, 0.86);
     }
 
+    body.animations-off *,
+    body.animations-off *::before,
+    body.animations-off *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+
+    body.menu-collapsed .app {
+      grid-template-columns: 1fr;
+    }
+
+    body.menu-collapsed .panel {
+      display: none;
+    }
+
     @media (max-width: 1080px) {
       .app {
         grid-template-columns: 1fr;
@@ -366,6 +556,11 @@
     <div class="tabs" id="runTabs"></div>
     <div class="top-actions">
       <button id="newRunTab">New Tab</button>
+      <button id="toggleAnimations">Animations: On</button>
+      <button id="zoomOut">Zoom -</button>
+      <button id="zoomReset" class="zoom-chip">100%</button>
+      <button id="zoomIn">Zoom +</button>
+      <button id="menuToggle">Hide Menu</button>
       <button id="saveMbr">Save .mbr</button>
       <button id="loadMbr">Load .mbr</button>
       <button id="themeToggle">Light Mode</button>
@@ -383,8 +578,7 @@
       <div class="controls">
         <div class="group">
           <div class="group-title">Build Tool</div>
-          <div class="row">
-            <label for="toolCategory">Tool Menu</label>
+          <div class="tool-selects">
             <select id="toolCategory">
               <option value="draw">Draw Tools</option>
               <option value="static">Static Parts</option>
@@ -393,11 +587,10 @@
               <option value="pads">Pads</option>
               <option value="edit">Edit</option>
             </select>
-          </div>
-          <div class="row">
-            <label for="tool">Part Type</label>
             <select id="tool"></select>
           </div>
+          <div id="toolCategoryButtons" class="tool-category-buttons"></div>
+          <div id="toolButtons" class="tool-buttons"></div>
           <canvas id="toolPreview" width="300" height="90"></canvas>
         </div>
 
@@ -515,6 +708,14 @@
               <label for="selectedSize">Size</label>
               <input id="selectedSize" type="number" step="1" />
             </div>
+            <div class="row">
+              <label for="selectedWidth">Width</label>
+              <input id="selectedWidth" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedHeight">Height</label>
+              <input id="selectedHeight" type="number" step="1" />
+            </div>
           </div>
           <button id="updateSelectedFromMenu">Update Selected Item</button>
         </div>
@@ -551,11 +752,12 @@
         <button id="clearMarbles">Clear Marbles</button>
         <button id="clearTracks">Clear All Parts</button>
         <button id="undo">Undo Build</button>
+        <button id="chaosPack">Chaos Pack</button>
         <button class="wide" id="demo">Reset Demo Course</button>
       </div>
 
       <div class="tip" id="selectionInfo">Selected item: none</div>
-      <div class="tip">Click any item or line to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, drag line endpoints to reshape tracks, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
+      <div class="tip">Click any item or line to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, drag line endpoints to reshape tracks, and use the 8 resize handles to scale in any direction. Hold Alt while building to place on top of an existing item.</div>
     </aside>
 
     <section class="canvas-shell">
@@ -578,12 +780,19 @@
     const ui = {
       runTabs: document.getElementById("runTabs"),
       newRunTab: document.getElementById("newRunTab"),
+      toggleAnimations: document.getElementById("toggleAnimations"),
+      zoomOut: document.getElementById("zoomOut"),
+      zoomReset: document.getElementById("zoomReset"),
+      zoomIn: document.getElementById("zoomIn"),
+      menuToggle: document.getElementById("menuToggle"),
       saveMbr: document.getElementById("saveMbr"),
       loadMbr: document.getElementById("loadMbr"),
       loadMbrInput: document.getElementById("loadMbrInput"),
       themeToggle: document.getElementById("themeToggle"),
       toolCategory: document.getElementById("toolCategory"),
       tool: document.getElementById("tool"),
+      toolCategoryButtons: document.getElementById("toolCategoryButtons"),
+      toolButtons: document.getElementById("toolButtons"),
       gravity: document.getElementById("gravity"),
       bounce: document.getElementById("bounce"),
       friction: document.getElementById("friction"),
@@ -611,6 +820,8 @@
       selectedToY: document.getElementById("selectedToY"),
       selectedAngle: document.getElementById("selectedAngle"),
       selectedSize: document.getElementById("selectedSize"),
+      selectedWidth: document.getElementById("selectedWidth"),
+      selectedHeight: document.getElementById("selectedHeight"),
       updateSelectedFromMenu: document.getElementById("updateSelectedFromMenu"),
       selectionInfo: document.getElementById("selectionInfo"),
       gravityVal: document.getElementById("gravityVal"),
@@ -633,6 +844,7 @@
       clearMarbles: document.getElementById("clearMarbles"),
       clearTracks: document.getElementById("clearTracks"),
       undo: document.getElementById("undo"),
+      chaosPack: document.getElementById("chaosPack"),
       demo: document.getElementById("demo")
     };
 
@@ -686,7 +898,10 @@
       runs: [],
       activeRunIndex: -1,
       nextRunId: 1,
-      darkMode: true
+      darkMode: true,
+      animationsEnabled: true,
+      viewScale: 1,
+      menuCollapsed: false
     };
 
     const TOOL_PRESETS = {
@@ -711,7 +926,10 @@
       goal: { shape: "padSquare", motion: "static", padType: "goal" },
       teleport: { shape: "padSquare", motion: "static", padType: "teleport" },
       boost: { shape: "padSquare", motion: "static", padType: "boost" },
-      hazard: { shape: "padSquare", motion: "static", padType: "hazard" }
+      hazard: { shape: "padSquare", motion: "static", padType: "hazard" },
+      spring: { shape: "padSquare", motion: "static", padType: "spring" },
+      sticky: { shape: "padSquare", motion: "static", padType: "sticky" },
+      chaos: { shape: "padSquare", motion: "static", padType: "chaos" }
     };
 
     const TOOL_MENU_GROUPS = [
@@ -762,7 +980,10 @@
           ["goal", "Goal"],
           ["teleport", "Teleport Pad"],
           ["boost", "Boost Pad"],
-          ["hazard", "Hazard"]
+          ["hazard", "Hazard"],
+          ["spring", "Spring Pad"],
+          ["sticky", "Sticky Pad"],
+          ["chaos", "Chaos Pad"]
         ]
       },
       {
@@ -777,6 +998,47 @@
         TOOL_TO_MENU[toolEntry[0]] = group.id;
       }
     }
+
+    const TOOL_CATEGORY_META = {
+      draw: { name: "Draw", icon: "DRAW" },
+      static: { name: "Static", icon: "BASE" },
+      move: { name: "Move", icon: "PATH" },
+      spin: { name: "Spin", icon: "SPIN" },
+      pads: { name: "Pads", icon: "PADS" },
+      edit: { name: "Edit", icon: "EDIT" }
+    };
+
+    const TOOL_ICON_MAP = {
+      line: "LINE",
+      peg: "PEG",
+      trigger: "TRG",
+      block: "BLK",
+      circle: "CIR",
+      wedge: "WDG",
+      curveLarge: "CVL",
+      curveSmall: "CVS",
+      sMoveBlock: "SMB",
+      sMoveCircle: "SMC",
+      sMoveWedge: "SMW",
+      lMoveBlock: "LMB",
+      lMoveCircle: "LMC",
+      lMoveWedge: "LMW",
+      wMoveBlock: "WMB",
+      wMoveCircle: "WMC",
+      wMoveWedge: "WMW",
+      spinBlock: "SPB",
+      spinCircle: "SPC",
+      spinWedge: "SPW",
+      spinGear: "GEAR",
+      goal: "GOAL",
+      teleport: "TELE",
+      boost: "BST",
+      hazard: "HAZ",
+      spring: "JMP",
+      sticky: "STK",
+      chaos: "RND",
+      select: "SEL"
+    };
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -823,12 +1085,48 @@
         };
       }
 
-      const offset = Math.max(80, part.size * 1.4);
+      const offset = Math.max(80, getPartMaxExtent(part) * 1.4);
       const fallback = {
         x: part.x,
         y: part.y - offset
       };
       return fallback;
+    }
+
+    function renderToolCategoryButtons() {
+      ui.toolCategoryButtons.innerHTML = "";
+      for (const group of TOOL_MENU_GROUPS) {
+        const meta = TOOL_CATEGORY_META[group.id] || { name: group.id, icon: group.id.toUpperCase() };
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tool-chip" + (group.id === ui.toolCategory.value ? " active" : "");
+        btn.innerHTML = '<span class="chip-icon">' + meta.icon + '</span><span>' + meta.name + '</span>';
+        btn.addEventListener("click", () => {
+          ui.toolCategory.value = group.id;
+          rebuildToolOptions();
+          drawToolPreview();
+        });
+        ui.toolCategoryButtons.appendChild(btn);
+      }
+    }
+
+    function renderToolButtons() {
+      ui.toolButtons.innerHTML = "";
+      const group = TOOL_MENU_GROUPS.find((entry) => entry.id === ui.toolCategory.value) || TOOL_MENU_GROUPS[0];
+      for (const [toolValue, label] of group.tools) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tool-chip" + (toolValue === ui.tool.value ? " active" : "");
+        btn.innerHTML = '<span class="chip-icon">' + (TOOL_ICON_MAP[toolValue] || "PART") + '</span><span>' + label + '</span>';
+        btn.addEventListener("click", () => {
+          ui.tool.value = toolValue;
+          syncToolMenuFromTool();
+          renderToolCategoryButtons();
+          renderToolButtons();
+          drawToolPreview();
+        });
+        ui.toolButtons.appendChild(btn);
+      }
     }
 
     function rebuildToolOptions(preferredTool = null) {
@@ -848,6 +1146,9 @@
       } else {
         ui.tool.value = currentGroup.tools[0][0];
       }
+
+      renderToolCategoryButtons();
+      renderToolButtons();
     }
 
     function syncToolMenuFromTool() {
@@ -855,6 +1156,8 @@
       if (ui.toolCategory.value !== menuId) {
         ui.toolCategory.value = menuId;
       }
+      renderToolCategoryButtons();
+      renderToolButtons();
     }
 
     function getSelectedLine() {
@@ -936,6 +1239,98 @@
       return Number.isFinite(v) ? v : fallback;
     }
 
+    function parseOptionalNum(input) {
+      const v = Number(input.value);
+      return Number.isFinite(v) ? v : null;
+    }
+
+    function getPartDimensions(part) {
+      const base = Number.isFinite(part.size) ? part.size : world.partSize;
+      const w = Number.isFinite(part.sizeX) ? part.sizeX : base;
+      const h = Number.isFinite(part.sizeY) ? part.sizeY : base;
+      return { w, h };
+    }
+
+    function setPartDimensions(part, width, height) {
+      part.sizeX = clamp(width, 12, 360);
+      part.sizeY = clamp(height, 12, 360);
+      part.size = (part.sizeX + part.sizeY) * 0.5;
+    }
+
+    function getPartMaxExtent(part) {
+      const dims = getPartDimensions(part);
+      return Math.max(dims.w, dims.h);
+    }
+
+    function normalizePartGeometry(part) {
+      if (!part) {
+        return;
+      }
+      const base = Number.isFinite(part.size) ? part.size : world.partSize;
+      setPartDimensions(part, Number.isFinite(part.sizeX) ? part.sizeX : base, Number.isFinite(part.sizeY) ? part.sizeY : base);
+      part.baseAngle = Number.isFinite(part.baseAngle) ? normalizeAngle(part.baseAngle) : 0;
+    }
+
+    function updateRangePreviews() {
+      const ranges = document.querySelectorAll('input[type="range"]');
+      for (const input of ranges) {
+        const min = Number(input.min || 0);
+        const max = Number(input.max || 100);
+        const value = Number(input.value || min);
+        const span = Math.max(0.00001, max - min);
+        const pct = clamp(((value - min) / span) * 100, 0, 100);
+        input.style.setProperty("--range-pct", pct.toFixed(2) + "%");
+
+        let preview = input.nextElementSibling;
+        if (!preview || !preview.classList.contains("range-preview")) {
+          preview = document.createElement("div");
+          preview.className = "range-preview";
+          preview.innerHTML = '<div class="range-preview-fill"></div><div class="range-preview-value"></div>';
+          input.parentElement.appendChild(preview);
+        }
+
+        const fill = preview.querySelector(".range-preview-fill");
+        const valueLabel = preview.querySelector(".range-preview-value");
+        fill.style.width = pct.toFixed(2) + "%";
+        valueLabel.textContent = value.toFixed(input.step && String(input.step).includes(".") ? 2 : 0);
+      }
+    }
+
+    function setViewScale(nextScale) {
+      state.viewScale = clamp(nextScale, 0.4, 2.8);
+      ui.zoomReset.textContent = Math.round(state.viewScale * 100) + "%";
+    }
+
+    function screenToWorldPoint(x, y) {
+      const cx = world.width * 0.5;
+      const cy = world.height * 0.5;
+      return {
+        x: (x - cx) / state.viewScale + cx,
+        y: (y - cy) / state.viewScale + cy
+      };
+    }
+
+    function applyViewTransform(drawCtx) {
+      const cx = world.width * 0.5;
+      const cy = world.height * 0.5;
+      drawCtx.translate(cx, cy);
+      drawCtx.scale(state.viewScale, state.viewScale);
+      drawCtx.translate(-cx, -cy);
+    }
+
+    function applyAnimationPreference() {
+      document.body.classList.toggle("animations-off", !state.animationsEnabled);
+      ui.toggleAnimations.textContent = state.animationsEnabled ? "Animations: On" : "Animations: Off";
+    }
+
+    function applyMenuVisibility() {
+      document.body.classList.toggle("menu-collapsed", state.menuCollapsed);
+      ui.menuToggle.textContent = state.menuCollapsed ? "Show Menu" : "Hide Menu";
+      setTimeout(() => {
+        resizeCanvas();
+      }, 0);
+    }
+
     function isTypingTarget(target) {
       if (!target) {
         return false;
@@ -987,6 +1382,12 @@
       state.pegs = cloneData(safe.pegs || []);
       state.parts = cloneData(safe.parts || []);
       state.pads = cloneData(safe.pads || []);
+      for (const part of state.parts) {
+        normalizePartGeometry(part);
+      }
+      for (const pad of state.pads) {
+        normalizePartGeometry(pad);
+      }
       state.triggers = cloneData(safe.triggers || []);
       state.buildHistory = cloneData(safe.buildHistory || []);
       state.score = Number.isFinite(safe.score) ? safe.score : 0;
@@ -1201,6 +1602,7 @@
       ui.spinSpeedVal.textContent = world.spinSpeed.toFixed(1) + " rad/s";
       ui.moveAngleVal.textContent = Number(ui.moveAngle.value).toFixed(0) + " deg";
       ui.phaseVal.textContent = Number(ui.phase.value).toFixed(0) + " deg";
+      updateRangePreviews();
     }
 
     function rememberBuild(group, ref) {
@@ -1258,6 +1660,8 @@
         motion: preset.motion,
         padType: preset.padType || null,
         size: world.partSize,
+        sizeX: world.partSize,
+        sizeY: world.partSize,
         moveDistance: world.moveDistance,
         moveSpeed: world.moveSpeed,
         spinSpeed: world.spinSpeed,
@@ -1277,6 +1681,7 @@
         part.active = true;
       }
 
+      normalizePartGeometry(part);
       syncPartPathFromCenter(part);
 
       return part;
@@ -1387,6 +1792,8 @@
         ui.selectedToY.value = "";
         ui.selectedAngle.value = "";
         ui.selectedSize.value = "";
+        ui.selectedWidth.value = "";
+        ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
@@ -1396,6 +1803,8 @@
         ui.selectedToY.disabled = true;
         ui.selectedAngle.disabled = true;
         ui.selectedSize.disabled = true;
+        ui.selectedWidth.disabled = true;
+        ui.selectedHeight.disabled = true;
         ui.movingTriggerLink.disabled = true;
         ui.movingTriggerLink.value = "";
         ui.updateSelectedFromMenu.disabled = true;
@@ -1415,6 +1824,8 @@
         ui.selectedToY.value = formatNum(selectedLine.y2);
         ui.selectedAngle.value = (Math.atan2(selectedLine.y2 - selectedLine.y1, selectedLine.x2 - selectedLine.x1) * (180 / Math.PI)).toFixed(1);
         ui.selectedSize.value = "";
+        ui.selectedWidth.value = "";
+        ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
@@ -1424,6 +1835,8 @@
         ui.selectedToY.disabled = false;
         ui.selectedAngle.disabled = true;
         ui.selectedSize.disabled = true;
+        ui.selectedWidth.disabled = true;
+        ui.selectedHeight.disabled = true;
         ui.movingTriggerLink.disabled = true;
         ui.movingTriggerLink.value = "";
         ui.updateSelectedFromMenu.disabled = false;
@@ -1431,6 +1844,8 @@
       }
 
       ensurePartPathEndpoints(part);
+      normalizePartGeometry(part);
+      const dims = getPartDimensions(part);
       const tpTarget = isTeleportPad(part) ? ensureTeleportTarget(part) : null;
 
       ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
@@ -1450,10 +1865,14 @@
       }
       ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
       ui.selectedSize.value = formatNum(part.size);
+      ui.selectedWidth.value = formatNum(dims.w);
+      ui.selectedHeight.value = formatNum(dims.h);
       ui.selectedX.disabled = isPathMover(part);
       ui.selectedY.disabled = isPathMover(part);
       ui.selectedAngle.disabled = false;
       ui.selectedSize.disabled = false;
+      ui.selectedWidth.disabled = false;
+      ui.selectedHeight.disabled = false;
       ui.updateSelectedFromMenu.disabled = false;
 
       const isTp = isTeleportPad(part);
@@ -1497,7 +1916,13 @@
       }
 
       part.baseAngle = parseNum(ui.selectedAngle, part.baseAngle * (180 / Math.PI)) * (Math.PI / 180);
-      part.size = clamp(parseNum(ui.selectedSize, part.size), 12, 260);
+      const fallbackDims = getPartDimensions(part);
+      const baseSizeVal = parseOptionalNum(ui.selectedSize);
+      const widthVal = parseOptionalNum(ui.selectedWidth);
+      const heightVal = parseOptionalNum(ui.selectedHeight);
+      const nextWidth = widthVal == null ? (baseSizeVal == null ? fallbackDims.w : baseSizeVal) : widthVal;
+      const nextHeight = heightVal == null ? (baseSizeVal == null ? fallbackDims.h : baseSizeVal) : heightVal;
+      setPartDimensions(part, nextWidth, nextHeight);
       part.active = ui.selectedActive.value !== "off";
       if (part.motion !== "static" && !part.padType) {
         part.activationTriggerId = ui.movingTriggerLink.value;
@@ -1549,7 +1974,8 @@
         return;
       }
       ensurePartPathEndpoints(part);
-      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + part.size.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
+      const dims = getPartDimensions(part);
+      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + dims.w.toFixed(0) + "x" + dims.h.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
       syncSelectedEditorFromPart();
     }
 
@@ -1557,7 +1983,7 @@
       if (!part || part.padType) {
         return;
       }
-      part.size = world.partSize;
+      setPartDimensions(part, world.partSize, world.partSize);
       part.moveDistance = world.moveDistance;
       part.moveSpeed = world.moveSpeed;
       part.spinSpeed = world.spinSpeed;
@@ -1647,6 +2073,10 @@
       let omega = 0;
 
       if (!part.active) {
+        return { x, y, angle, vx, vy, omega };
+      }
+
+      if (!state.animationsEnabled && part.motion !== "static") {
         return { x, y, angle, vx, vy, omega };
       }
 
@@ -1745,10 +2175,25 @@
     }
 
     function buildPartColliders(part, pose) {
+      const dims = getPartDimensions(part);
+      const width = dims.w;
+      const height = dims.h;
       const size = part.size;
 
       if (part.shape === "circle") {
-        pushCircle({ x: pose.x, y: pose.y, r: size * 0.5 }, pose.vx, pose.vy, pose.omega, pose.x, pose.y);
+        const rx = width * 0.5;
+        const ry = height * 0.5;
+        const steps = 18;
+        let prev = worldPoint(pose, rx, 0);
+        for (let i = 1; i <= steps; i += 1) {
+          const a = (i / steps) * TAU;
+          const next = worldPoint(pose, Math.cos(a) * rx, Math.sin(a) * ry);
+          const midX = (prev.x + next.x) * 0.5;
+          const midY = (prev.y + next.y) * 0.5;
+          const vel = localVelocityToWorld(pose, midX, midY);
+          pushSegment({ x1: prev.x, y1: prev.y, x2: next.x, y2: next.y }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
+          prev = next;
+        }
         return;
       }
 
@@ -1767,11 +2212,12 @@
       }
 
       if (part.shape === "block" || part.shape === "padSquare") {
-        const h = size * 0.5;
-        const a = worldPoint(pose, -h, -h);
-        const b = worldPoint(pose, h, -h);
-        const c = worldPoint(pose, h, h);
-        const d = worldPoint(pose, -h, h);
+        const hw = width * 0.5;
+        const hh = height * 0.5;
+        const a = worldPoint(pose, -hw, -hh);
+        const b = worldPoint(pose, hw, -hh);
+        const c = worldPoint(pose, hw, hh);
+        const d = worldPoint(pose, -hw, hh);
         const vA = localVelocityToWorld(pose, a.x, a.y);
         const vB = localVelocityToWorld(pose, b.x, b.y);
         const vC = localVelocityToWorld(pose, c.x, c.y);
@@ -1784,10 +2230,11 @@
       }
 
       if (part.shape === "wedge") {
-        const h = size * 0.5;
-        const a = worldPoint(pose, -h, -h);
-        const b = worldPoint(pose, h, h);
-        const c = worldPoint(pose, -h, h);
+        const hw = width * 0.5;
+        const hh = height * 0.5;
+        const a = worldPoint(pose, -hw, -hh);
+        const b = worldPoint(pose, hw, hh);
+        const c = worldPoint(pose, -hw, hh);
         const vA = localVelocityToWorld(pose, a.x, a.y);
         const vB = localVelocityToWorld(pose, b.x, b.y);
         const vC = localVelocityToWorld(pose, c.x, c.y);
@@ -1798,14 +2245,15 @@
       }
 
       if (part.shape === "curveLarge" || part.shape === "curveSmall") {
-        const radius = part.shape === "curveLarge" ? size * 0.7 : size * 0.45;
-        const thickness = size * 0.22;
+        const radiusX = part.shape === "curveLarge" ? width * 0.7 : width * 0.45;
+        const radiusY = part.shape === "curveLarge" ? height * 0.7 : height * 0.45;
+        const thickness = Math.max(8, Math.min(width, height) * 0.22);
         const steps = 10;
         for (let i = 0; i <= steps; i += 1) {
           const t = i / steps;
           const a = pose.angle + t * (Math.PI * 0.5);
-          const x = pose.x + Math.cos(a) * radius;
-          const y = pose.y + Math.sin(a) * radius;
+          const x = pose.x + Math.cos(a) * radiusX;
+          const y = pose.y + Math.sin(a) * radiusY;
           const vel = localVelocityToWorld(pose, x, y);
           pushCircle({ x, y, r: thickness * 0.45 }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
         }
@@ -2098,7 +2546,7 @@
       }
       return {
         x: targetPose.x,
-        y: targetPose.y - pad.size * 0.6
+        y: targetPose.y - getPartMaxExtent(pad) * 0.6
       };
     }
 
@@ -2112,8 +2560,10 @@
         if (!pose) {
           continue;
         }
-        const half = pad.size * 0.5;
-        if (Math.abs(m.x - pose.x) > half + m.r || Math.abs(m.y - pose.y) > half + m.r) {
+        const dims = getPartDimensions(pad);
+        const halfW = dims.w * 0.5;
+        const halfH = dims.h * 0.5;
+        if (Math.abs(m.x - pose.x) > halfW + m.r || Math.abs(m.y - pose.y) > halfH + m.r) {
           continue;
         }
 
@@ -2139,6 +2589,30 @@
           const a = pad.baseAngle;
           m.vx += Math.cos(a) * boostMag * dt;
           m.vy += Math.sin(a) * boostMag * dt;
+          continue;
+        }
+
+        if (pad.padType === "spring") {
+          if ((m.cooldown.spring || 0) <= 0) {
+            m.vy = Math.min(m.vy, -340);
+            m.cooldown.spring = 0.1;
+          }
+          continue;
+        }
+
+        if (pad.padType === "sticky") {
+          const drag = Math.max(0, 1 - dt * 6.5);
+          m.vx *= drag;
+          m.vy *= drag;
+          continue;
+        }
+
+        if (pad.padType === "chaos") {
+          if ((m.cooldown.chaos || 0) <= 0) {
+            m.vx += (Math.random() - 0.5) * 480;
+            m.vy += (Math.random() - 0.5) * 420;
+            m.cooldown.chaos = 0.12;
+          }
           continue;
         }
 
@@ -2194,9 +2668,12 @@
 
     function getPointerPosition(evt) {
       const rect = canvas.getBoundingClientRect();
+      const screenX = evt.clientX - rect.left;
+      const screenY = evt.clientY - rect.top;
+      const worldPoint = screenToWorldPoint(screenX, screenY);
       return {
-        x: evt.clientX - rect.left,
-        y: evt.clientY - rect.top
+        x: worldPoint.x,
+        y: worldPoint.y
       };
     }
 
@@ -2328,16 +2805,52 @@
       return !!target && distanceSq(x, y, target.x, target.y) <= 13 * 13;
     }
 
+    function getResizeHandlesForPart(part, pose) {
+      const dims = getPartDimensions(part);
+      const hw = dims.w * 0.5;
+      const hh = dims.h * 0.5;
+      const offset = 10;
+      return [
+        { name: "nw", x: pose.x - hw - offset, y: pose.y - hh - offset },
+        { name: "n", x: pose.x, y: pose.y - hh - offset },
+        { name: "ne", x: pose.x + hw + offset, y: pose.y - hh - offset },
+        { name: "e", x: pose.x + hw + offset, y: pose.y },
+        { name: "se", x: pose.x + hw + offset, y: pose.y + hh + offset },
+        { name: "s", x: pose.x, y: pose.y + hh + offset },
+        { name: "sw", x: pose.x - hw - offset, y: pose.y + hh + offset },
+        { name: "w", x: pose.x - hw - offset, y: pose.y }
+      ];
+    }
+
     function getSelectedResizeHandleAt(x, y) {
       const part = findPartById(state.selectedPartId);
       if (!part) {
-        return false;
+        return null;
       }
       rebuildColliderCache();
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-      const hx = pose.x + part.size * 0.62;
-      const hy = pose.y - part.size * 0.62;
-      return distanceSq(x, y, hx, hy) <= 13 * 13;
+      const handles = getResizeHandlesForPart(part, pose);
+      for (const handle of handles) {
+        if (distanceSq(x, y, handle.x, handle.y) <= 13 * 13) {
+          return handle.name;
+        }
+      }
+      return null;
+    }
+
+    function resizePartByHandle(part, pose, handleName, pointer) {
+      const dims = getPartDimensions(part);
+      let nextW = dims.w;
+      let nextH = dims.h;
+
+      if (handleName.includes("e") || handleName.includes("w")) {
+        nextW = Math.abs(pointer.x - pose.x) * 2;
+      }
+      if (handleName.includes("n") || handleName.includes("s")) {
+        nextH = Math.abs(pointer.y - pose.y) * 2;
+      }
+
+      setPartDimensions(part, nextW, nextH);
     }
 
     function moveSelectedPartBy(dx, dy) {
@@ -2404,7 +2917,8 @@
       for (let i = state.pads.length - 1; i >= 0; i -= 1) {
         const p = state.pads[i];
         const pose = state.partPoses.get(p.id);
-        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.65) * (p.size * 0.65)) {
+        const maxExtent = getPartMaxExtent(p);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (maxExtent * 0.65) * (maxExtent * 0.65)) {
           state.pads.splice(i, 1);
           if (state.selectedPartId === p.id) {
             setSelectedPart(null);
@@ -2416,7 +2930,8 @@
       for (let i = state.parts.length - 1; i >= 0; i -= 1) {
         const p = state.parts[i];
         const pose = state.partPoses.get(p.id);
-        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.7) * (p.size * 0.7)) {
+        const maxExtent = getPartMaxExtent(p);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (maxExtent * 0.7) * (maxExtent * 0.7)) {
           state.parts.splice(i, 1);
           if (state.selectedPartId === p.id) {
             setSelectedPart(null);
@@ -2522,12 +3037,17 @@
 
     function drawBackground() {
       const g = ctx.createLinearGradient(0, 0, 0, world.height);
-      g.addColorStop(0, "#fff8ea");
-      g.addColorStop(1, "#efe5d2");
+      if (state.darkMode) {
+        g.addColorStop(0, "#16212b");
+        g.addColorStop(1, "#101922");
+      } else {
+        g.addColorStop(0, "#fff8ea");
+        g.addColorStop(1, "#efe5d2");
+      }
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, world.width, world.height);
 
-      ctx.strokeStyle = "rgba(140, 132, 118, 0.17)";
+      ctx.strokeStyle = state.darkMode ? "rgba(112, 136, 157, 0.2)" : "rgba(140, 132, 118, 0.17)";
       ctx.lineWidth = 1;
       for (let x = 0; x < world.width; x += 28) {
         ctx.beginPath();
@@ -2591,6 +3111,15 @@
       if (part.padType === "hazard") {
         return "#ff5252";
       }
+      if (part.padType === "spring") {
+        return "#45c858";
+      }
+      if (part.padType === "sticky") {
+        return "#4bc6c2";
+      }
+      if (part.padType === "chaos") {
+        return "#ff6da8";
+      }
 
       if (part.motion === "smooth") {
         return "#e07f5d";
@@ -2608,8 +3137,10 @@
     }
 
     function drawPartShape(drawCtx, part, pose, color, selected) {
+      const dims = getPartDimensions(part);
       const size = part.size;
-      const half = size * 0.5;
+      const halfW = dims.w * 0.5;
+      const halfH = dims.h * 0.5;
 
       drawCtx.save();
       drawCtx.translate(pose.x, pose.y);
@@ -2617,27 +3148,28 @@
 
       if (part.shape === "block" || part.shape === "padSquare") {
         drawCtx.fillStyle = color;
-        drawCtx.fillRect(-half, -half, size, size);
+        drawCtx.fillRect(-halfW, -halfH, dims.w, dims.h);
       } else if (part.shape === "circle") {
         drawCtx.fillStyle = color;
         drawCtx.beginPath();
-        drawCtx.arc(0, 0, half, 0, TAU);
+        drawCtx.ellipse(0, 0, halfW, halfH, 0, 0, TAU);
         drawCtx.fill();
       } else if (part.shape === "wedge") {
         drawCtx.fillStyle = color;
         drawCtx.beginPath();
-        drawCtx.moveTo(-half, -half);
-        drawCtx.lineTo(half, half);
-        drawCtx.lineTo(-half, half);
+        drawCtx.moveTo(-halfW, -halfH);
+        drawCtx.lineTo(halfW, halfH);
+        drawCtx.lineTo(-halfW, halfH);
         drawCtx.closePath();
         drawCtx.fill();
       } else if (part.shape === "curveLarge" || part.shape === "curveSmall") {
-        const radius = part.shape === "curveLarge" ? size * 0.72 : size * 0.46;
-        const thick = size * 0.2;
+        const radiusX = part.shape === "curveLarge" ? dims.w * 0.72 : dims.w * 0.46;
+        const radiusY = part.shape === "curveLarge" ? dims.h * 0.72 : dims.h * 0.46;
+        const thick = Math.max(8, Math.min(dims.w, dims.h) * 0.2);
         drawCtx.strokeStyle = color;
         drawCtx.lineWidth = thick;
         drawCtx.beginPath();
-        drawCtx.arc(0, 0, radius, 0, Math.PI * 0.5);
+        drawCtx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 0.5);
         drawCtx.stroke();
       } else if (part.shape === "gear") {
         const coreR = size * 0.34;
@@ -2656,7 +3188,7 @@
       if (selected) {
         drawCtx.strokeStyle = "#ff9e40";
         drawCtx.lineWidth = 2;
-        drawCtx.strokeRect(-half - 4, -half - 4, size + 8, size + 8);
+        drawCtx.strokeRect(-halfW - 4, -halfH - 4, dims.w + 8, dims.h + 8);
       }
 
       drawCtx.restore();
@@ -2738,14 +3270,16 @@
       }
 
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-      const hx = pose.x + part.size * 0.62;
-      const hy = pose.y - part.size * 0.62;
+      const resizeHandles = getResizeHandlesForPart(part, pose);
 
-      ctx.fillStyle = "#0d8b96";
-      ctx.fillRect(hx - 6, hy - 6, 12, 12);
-      ctx.strokeStyle = "rgba(12, 62, 68, 0.9)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+      for (const handle of resizeHandles) {
+        const isAxis = handle.name.length === 1;
+        ctx.fillStyle = isAxis ? "#0d8b96" : "#28a6b3";
+        ctx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+        ctx.strokeStyle = "rgba(12, 62, 68, 0.95)";
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(handle.x - 5, handle.y - 5, 10, 10);
+      }
 
       if (isTeleportPad(part)) {
         const target = ensureTeleportTarget(part);
@@ -2879,7 +3413,7 @@
 
     function drawSelectedPreview() {
       const part = findPartById(state.selectedPartId);
-      const previewHeight = clamp(part ? part.size * 2.1 : 120, 120, 260);
+      const previewHeight = clamp(part ? getPartMaxExtent(part) * 2.1 : 120, 120, 260);
       const dims = prepareMiniCanvas(previewCanvas, previewCtx, previewHeight);
       const w = dims.width;
       const h = dims.height;
@@ -3002,7 +3536,8 @@
         return;
       }
 
-      p.size = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      const previewSize = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      setPartDimensions(p, previewSize, previewSize);
       syncPartPathFromCenter(p);
 
       if (isPathMover(p)) {
@@ -3044,7 +3579,7 @@
     function drawMarbles() {
       for (const m of state.marbles) {
         const speed = Math.hypot(m.vx, m.vy);
-        const streakLength = Math.min(42, speed * 0.03 * world.trail * 1.8);
+        const streakLength = state.animationsEnabled ? Math.min(42, speed * 0.03 * world.trail * 1.8) : 0;
         if (streakLength > 2.5 && speed > 0.0001) {
           const inv = 1 / speed;
           const sx = m.x - m.vx * inv * streakLength;
@@ -3125,6 +3660,8 @@
         "pads:     " + state.pads.length + "\n" +
         "triggers: " + state.triggers.length + "\n" +
         "score:    " + state.score + "\n" +
+        "zoom:     " + Math.round(state.viewScale * 100) + "%\n" +
+        "anim:     " + (state.animationsEnabled ? "on" : "off") + "\n" +
         "fps:      " + fps;
     }
 
@@ -3170,23 +3707,23 @@
 
       const s1 = createPart("spinGear", w * 0.49, h * 0.56);
       s1.spinSpeed = 2.9;
-      s1.size = 74;
+      setPartDimensions(s1, 74, 74);
       state.parts.push(s1);
       rememberBuild("parts", s1);
 
       const s2 = createPart("spinBlock", w * 0.83, h * 0.84);
       s2.spinSpeed = -2.4;
-      s2.size = 64;
+      setPartDimensions(s2, 64, 64);
       state.parts.push(s2);
       rememberBuild("parts", s2);
 
       const tpadA = createPart("teleport", w * 0.2, h * 0.62);
-      tpadA.size = 44;
+      setPartDimensions(tpadA, 44, 44);
       state.pads.push(tpadA);
       rememberBuild("pads", tpadA);
 
       const tpadB = createPart("teleport", w * 0.9, h * 0.3);
-      tpadB.size = 44;
+      setPartDimensions(tpadB, 44, 44);
       state.pads.push(tpadB);
       rememberBuild("pads", tpadB);
 
@@ -3196,12 +3733,12 @@
       rememberBuild("pads", boost);
 
       const goal = createPart("goal", w * 0.92, h * 0.91);
-      goal.size = 48;
+      setPartDimensions(goal, 48, 48);
       state.pads.push(goal);
       rememberBuild("pads", goal);
 
       const hazard = createPart("hazard", w * 0.44, h * 0.9);
-      hazard.size = 44;
+      setPartDimensions(hazard, 44, 44);
       state.pads.push(hazard);
       rememberBuild("pads", hazard);
 
@@ -3213,6 +3750,53 @@
 
       for (let i = 0; i < 5; i += 1) {
         spawnMarble(30 + i * 18, 12, 20);
+      }
+    }
+
+    function addChaosPack() {
+      const w = world.width;
+      const h = world.height;
+
+      for (let i = 0; i < 6; i += 1) {
+        const x1 = w * (0.15 + Math.random() * 0.6);
+        const y1 = h * (0.2 + Math.random() * 0.6);
+        const x2 = x1 + (Math.random() - 0.5) * 190;
+        const y2 = y1 + (Math.random() - 0.5) * 130;
+        addLine(x1, y1, x2, y2);
+      }
+
+      for (let i = 0; i < 8; i += 1) {
+        addPeg(w * (0.15 + Math.random() * 0.7), h * (0.2 + Math.random() * 0.65), 8 + Math.random() * 4);
+      }
+
+      const springs = [
+        createPart("spring", w * 0.24, h * 0.76),
+        createPart("sticky", w * 0.56, h * 0.54),
+        createPart("chaos", w * 0.78, h * 0.31)
+      ];
+
+      for (const pad of springs) {
+        if (!pad) {
+          continue;
+        }
+        setPartDimensions(pad, 48 + Math.random() * 30, 38 + Math.random() * 26);
+        state.pads.push(pad);
+        rememberBuild("pads", pad);
+      }
+
+      const mover = createPart("sMoveCircle", w * 0.48, h * 0.66);
+      if (mover) {
+        mover.moveDistance = 170;
+        mover.moveSpeed = 1.9;
+        mover.moveAngle = Math.PI * 0.4;
+        setPartDimensions(mover, 74, 52);
+        syncPartPathFromCenter(mover);
+        state.parts.push(mover);
+        rememberBuild("parts", mover);
+      }
+
+      for (let i = 0; i < 6; i += 1) {
+        spawnMarble(w * (0.1 + Math.random() * 0.25), 12 + i * 3, (Math.random() - 0.5) * 50);
       }
     }
 
@@ -3233,6 +3817,10 @@
       }
 
       rebuildColliderCache();
+      ctx.fillStyle = state.darkMode ? "#111b24" : "#efe5d2";
+      ctx.fillRect(0, 0, world.width, world.height);
+      ctx.save();
+      applyViewTransform(ctx);
       drawBackground();
       drawLineSegments();
       drawPegs();
@@ -3242,6 +3830,7 @@
       drawSelectedHandles();
       drawMarbles();
       drawDraft();
+      ctx.restore();
       drawSelectedPreview();
       drawToolPreview();
       updateHud(now - (frame.lastNow || now));
@@ -3313,6 +3902,14 @@
       applySelectedEditorValues();
     });
 
+    ui.selectedWidth.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedHeight.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
     ui.movingTriggerLink.addEventListener("change", () => {
       const part = findPartById(state.selectedPartId);
       if (!part || part.motion === "static" || part.padType) {
@@ -3334,6 +3931,28 @@
 
     ui.newRunTab.addEventListener("click", () => {
       createRunTab();
+    });
+
+    ui.toggleAnimations.addEventListener("click", () => {
+      state.animationsEnabled = !state.animationsEnabled;
+      applyAnimationPreference();
+    });
+
+    ui.zoomOut.addEventListener("click", () => {
+      setViewScale(state.viewScale / 1.15);
+    });
+
+    ui.zoomReset.addEventListener("click", () => {
+      setViewScale(1);
+    });
+
+    ui.zoomIn.addEventListener("click", () => {
+      setViewScale(state.viewScale * 1.15);
+    });
+
+    ui.menuToggle.addEventListener("click", () => {
+      state.menuCollapsed = !state.menuCollapsed;
+      applyMenuVisibility();
     });
 
     ui.saveMbr.addEventListener("click", () => {
@@ -3397,9 +4016,19 @@
       undoBuild();
     });
 
+    ui.chaosPack.addEventListener("click", () => {
+      addChaosPack();
+    });
+
     ui.demo.addEventListener("click", () => {
       resetDemoCourse();
     });
+
+    canvas.addEventListener("wheel", (evt) => {
+      evt.preventDefault();
+      const scaleFactor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
+      setViewScale(state.viewScale * scaleFactor);
+    }, { passive: false });
 
     canvas.addEventListener("pointerdown", (evt) => {
       canvas.setPointerCapture(evt.pointerId);
@@ -3426,8 +4055,9 @@
           return;
         }
 
-        if (getSelectedResizeHandleAt(pos.x, pos.y)) {
-          state.dragMode = "resize-part";
+        const resizeHandle = getSelectedResizeHandleAt(pos.x, pos.y);
+        if (resizeHandle) {
+          state.dragMode = "resize-part:" + resizeHandle;
           return;
         }
 
@@ -3441,7 +4071,8 @@
         rebuildColliderCache();
         if (selected) {
           const pose = state.partPoses.get(selected.id);
-          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < Math.max(14, selected.size * 0.6) ** 2) {
+          const radius = Math.max(14, getPartMaxExtent(selected) * 0.6);
+          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < radius * radius) {
             state.dragMode = "move-part";
             return;
           }
@@ -3536,11 +4167,11 @@
         return;
       }
 
-      if (state.dragMode === "resize-part" && part) {
+      if (state.dragMode && state.dragMode.startsWith("resize-part:") && part) {
         rebuildColliderCache();
         const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-        const dist = Math.hypot(state.pointer.x - pose.x, state.pointer.y - pose.y);
-        part.size = clamp(dist / 0.62, 14, 260);
+        const handleName = state.dragMode.split(":")[1] || "se";
+        resizePartByHandle(part, pose, handleName, state.pointer);
         syncSelectedEditorFromPart();
         return;
       }
@@ -3642,7 +4273,10 @@
 
     resizeCanvas();
     updateUiValueLabels();
+    setViewScale(1);
     applyTheme();
+    applyAnimationPreference();
+    applyMenuVisibility();
     rebuildToolOptions("line");
     syncToolMenuFromTool();
     rebuildTriggerLinkOptions();
@@ -3734,4 +4368,6 @@
   </script>
 </body>
 </html>
+
+
 

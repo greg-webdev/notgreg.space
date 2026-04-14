@@ -2167,10 +2167,25 @@
     }
 
     function buildPartColliders(part, pose) {
+      const dims = getPartDimensions(part);
+      const width = dims.w;
+      const height = dims.h;
       const size = part.size;
 
       if (part.shape === "circle") {
-        pushCircle({ x: pose.x, y: pose.y, r: size * 0.5 }, pose.vx, pose.vy, pose.omega, pose.x, pose.y);
+        const rx = width * 0.5;
+        const ry = height * 0.5;
+        const steps = 18;
+        let prev = worldPoint(pose, rx, 0);
+        for (let i = 1; i <= steps; i += 1) {
+          const a = (i / steps) * TAU;
+          const next = worldPoint(pose, Math.cos(a) * rx, Math.sin(a) * ry);
+          const midX = (prev.x + next.x) * 0.5;
+          const midY = (prev.y + next.y) * 0.5;
+          const vel = localVelocityToWorld(pose, midX, midY);
+          pushSegment({ x1: prev.x, y1: prev.y, x2: next.x, y2: next.y }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
+          prev = next;
+        }
         return;
       }
 
@@ -2189,11 +2204,12 @@
       }
 
       if (part.shape === "block" || part.shape === "padSquare") {
-        const h = size * 0.5;
-        const a = worldPoint(pose, -h, -h);
-        const b = worldPoint(pose, h, -h);
-        const c = worldPoint(pose, h, h);
-        const d = worldPoint(pose, -h, h);
+        const hw = width * 0.5;
+        const hh = height * 0.5;
+        const a = worldPoint(pose, -hw, -hh);
+        const b = worldPoint(pose, hw, -hh);
+        const c = worldPoint(pose, hw, hh);
+        const d = worldPoint(pose, -hw, hh);
         const vA = localVelocityToWorld(pose, a.x, a.y);
         const vB = localVelocityToWorld(pose, b.x, b.y);
         const vC = localVelocityToWorld(pose, c.x, c.y);
@@ -2206,10 +2222,11 @@
       }
 
       if (part.shape === "wedge") {
-        const h = size * 0.5;
-        const a = worldPoint(pose, -h, -h);
-        const b = worldPoint(pose, h, h);
-        const c = worldPoint(pose, -h, h);
+        const hw = width * 0.5;
+        const hh = height * 0.5;
+        const a = worldPoint(pose, -hw, -hh);
+        const b = worldPoint(pose, hw, hh);
+        const c = worldPoint(pose, -hw, hh);
         const vA = localVelocityToWorld(pose, a.x, a.y);
         const vB = localVelocityToWorld(pose, b.x, b.y);
         const vC = localVelocityToWorld(pose, c.x, c.y);
@@ -2220,14 +2237,15 @@
       }
 
       if (part.shape === "curveLarge" || part.shape === "curveSmall") {
-        const radius = part.shape === "curveLarge" ? size * 0.7 : size * 0.45;
-        const thickness = size * 0.22;
+        const radiusX = part.shape === "curveLarge" ? width * 0.7 : width * 0.45;
+        const radiusY = part.shape === "curveLarge" ? height * 0.7 : height * 0.45;
+        const thickness = Math.max(8, Math.min(width, height) * 0.22);
         const steps = 10;
         for (let i = 0; i <= steps; i += 1) {
           const t = i / steps;
           const a = pose.angle + t * (Math.PI * 0.5);
-          const x = pose.x + Math.cos(a) * radius;
-          const y = pose.y + Math.sin(a) * radius;
+          const x = pose.x + Math.cos(a) * radiusX;
+          const y = pose.y + Math.sin(a) * radiusY;
           const vel = localVelocityToWorld(pose, x, y);
           pushCircle({ x, y, r: thickness * 0.45 }, vel.vx, vel.vy, pose.omega, pose.x, pose.y);
         }
@@ -2520,7 +2538,7 @@
       }
       return {
         x: targetPose.x,
-        y: targetPose.y - pad.size * 0.6
+        y: targetPose.y - getPartMaxExtent(pad) * 0.6
       };
     }
 
@@ -2534,8 +2552,10 @@
         if (!pose) {
           continue;
         }
-        const half = pad.size * 0.5;
-        if (Math.abs(m.x - pose.x) > half + m.r || Math.abs(m.y - pose.y) > half + m.r) {
+        const dims = getPartDimensions(pad);
+        const halfW = dims.w * 0.5;
+        const halfH = dims.h * 0.5;
+        if (Math.abs(m.x - pose.x) > halfW + m.r || Math.abs(m.y - pose.y) > halfH + m.r) {
           continue;
         }
 
@@ -2561,6 +2581,30 @@
           const a = pad.baseAngle;
           m.vx += Math.cos(a) * boostMag * dt;
           m.vy += Math.sin(a) * boostMag * dt;
+          continue;
+        }
+
+        if (pad.padType === "spring") {
+          if ((m.cooldown.spring || 0) <= 0) {
+            m.vy = Math.min(m.vy, -340);
+            m.cooldown.spring = 0.1;
+          }
+          continue;
+        }
+
+        if (pad.padType === "sticky") {
+          const drag = Math.max(0, 1 - dt * 6.5);
+          m.vx *= drag;
+          m.vy *= drag;
+          continue;
+        }
+
+        if (pad.padType === "chaos") {
+          if ((m.cooldown.chaos || 0) <= 0) {
+            m.vx += (Math.random() - 0.5) * 480;
+            m.vy += (Math.random() - 0.5) * 420;
+            m.cooldown.chaos = 0.12;
+          }
           continue;
         }
 
@@ -2616,9 +2660,12 @@
 
     function getPointerPosition(evt) {
       const rect = canvas.getBoundingClientRect();
+      const screenX = evt.clientX - rect.left;
+      const screenY = evt.clientY - rect.top;
+      const worldPoint = screenToWorldPoint(screenX, screenY);
       return {
-        x: evt.clientX - rect.left,
-        y: evt.clientY - rect.top
+        x: worldPoint.x,
+        y: worldPoint.y
       };
     }
 
@@ -2750,16 +2797,52 @@
       return !!target && distanceSq(x, y, target.x, target.y) <= 13 * 13;
     }
 
+    function getResizeHandlesForPart(part, pose) {
+      const dims = getPartDimensions(part);
+      const hw = dims.w * 0.5;
+      const hh = dims.h * 0.5;
+      const offset = 10;
+      return [
+        { name: "nw", x: pose.x - hw - offset, y: pose.y - hh - offset },
+        { name: "n", x: pose.x, y: pose.y - hh - offset },
+        { name: "ne", x: pose.x + hw + offset, y: pose.y - hh - offset },
+        { name: "e", x: pose.x + hw + offset, y: pose.y },
+        { name: "se", x: pose.x + hw + offset, y: pose.y + hh + offset },
+        { name: "s", x: pose.x, y: pose.y + hh + offset },
+        { name: "sw", x: pose.x - hw - offset, y: pose.y + hh + offset },
+        { name: "w", x: pose.x - hw - offset, y: pose.y }
+      ];
+    }
+
     function getSelectedResizeHandleAt(x, y) {
       const part = findPartById(state.selectedPartId);
       if (!part) {
-        return false;
+        return null;
       }
       rebuildColliderCache();
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-      const hx = pose.x + part.size * 0.62;
-      const hy = pose.y - part.size * 0.62;
-      return distanceSq(x, y, hx, hy) <= 13 * 13;
+      const handles = getResizeHandlesForPart(part, pose);
+      for (const handle of handles) {
+        if (distanceSq(x, y, handle.x, handle.y) <= 13 * 13) {
+          return handle.name;
+        }
+      }
+      return null;
+    }
+
+    function resizePartByHandle(part, pose, handleName, pointer) {
+      const dims = getPartDimensions(part);
+      let nextW = dims.w;
+      let nextH = dims.h;
+
+      if (handleName.includes("e") || handleName.includes("w")) {
+        nextW = Math.abs(pointer.x - pose.x) * 2;
+      }
+      if (handleName.includes("n") || handleName.includes("s")) {
+        nextH = Math.abs(pointer.y - pose.y) * 2;
+      }
+
+      setPartDimensions(part, nextW, nextH);
     }
 
     function moveSelectedPartBy(dx, dy) {
@@ -2826,7 +2909,8 @@
       for (let i = state.pads.length - 1; i >= 0; i -= 1) {
         const p = state.pads[i];
         const pose = state.partPoses.get(p.id);
-        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.65) * (p.size * 0.65)) {
+        const maxExtent = getPartMaxExtent(p);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (maxExtent * 0.65) * (maxExtent * 0.65)) {
           state.pads.splice(i, 1);
           if (state.selectedPartId === p.id) {
             setSelectedPart(null);
@@ -2838,7 +2922,8 @@
       for (let i = state.parts.length - 1; i >= 0; i -= 1) {
         const p = state.parts[i];
         const pose = state.partPoses.get(p.id);
-        if (pose && distanceSq(x, y, pose.x, pose.y) < (p.size * 0.7) * (p.size * 0.7)) {
+        const maxExtent = getPartMaxExtent(p);
+        if (pose && distanceSq(x, y, pose.x, pose.y) < (maxExtent * 0.7) * (maxExtent * 0.7)) {
           state.parts.splice(i, 1);
           if (state.selectedPartId === p.id) {
             setSelectedPart(null);
@@ -2944,12 +3029,17 @@
 
     function drawBackground() {
       const g = ctx.createLinearGradient(0, 0, 0, world.height);
-      g.addColorStop(0, "#fff8ea");
-      g.addColorStop(1, "#efe5d2");
+      if (state.darkMode) {
+        g.addColorStop(0, "#16212b");
+        g.addColorStop(1, "#101922");
+      } else {
+        g.addColorStop(0, "#fff8ea");
+        g.addColorStop(1, "#efe5d2");
+      }
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, world.width, world.height);
 
-      ctx.strokeStyle = "rgba(140, 132, 118, 0.17)";
+      ctx.strokeStyle = state.darkMode ? "rgba(112, 136, 157, 0.2)" : "rgba(140, 132, 118, 0.17)";
       ctx.lineWidth = 1;
       for (let x = 0; x < world.width; x += 28) {
         ctx.beginPath();
@@ -3013,6 +3103,15 @@
       if (part.padType === "hazard") {
         return "#ff5252";
       }
+      if (part.padType === "spring") {
+        return "#45c858";
+      }
+      if (part.padType === "sticky") {
+        return "#4bc6c2";
+      }
+      if (part.padType === "chaos") {
+        return "#ff6da8";
+      }
 
       if (part.motion === "smooth") {
         return "#e07f5d";
@@ -3030,8 +3129,10 @@
     }
 
     function drawPartShape(drawCtx, part, pose, color, selected) {
+      const dims = getPartDimensions(part);
       const size = part.size;
-      const half = size * 0.5;
+      const halfW = dims.w * 0.5;
+      const halfH = dims.h * 0.5;
 
       drawCtx.save();
       drawCtx.translate(pose.x, pose.y);
@@ -3039,27 +3140,28 @@
 
       if (part.shape === "block" || part.shape === "padSquare") {
         drawCtx.fillStyle = color;
-        drawCtx.fillRect(-half, -half, size, size);
+        drawCtx.fillRect(-halfW, -halfH, dims.w, dims.h);
       } else if (part.shape === "circle") {
         drawCtx.fillStyle = color;
         drawCtx.beginPath();
-        drawCtx.arc(0, 0, half, 0, TAU);
+        drawCtx.ellipse(0, 0, halfW, halfH, 0, 0, TAU);
         drawCtx.fill();
       } else if (part.shape === "wedge") {
         drawCtx.fillStyle = color;
         drawCtx.beginPath();
-        drawCtx.moveTo(-half, -half);
-        drawCtx.lineTo(half, half);
-        drawCtx.lineTo(-half, half);
+        drawCtx.moveTo(-halfW, -halfH);
+        drawCtx.lineTo(halfW, halfH);
+        drawCtx.lineTo(-halfW, halfH);
         drawCtx.closePath();
         drawCtx.fill();
       } else if (part.shape === "curveLarge" || part.shape === "curveSmall") {
-        const radius = part.shape === "curveLarge" ? size * 0.72 : size * 0.46;
-        const thick = size * 0.2;
+        const radiusX = part.shape === "curveLarge" ? dims.w * 0.72 : dims.w * 0.46;
+        const radiusY = part.shape === "curveLarge" ? dims.h * 0.72 : dims.h * 0.46;
+        const thick = Math.max(8, Math.min(dims.w, dims.h) * 0.2);
         drawCtx.strokeStyle = color;
         drawCtx.lineWidth = thick;
         drawCtx.beginPath();
-        drawCtx.arc(0, 0, radius, 0, Math.PI * 0.5);
+        drawCtx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 0.5);
         drawCtx.stroke();
       } else if (part.shape === "gear") {
         const coreR = size * 0.34;
@@ -3078,7 +3180,7 @@
       if (selected) {
         drawCtx.strokeStyle = "#ff9e40";
         drawCtx.lineWidth = 2;
-        drawCtx.strokeRect(-half - 4, -half - 4, size + 8, size + 8);
+        drawCtx.strokeRect(-halfW - 4, -halfH - 4, dims.w + 8, dims.h + 8);
       }
 
       drawCtx.restore();
@@ -3160,14 +3262,16 @@
       }
 
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-      const hx = pose.x + part.size * 0.62;
-      const hy = pose.y - part.size * 0.62;
+      const resizeHandles = getResizeHandlesForPart(part, pose);
 
-      ctx.fillStyle = "#0d8b96";
-      ctx.fillRect(hx - 6, hy - 6, 12, 12);
-      ctx.strokeStyle = "rgba(12, 62, 68, 0.9)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+      for (const handle of resizeHandles) {
+        const isAxis = handle.name.length === 1;
+        ctx.fillStyle = isAxis ? "#0d8b96" : "#28a6b3";
+        ctx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+        ctx.strokeStyle = "rgba(12, 62, 68, 0.95)";
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(handle.x - 5, handle.y - 5, 10, 10);
+      }
 
       if (isTeleportPad(part)) {
         const target = ensureTeleportTarget(part);
@@ -3301,7 +3405,7 @@
 
     function drawSelectedPreview() {
       const part = findPartById(state.selectedPartId);
-      const previewHeight = clamp(part ? part.size * 2.1 : 120, 120, 260);
+      const previewHeight = clamp(part ? getPartMaxExtent(part) * 2.1 : 120, 120, 260);
       const dims = prepareMiniCanvas(previewCanvas, previewCtx, previewHeight);
       const w = dims.width;
       const h = dims.height;
@@ -3424,7 +3528,8 @@
         return;
       }
 
-      p.size = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      const previewSize = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
+      setPartDimensions(p, previewSize, previewSize);
       syncPartPathFromCenter(p);
 
       if (isPathMover(p)) {
@@ -3466,7 +3571,7 @@
     function drawMarbles() {
       for (const m of state.marbles) {
         const speed = Math.hypot(m.vx, m.vy);
-        const streakLength = Math.min(42, speed * 0.03 * world.trail * 1.8);
+        const streakLength = state.animationsEnabled ? Math.min(42, speed * 0.03 * world.trail * 1.8) : 0;
         if (streakLength > 2.5 && speed > 0.0001) {
           const inv = 1 / speed;
           const sx = m.x - m.vx * inv * streakLength;
@@ -3547,6 +3652,8 @@
         "pads:     " + state.pads.length + "\n" +
         "triggers: " + state.triggers.length + "\n" +
         "score:    " + state.score + "\n" +
+        "zoom:     " + Math.round(state.viewScale * 100) + "%\n" +
+        "anim:     " + (state.animationsEnabled ? "on" : "off") + "\n" +
         "fps:      " + fps;
     }
 
@@ -3592,23 +3699,23 @@
 
       const s1 = createPart("spinGear", w * 0.49, h * 0.56);
       s1.spinSpeed = 2.9;
-      s1.size = 74;
+      setPartDimensions(s1, 74, 74);
       state.parts.push(s1);
       rememberBuild("parts", s1);
 
       const s2 = createPart("spinBlock", w * 0.83, h * 0.84);
       s2.spinSpeed = -2.4;
-      s2.size = 64;
+      setPartDimensions(s2, 64, 64);
       state.parts.push(s2);
       rememberBuild("parts", s2);
 
       const tpadA = createPart("teleport", w * 0.2, h * 0.62);
-      tpadA.size = 44;
+      setPartDimensions(tpadA, 44, 44);
       state.pads.push(tpadA);
       rememberBuild("pads", tpadA);
 
       const tpadB = createPart("teleport", w * 0.9, h * 0.3);
-      tpadB.size = 44;
+      setPartDimensions(tpadB, 44, 44);
       state.pads.push(tpadB);
       rememberBuild("pads", tpadB);
 
@@ -3618,12 +3725,12 @@
       rememberBuild("pads", boost);
 
       const goal = createPart("goal", w * 0.92, h * 0.91);
-      goal.size = 48;
+      setPartDimensions(goal, 48, 48);
       state.pads.push(goal);
       rememberBuild("pads", goal);
 
       const hazard = createPart("hazard", w * 0.44, h * 0.9);
-      hazard.size = 44;
+      setPartDimensions(hazard, 44, 44);
       state.pads.push(hazard);
       rememberBuild("pads", hazard);
 
@@ -3635,6 +3742,53 @@
 
       for (let i = 0; i < 5; i += 1) {
         spawnMarble(30 + i * 18, 12, 20);
+      }
+    }
+
+    function addChaosPack() {
+      const w = world.width;
+      const h = world.height;
+
+      for (let i = 0; i < 6; i += 1) {
+        const x1 = w * (0.15 + Math.random() * 0.6);
+        const y1 = h * (0.2 + Math.random() * 0.6);
+        const x2 = x1 + (Math.random() - 0.5) * 190;
+        const y2 = y1 + (Math.random() - 0.5) * 130;
+        addLine(x1, y1, x2, y2);
+      }
+
+      for (let i = 0; i < 8; i += 1) {
+        addPeg(w * (0.15 + Math.random() * 0.7), h * (0.2 + Math.random() * 0.65), 8 + Math.random() * 4);
+      }
+
+      const springs = [
+        createPart("spring", w * 0.24, h * 0.76),
+        createPart("sticky", w * 0.56, h * 0.54),
+        createPart("chaos", w * 0.78, h * 0.31)
+      ];
+
+      for (const pad of springs) {
+        if (!pad) {
+          continue;
+        }
+        setPartDimensions(pad, 48 + Math.random() * 30, 38 + Math.random() * 26);
+        state.pads.push(pad);
+        rememberBuild("pads", pad);
+      }
+
+      const mover = createPart("sMoveCircle", w * 0.48, h * 0.66);
+      if (mover) {
+        mover.moveDistance = 170;
+        mover.moveSpeed = 1.9;
+        mover.moveAngle = Math.PI * 0.4;
+        setPartDimensions(mover, 74, 52);
+        syncPartPathFromCenter(mover);
+        state.parts.push(mover);
+        rememberBuild("parts", mover);
+      }
+
+      for (let i = 0; i < 6; i += 1) {
+        spawnMarble(w * (0.1 + Math.random() * 0.25), 12 + i * 3, (Math.random() - 0.5) * 50);
       }
     }
 
@@ -3655,6 +3809,10 @@
       }
 
       rebuildColliderCache();
+      ctx.fillStyle = state.darkMode ? "#111b24" : "#efe5d2";
+      ctx.fillRect(0, 0, world.width, world.height);
+      ctx.save();
+      applyViewTransform(ctx);
       drawBackground();
       drawLineSegments();
       drawPegs();
@@ -3664,6 +3822,7 @@
       drawSelectedHandles();
       drawMarbles();
       drawDraft();
+      ctx.restore();
       drawSelectedPreview();
       drawToolPreview();
       updateHud(now - (frame.lastNow || now));
@@ -3735,6 +3894,14 @@
       applySelectedEditorValues();
     });
 
+    ui.selectedWidth.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
+    ui.selectedHeight.addEventListener("change", () => {
+      applySelectedEditorValues();
+    });
+
     ui.movingTriggerLink.addEventListener("change", () => {
       const part = findPartById(state.selectedPartId);
       if (!part || part.motion === "static" || part.padType) {
@@ -3756,6 +3923,28 @@
 
     ui.newRunTab.addEventListener("click", () => {
       createRunTab();
+    });
+
+    ui.toggleAnimations.addEventListener("click", () => {
+      state.animationsEnabled = !state.animationsEnabled;
+      applyAnimationPreference();
+    });
+
+    ui.zoomOut.addEventListener("click", () => {
+      setViewScale(state.viewScale / 1.15);
+    });
+
+    ui.zoomReset.addEventListener("click", () => {
+      setViewScale(1);
+    });
+
+    ui.zoomIn.addEventListener("click", () => {
+      setViewScale(state.viewScale * 1.15);
+    });
+
+    ui.menuToggle.addEventListener("click", () => {
+      state.menuCollapsed = !state.menuCollapsed;
+      applyMenuVisibility();
     });
 
     ui.saveMbr.addEventListener("click", () => {
@@ -3819,9 +4008,19 @@
       undoBuild();
     });
 
+    ui.chaosPack.addEventListener("click", () => {
+      addChaosPack();
+    });
+
     ui.demo.addEventListener("click", () => {
       resetDemoCourse();
     });
+
+    canvas.addEventListener("wheel", (evt) => {
+      evt.preventDefault();
+      const scaleFactor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
+      setViewScale(state.viewScale * scaleFactor);
+    }, { passive: false });
 
     canvas.addEventListener("pointerdown", (evt) => {
       canvas.setPointerCapture(evt.pointerId);
@@ -3848,8 +4047,9 @@
           return;
         }
 
-        if (getSelectedResizeHandleAt(pos.x, pos.y)) {
-          state.dragMode = "resize-part";
+        const resizeHandle = getSelectedResizeHandleAt(pos.x, pos.y);
+        if (resizeHandle) {
+          state.dragMode = "resize-part:" + resizeHandle;
           return;
         }
 
@@ -3863,7 +4063,8 @@
         rebuildColliderCache();
         if (selected) {
           const pose = state.partPoses.get(selected.id);
-          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < Math.max(14, selected.size * 0.6) ** 2) {
+          const radius = Math.max(14, getPartMaxExtent(selected) * 0.6);
+          if (pose && distanceSq(pos.x, pos.y, pose.x, pose.y) < radius * radius) {
             state.dragMode = "move-part";
             return;
           }
@@ -3958,11 +4159,11 @@
         return;
       }
 
-      if (state.dragMode === "resize-part" && part) {
+      if (state.dragMode && state.dragMode.startsWith("resize-part:") && part) {
         rebuildColliderCache();
         const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
-        const dist = Math.hypot(state.pointer.x - pose.x, state.pointer.y - pose.y);
-        part.size = clamp(dist / 0.62, 14, 260);
+        const handleName = state.dragMode.split(":")[1] || "se";
+        resizePartByHandle(part, pose, handleName, state.pointer);
         syncSelectedEditorFromPart();
         return;
       }
@@ -4064,7 +4265,10 @@
 
     resizeCanvas();
     updateUiValueLabels();
+    setViewScale(1);
     applyTheme();
+    applyAnimationPreference();
+    applyMenuVisibility();
     rebuildToolOptions("line");
     syncToolMenuFromTool();
     rebuildTriggerLinkOptions();
