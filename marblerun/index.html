@@ -102,11 +102,19 @@
       gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      align-items: center;
     }
 
     .top-actions button {
       width: auto;
       min-width: 92px;
+    }
+
+    .zoom-chip {
+      min-width: 70px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      text-align: center;
     }
 
     .app {
@@ -132,10 +140,43 @@
       backdrop-filter: blur(8px);
     }
 
+    .panel::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    .panel::-webkit-scrollbar-track {
+      background: rgba(226, 215, 194, 0.42);
+      border-radius: 999px;
+    }
+
+    .panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #d6a76e, #bd8454);
+      border-radius: 999px;
+      border: 2px solid rgba(255, 246, 231, 0.9);
+    }
+
+    .panel {
+      scrollbar-width: thin;
+      scrollbar-color: #c79361 rgba(226, 215, 194, 0.42);
+    }
+
     body.dark .panel {
       background: linear-gradient(180deg, rgba(24, 34, 42, 0.96), rgba(18, 27, 35, 0.96));
       border-color: #2f3d4a;
       box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+    }
+
+    body.dark .panel::-webkit-scrollbar-track {
+      background: rgba(35, 48, 61, 0.7);
+    }
+
+    body.dark .panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #2cb2bf, #1f8994);
+      border-color: rgba(14, 24, 31, 0.92);
+    }
+
+    body.dark .panel {
+      scrollbar-color: #29a9b6 rgba(35, 48, 61, 0.7);
     }
 
     h1 {
@@ -220,6 +261,140 @@
 
     input[type="range"] {
       accent-color: #0d8b96;
+      appearance: none;
+      height: 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 117, 96, 0.5);
+      background: linear-gradient(90deg, rgba(13, 139, 150, 0.95) 0%, rgba(13, 139, 150, 0.95) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) 100%);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(15, 61, 68, 0.9);
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(15, 61, 68, 0.9);
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    body.dark input[type="range"] {
+      border-color: rgba(94, 119, 142, 0.6);
+      background: linear-gradient(90deg, rgba(36, 187, 202, 0.95) 0%, rgba(36, 187, 202, 0.95) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) 100%);
+    }
+
+    body.dark input[type="range"]::-webkit-slider-thumb,
+    body.dark input[type="range"]::-moz-range-thumb {
+      border-color: rgba(51, 171, 183, 0.95);
+      background: #d8f8fb;
+    }
+
+    .range-preview {
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(160, 142, 112, 0.58);
+      background: rgba(255, 248, 232, 0.78);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .range-preview-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #f6b55d 0%, #e66d4f 38%, #0d8b96 100%);
+      transition: width 120ms ease;
+    }
+
+    .range-preview-value {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.68rem;
+      color: rgba(34, 40, 46, 0.84);
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    body.dark .range-preview {
+      border-color: rgba(75, 97, 121, 0.72);
+      background: rgba(20, 31, 39, 0.88);
+    }
+
+    body.dark .range-preview-fill {
+      background: linear-gradient(90deg, #1ea9b7 0%, #37d0de 48%, #9ef7ff 100%);
+    }
+
+    body.dark .range-preview-value {
+      color: rgba(214, 241, 247, 0.9);
+      text-shadow: none;
+    }
+
+    .tool-selects {
+      display: none;
+    }
+
+    .tool-category-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .tool-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .tool-chip {
+      border: 1px solid rgba(170, 152, 125, 0.6);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 8px;
+      font-size: 0.76rem;
+      line-height: 1.2;
+      font-weight: 600;
+      display: grid;
+      gap: 3px;
+      min-height: 54px;
+      text-align: left;
+    }
+
+    .tool-chip .chip-icon {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.7rem;
+      opacity: 0.86;
+      letter-spacing: 0.04em;
+    }
+
+    .tool-chip.active {
+      border-color: #0d8b96;
+      box-shadow: 0 0 0 2px rgba(13, 139, 150, 0.2) inset;
+      background: linear-gradient(180deg, #fff4e0, #ffead3);
+    }
+
+    body.dark .tool-chip {
+      border-color: rgba(72, 93, 112, 0.8);
+      background: rgba(23, 34, 44, 0.95);
+    }
+
+    body.dark .tool-chip.active {
+      border-color: #2cb2bf;
+      box-shadow: 0 0 0 2px rgba(44, 178, 191, 0.26) inset;
+      background: linear-gradient(180deg, #1d3d49, #17323c);
     }
 
     select,
@@ -337,6 +512,21 @@
       background: rgba(20, 31, 39, 0.86);
     }
 
+    body.animations-off *,
+    body.animations-off *::before,
+    body.animations-off *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+
+    body.menu-collapsed .app {
+      grid-template-columns: 1fr;
+    }
+
+    body.menu-collapsed .panel {
+      display: none;
+    }
+
     @media (max-width: 1080px) {
       .app {
         grid-template-columns: 1fr;
@@ -358,6 +548,11 @@
     <div class="tabs" id="runTabs"></div>
     <div class="top-actions">
       <button id="newRunTab">New Tab</button>
+      <button id="toggleAnimations">Animations: On</button>
+      <button id="zoomOut">Zoom -</button>
+      <button id="zoomReset" class="zoom-chip">100%</button>
+      <button id="zoomIn">Zoom +</button>
+      <button id="menuToggle">Hide Menu</button>
       <button id="saveMbr">Save .mbr</button>
       <button id="loadMbr">Load .mbr</button>
       <button id="themeToggle">Light Mode</button>
@@ -375,8 +570,7 @@
       <div class="controls">
         <div class="group">
           <div class="group-title">Build Tool</div>
-          <div class="row">
-            <label for="toolCategory">Tool Menu</label>
+          <div class="tool-selects">
             <select id="toolCategory">
               <option value="draw">Draw Tools</option>
               <option value="static">Static Parts</option>
@@ -385,11 +579,10 @@
               <option value="pads">Pads</option>
               <option value="edit">Edit</option>
             </select>
-          </div>
-          <div class="row">
-            <label for="tool">Part Type</label>
             <select id="tool"></select>
           </div>
+          <div id="toolCategoryButtons" class="tool-category-buttons"></div>
+          <div id="toolButtons" class="tool-buttons"></div>
           <canvas id="toolPreview" width="300" height="90"></canvas>
         </div>
 
@@ -507,6 +700,14 @@
               <label for="selectedSize">Size</label>
               <input id="selectedSize" type="number" step="1" />
             </div>
+            <div class="row">
+              <label for="selectedWidth">Width</label>
+              <input id="selectedWidth" type="number" step="1" />
+            </div>
+            <div class="row">
+              <label for="selectedHeight">Height</label>
+              <input id="selectedHeight" type="number" step="1" />
+            </div>
           </div>
           <button id="updateSelectedFromMenu">Update Selected Item</button>
         </div>
@@ -543,11 +744,12 @@
         <button id="clearMarbles">Clear Marbles</button>
         <button id="clearTracks">Clear All Parts</button>
         <button id="undo">Undo Build</button>
+        <button id="chaosPack">Chaos Pack</button>
         <button class="wide" id="demo">Reset Demo Course</button>
       </div>
 
       <div class="tip" id="selectionInfo">Selected item: none</div>
-      <div class="tip">Click any item or line to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, drag line endpoints to reshape tracks, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
+      <div class="tip">Click any item or line to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, drag line endpoints to reshape tracks, and use the 8 resize handles to scale in any direction. Hold Alt while building to place on top of an existing item.</div>
     </aside>
 
     <section class="canvas-shell">
@@ -570,12 +772,19 @@
     const ui = {
       runTabs: document.getElementById("runTabs"),
       newRunTab: document.getElementById("newRunTab"),
+      toggleAnimations: document.getElementById("toggleAnimations"),
+      zoomOut: document.getElementById("zoomOut"),
+      zoomReset: document.getElementById("zoomReset"),
+      zoomIn: document.getElementById("zoomIn"),
+      menuToggle: document.getElementById("menuToggle"),
       saveMbr: document.getElementById("saveMbr"),
       loadMbr: document.getElementById("loadMbr"),
       loadMbrInput: document.getElementById("loadMbrInput"),
       themeToggle: document.getElementById("themeToggle"),
       toolCategory: document.getElementById("toolCategory"),
       tool: document.getElementById("tool"),
+      toolCategoryButtons: document.getElementById("toolCategoryButtons"),
+      toolButtons: document.getElementById("toolButtons"),
       gravity: document.getElementById("gravity"),
       bounce: document.getElementById("bounce"),
       friction: document.getElementById("friction"),
@@ -603,6 +812,8 @@
       selectedToY: document.getElementById("selectedToY"),
       selectedAngle: document.getElementById("selectedAngle"),
       selectedSize: document.getElementById("selectedSize"),
+      selectedWidth: document.getElementById("selectedWidth"),
+      selectedHeight: document.getElementById("selectedHeight"),
       updateSelectedFromMenu: document.getElementById("updateSelectedFromMenu"),
       selectionInfo: document.getElementById("selectionInfo"),
       gravityVal: document.getElementById("gravityVal"),
@@ -625,6 +836,7 @@
       clearMarbles: document.getElementById("clearMarbles"),
       clearTracks: document.getElementById("clearTracks"),
       undo: document.getElementById("undo"),
+      chaosPack: document.getElementById("chaosPack"),
       demo: document.getElementById("demo")
     };
 
@@ -678,7 +890,10 @@
       runs: [],
       activeRunIndex: -1,
       nextRunId: 1,
-      darkMode: true
+      darkMode: true,
+      animationsEnabled: true,
+      viewScale: 1,
+      menuCollapsed: false
     };
 
     const TOOL_PRESETS = {
@@ -703,7 +918,10 @@
       goal: { shape: "padSquare", motion: "static", padType: "goal" },
       teleport: { shape: "padSquare", motion: "static", padType: "teleport" },
       boost: { shape: "padSquare", motion: "static", padType: "boost" },
-      hazard: { shape: "padSquare", motion: "static", padType: "hazard" }
+      hazard: { shape: "padSquare", motion: "static", padType: "hazard" },
+      spring: { shape: "padSquare", motion: "static", padType: "spring" },
+      sticky: { shape: "padSquare", motion: "static", padType: "sticky" },
+      chaos: { shape: "padSquare", motion: "static", padType: "chaos" }
     };
 
     const TOOL_MENU_GROUPS = [
@@ -754,7 +972,10 @@
           ["goal", "Goal"],
           ["teleport", "Teleport Pad"],
           ["boost", "Boost Pad"],
-          ["hazard", "Hazard"]
+          ["hazard", "Hazard"],
+          ["spring", "Spring Pad"],
+          ["sticky", "Sticky Pad"],
+          ["chaos", "Chaos Pad"]
         ]
       },
       {
@@ -769,6 +990,47 @@
         TOOL_TO_MENU[toolEntry[0]] = group.id;
       }
     }
+
+    const TOOL_CATEGORY_META = {
+      draw: { name: "Draw", icon: "DRAW" },
+      static: { name: "Static", icon: "BASE" },
+      move: { name: "Move", icon: "PATH" },
+      spin: { name: "Spin", icon: "SPIN" },
+      pads: { name: "Pads", icon: "PADS" },
+      edit: { name: "Edit", icon: "EDIT" }
+    };
+
+    const TOOL_ICON_MAP = {
+      line: "LINE",
+      peg: "PEG",
+      trigger: "TRG",
+      block: "BLK",
+      circle: "CIR",
+      wedge: "WDG",
+      curveLarge: "CVL",
+      curveSmall: "CVS",
+      sMoveBlock: "SMB",
+      sMoveCircle: "SMC",
+      sMoveWedge: "SMW",
+      lMoveBlock: "LMB",
+      lMoveCircle: "LMC",
+      lMoveWedge: "LMW",
+      wMoveBlock: "WMB",
+      wMoveCircle: "WMC",
+      wMoveWedge: "WMW",
+      spinBlock: "SPB",
+      spinCircle: "SPC",
+      spinWedge: "SPW",
+      spinGear: "GEAR",
+      goal: "GOAL",
+      teleport: "TELE",
+      boost: "BST",
+      hazard: "HAZ",
+      spring: "JMP",
+      sticky: "STK",
+      chaos: "RND",
+      select: "SEL"
+    };
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -815,12 +1077,48 @@
         };
       }
 
-      const offset = Math.max(80, part.size * 1.4);
+      const offset = Math.max(80, getPartMaxExtent(part) * 1.4);
       const fallback = {
         x: part.x,
         y: part.y - offset
       };
       return fallback;
+    }
+
+    function renderToolCategoryButtons() {
+      ui.toolCategoryButtons.innerHTML = "";
+      for (const group of TOOL_MENU_GROUPS) {
+        const meta = TOOL_CATEGORY_META[group.id] || { name: group.id, icon: group.id.toUpperCase() };
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tool-chip" + (group.id === ui.toolCategory.value ? " active" : "");
+        btn.innerHTML = '<span class="chip-icon">' + meta.icon + '</span><span>' + meta.name + '</span>';
+        btn.addEventListener("click", () => {
+          ui.toolCategory.value = group.id;
+          rebuildToolOptions();
+          drawToolPreview();
+        });
+        ui.toolCategoryButtons.appendChild(btn);
+      }
+    }
+
+    function renderToolButtons() {
+      ui.toolButtons.innerHTML = "";
+      const group = TOOL_MENU_GROUPS.find((entry) => entry.id === ui.toolCategory.value) || TOOL_MENU_GROUPS[0];
+      for (const [toolValue, label] of group.tools) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tool-chip" + (toolValue === ui.tool.value ? " active" : "");
+        btn.innerHTML = '<span class="chip-icon">' + (TOOL_ICON_MAP[toolValue] || "PART") + '</span><span>' + label + '</span>';
+        btn.addEventListener("click", () => {
+          ui.tool.value = toolValue;
+          syncToolMenuFromTool();
+          renderToolCategoryButtons();
+          renderToolButtons();
+          drawToolPreview();
+        });
+        ui.toolButtons.appendChild(btn);
+      }
     }
 
     function rebuildToolOptions(preferredTool = null) {
@@ -840,6 +1138,9 @@
       } else {
         ui.tool.value = currentGroup.tools[0][0];
       }
+
+      renderToolCategoryButtons();
+      renderToolButtons();
     }
 
     function syncToolMenuFromTool() {
@@ -847,6 +1148,8 @@
       if (ui.toolCategory.value !== menuId) {
         ui.toolCategory.value = menuId;
       }
+      renderToolCategoryButtons();
+      renderToolButtons();
     }
 
     function getSelectedLine() {
@@ -926,6 +1229,98 @@
     function parseNum(input, fallback) {
       const v = Number(input.value);
       return Number.isFinite(v) ? v : fallback;
+    }
+
+    function parseOptionalNum(input) {
+      const v = Number(input.value);
+      return Number.isFinite(v) ? v : null;
+    }
+
+    function getPartDimensions(part) {
+      const base = Number.isFinite(part.size) ? part.size : world.partSize;
+      const w = Number.isFinite(part.sizeX) ? part.sizeX : base;
+      const h = Number.isFinite(part.sizeY) ? part.sizeY : base;
+      return { w, h };
+    }
+
+    function setPartDimensions(part, width, height) {
+      part.sizeX = clamp(width, 12, 360);
+      part.sizeY = clamp(height, 12, 360);
+      part.size = (part.sizeX + part.sizeY) * 0.5;
+    }
+
+    function getPartMaxExtent(part) {
+      const dims = getPartDimensions(part);
+      return Math.max(dims.w, dims.h);
+    }
+
+    function normalizePartGeometry(part) {
+      if (!part) {
+        return;
+      }
+      const base = Number.isFinite(part.size) ? part.size : world.partSize;
+      setPartDimensions(part, Number.isFinite(part.sizeX) ? part.sizeX : base, Number.isFinite(part.sizeY) ? part.sizeY : base);
+      part.baseAngle = Number.isFinite(part.baseAngle) ? normalizeAngle(part.baseAngle) : 0;
+    }
+
+    function updateRangePreviews() {
+      const ranges = document.querySelectorAll('input[type="range"]');
+      for (const input of ranges) {
+        const min = Number(input.min || 0);
+        const max = Number(input.max || 100);
+        const value = Number(input.value || min);
+        const span = Math.max(0.00001, max - min);
+        const pct = clamp(((value - min) / span) * 100, 0, 100);
+        input.style.setProperty("--range-pct", pct.toFixed(2) + "%");
+
+        let preview = input.nextElementSibling;
+        if (!preview || !preview.classList.contains("range-preview")) {
+          preview = document.createElement("div");
+          preview.className = "range-preview";
+          preview.innerHTML = '<div class="range-preview-fill"></div><div class="range-preview-value"></div>';
+          input.parentElement.appendChild(preview);
+        }
+
+        const fill = preview.querySelector(".range-preview-fill");
+        const valueLabel = preview.querySelector(".range-preview-value");
+        fill.style.width = pct.toFixed(2) + "%";
+        valueLabel.textContent = value.toFixed(input.step && String(input.step).includes(".") ? 2 : 0);
+      }
+    }
+
+    function setViewScale(nextScale) {
+      state.viewScale = clamp(nextScale, 0.4, 2.8);
+      ui.zoomReset.textContent = Math.round(state.viewScale * 100) + "%";
+    }
+
+    function screenToWorldPoint(x, y) {
+      const cx = world.width * 0.5;
+      const cy = world.height * 0.5;
+      return {
+        x: (x - cx) / state.viewScale + cx,
+        y: (y - cy) / state.viewScale + cy
+      };
+    }
+
+    function applyViewTransform(drawCtx) {
+      const cx = world.width * 0.5;
+      const cy = world.height * 0.5;
+      drawCtx.translate(cx, cy);
+      drawCtx.scale(state.viewScale, state.viewScale);
+      drawCtx.translate(-cx, -cy);
+    }
+
+    function applyAnimationPreference() {
+      document.body.classList.toggle("animations-off", !state.animationsEnabled);
+      ui.toggleAnimations.textContent = state.animationsEnabled ? "Animations: On" : "Animations: Off";
+    }
+
+    function applyMenuVisibility() {
+      document.body.classList.toggle("menu-collapsed", state.menuCollapsed);
+      ui.menuToggle.textContent = state.menuCollapsed ? "Show Menu" : "Hide Menu";
+      setTimeout(() => {
+        resizeCanvas();
+      }, 0);
     }
 
     function isTypingTarget(target) {
