@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brainrot Tsunami - Top View</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      color: #f2f2f2;
+      font-family: Arial, sans-serif;
+    }
+
+    .layout {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .hud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    .tag {
+      border: 1px solid #444;
+      background: #242424;
+      padding: 5px 8px;
+      white-space: nowrap;
+    }
+
+    .tag.legend-label {
+      background: #202020;
+      border-color: #555;
+      font-weight: 700;
+    }
+
+    .chip {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      margin-right: 6px;
+      border: 1px solid #111;
+      vertical-align: middle;
+    }
+
+    button {
+      border: 1px solid #555;
+      background: #2d2d2d;
+      color: #f2f2f2;
+      font: inherit;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 0;
+      border: 1px solid #444;
+      background: #101010;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .msg {
+      pointer-events: auto;
+      border: 1px solid #666;
+      background: #1c1c1c;
+      padding: 12px;
+      text-align: center;
+      width: min(92vw, 460px);
+      line-height: 1.4;
+    }
+
+    .mobile {
+      display: none;
+      grid-template-columns: 58px 58px 58px;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+
+    .mobile .blank {
+      visibility: hidden;
+    }
+
+    .mobile button {
+      aspect-ratio: 1;
+      padding: 0;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px), (pointer: coarse) {
+      .mobile {
+        display: grid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="hud">
+      <div class="tag" id="zoneTag">Zone: Base</div>
+      <div class="tag" id="levelTag">Unlocked: L1/10</div>
+      <div class="tag" id="waveTag">Next Wave: 0m</div>
+      <div class="tag" id="speedTag">Speed: 180</div>
+      <div class="tag" id="coinTag">Coins: 0</div>
+      <div class="tag" id="incomeTag">Income: 0/s</div>
+      <div class="tag" id="carryTag">Carry: none</div>
+      <div class="tag legend-label">Legend</div>
+      <div class="tag"><span class="chip" style="background:#7bc67b;"></span>Common 1/s</div>
+      <div class="tag"><span class="chip" style="background:#7bb3d9;"></span>Uncommon 2/s</div>
+      <div class="tag"><span class="chip" style="background:#9d88ff;"></span>Rare 4/s</div>
+      <div class="tag"><span class="chip" style="background:#d98ac0;"></span>Epic 7/s</div>
+      <div class="tag"><span class="chip" style="background:#ffc56b;"></span>Mythic 11/s</div>
+      <div class="tag legend-label">Storage</div>
+      <div class="tag" id="storageCommonTag">Common: 0</div>
+      <div class="tag" id="storageUncommonTag">Uncommon: 0</div>
+      <div class="tag" id="storageRareTag">Rare: 0</div>
+      <div class="tag" id="storageEpicTag">Epic: 0</div>
+      <div class="tag" id="storageMythicTag">Mythic: 0</div>
+      <button id="upgradeBtn" type="button">Upgrade Speed</button>
+      <button id="restartBtn" type="button">Restart</button>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="gameCanvas"></canvas>
+      <div class="overlay" id="overlay"></div>
+    </div>
+
+    <div class="mobile" id="mobilePad">
+      <div class="blank">x</div>
+      <button type="button" data-dir="up">U</button>
+      <div class="blank">x</div>
+      <button type="button" data-dir="left">L</button>
+      <button type="button" data-dir="down">D</button>
+      <button type="button" data-dir="right">R</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const overlay = document.getElementById("overlay");
+
+    const zoneTag = document.getElementById("zoneTag");
+    const levelTag = document.getElementById("levelTag");
+    const waveTag = document.getElementById("waveTag");
+    const speedTag = document.getElementById("speedTag");
+    const coinTag = document.getElementById("coinTag");
+    const incomeTag = document.getElementById("incomeTag");
+    const carryTag = document.getElementById("carryTag");
+    const storageCommonTag = document.getElementById("storageCommonTag");
+    const storageUncommonTag = document.getElementById("storageUncommonTag");
+    const storageRareTag = document.getElementById("storageRareTag");
+    const storageEpicTag = document.getElementById("storageEpicTag");
+    const storageMythicTag = document.getElementById("storageMythicTag");
+
+    const upgradeBtn = document.getElementById("upgradeBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const mobilePad = document.getElementById("mobilePad");
+
+    const levelDefs = [
+      { name: "Easy", length: 360, spawnCount: 4 },
+      { name: "Medium", length: 420, spawnCount: 5 },
+      { name: "Hard", length: 490, spawnCount: 6 },
+      { name: "Expert", length: 560, spawnCount: 7 },
+      { name: "Insane", length: 640, spawnCount: 8 },
+      { name: "Extreme", length: 730, spawnCount: 9 },
+      { name: "Nightmare", length: 820, spawnCount: 10 },
+      { name: "Impossible", length: 920, spawnCount: 11 },
+      { name: "Chaos", length: 1030, spawnCount: 12 },
+      { name: "Final", length: 1160, spawnCount: 14 }
+    ];
+
+    const safeHeight = 130;
+    const baseHeight = 270;
+    const worldWidth = 1600;
+
+    const zones = [];
+    let trackHeight = baseHeight;
+    for (const def of levelDefs) {
+      trackHeight += def.length + safeHeight;
+    }
+
+    const world = {
+      w: worldWidth,
+      h: trackHeight + 80,
+      baseTop: trackHeight + 80 - baseHeight
+    };
+
+    let cursor = world.baseTop;
+    for (let i = 0; i < levelDefs.length; i += 1) {
+      const def = levelDefs[i];
+      const dangerBottom = cursor;
+      const dangerTop = dangerBottom - def.length;
+      const safeBottom = dangerTop;
+      const safeTop = safeBottom - safeHeight;
+      zones.push({
+        level: i + 1,
+        name: def.name,
+        length: def.length,
+        spawnCount: def.spawnCount,
+        dangerTop,
+        dangerBottom,
+        safeTop,
+        safeBottom
+      });
+      cursor = safeTop;
+    }
+
+    const rarityDefs = [
+      { key: "common", label: "Common", cps: 1, color: "#7bc67b" },
+      { key: "uncommon", label: "Uncommon", cps: 2, color: "#7bb3d9" },
+      { key: "rare", label: "Rare", cps: 4, color: "#9d88ff" },
+      { key: "epic", label: "Epic", cps: 7, color: "#d98ac0" },
+      { key: "mythic", label: "Mythic", cps: 11, color: "#ffc56b" }
+    ];
+
+    const state = {
+      running: true,
+      gameOver: false,
+      keys: new Set(),
+      touch: { up: false, down: false, left: false, right: false },
+      coins: 0,
+      incomePerSecond: 0,
+      highestUnlocked: 1,
+      speedLevel: 1,
+      baseSpeed: 180,
+      speedUpgradeCost: 25,
+      carryId: null,
+      waveTimer: 0,
+      waveInterval: 8,
+      waves: [],
+      storage: {
+        common: 0,
+        uncommon: 0,
+        rare: 0,
+        epic: 0,
+        mythic: 0
+      },
+      message: "Collect brainrots and bring them back to base storage."
+    };
+
+    const player = {
+      x: world.w * 0.5,
+      y: world.h - baseHeight * 0.45,
+      r: 13,
+      teleportLock: 0
+    };
+
+    const camera = { x: 0, y: 0 };
+
+    const base = {
+      storageX: world.w * 0.84,
+      storageY: world.h - baseHeight * 0.5,
+      storageR: 55
+    };
+
+    const tpPads = [
+      { x: world.w * 0.2, y: world.h - baseHeight * 0.7, r: 34, label: "TP L1", mode: "l1" },
+      { x: world.w * 0.2, y: world.h - baseHeight * 0.5, r: 34, label: "TP MAX", mode: "max" },
+      { x: world.w * 0.2, y: world.h - baseHeight * 0.3, r: 34, label: "TP L10", mode: "l10" }
+    ];
+
+    let nextBrainrotId = 1;
+    const brainrots = [];
+
+    function rarityWeights(level) {
+      if (level <= 2) return [65, 23, 9, 3, 0];
+      if (level <= 4) return [48, 27, 16, 8, 1];
+      if (level <= 6) return [34, 26, 22, 14, 4];
+      if (level <= 8) return [22, 24, 25, 20, 9];
+      return [12, 21, 27, 25, 15];
+    }
+
+    function pickRarity(level) {
+      const weights = rarityWeights(level);
+      const total = weights.reduce((a, b) => a + b, 0);
+      let roll = Math.random() * total;
+      for (let i = 0; i < weights.length; i += 1) {
+        roll -= weights[i];
+        if (roll <= 0) return rarityDefs[i];
+      }
+      return rarityDefs[0];
+    }
+
+    function spawnBrainrots() {
+      brainrots.length = 0;
+      nextBrainrotId = 1;
+      for (const zone of zones) {
+        for (let i = 0; i < zone.spawnCount; i += 1) {
+          const rarity = pickRarity(zone.level);
+          brainrots.push({
+            id: nextBrainrotId,
+            x: 90 + Math.random() * (world.w - 180),
+            y: zone.dangerTop + 38 + Math.random() * (zone.length - 76),
+            r: 11,
+            rarity,
+            label: "B" + nextBrainrotId,
+            delivered: false,
+            carried: false
+          });
+          nextBrainrotId += 1;
+        }
+      }
+    }
+
+    function setCanvasSize() {
+      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = Math.floor(w * ratio);
+      canvas.height = Math.floor(h * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function getZoneInfo(y) {
+      if (y >= world.baseTop) {
+        return { type: "base", label: "Base" };
+      }
+      for (const zone of zones) {
+        if (y >= zone.safeTop && y <= zone.safeBottom) {
+          return { type: "safe", label: "Safe after L" + zone.level };
+        }
+        if (y >= zone.dangerTop && y <= zone.dangerBottom) {
+          return { type: "danger", zone };
+        }
+      }
+      return { type: "top", label: "Top" };
+    }
+
+    function isWaveSafe(y) {
+      const info = getZoneInfo(y);
+      return info.type === "base" || info.type === "safe";
+    }
+
+    function updateUnlocks() {
+      for (const zone of zones) {
+        if (player.y >= zone.safeTop && player.y <= zone.safeBottom) {
+          const unlocked = Math.min(10, zone.level + 1);
+          state.highestUnlocked = Math.max(state.highestUnlocked, unlocked);
+        }
+      }
+    }
+
+    function spawnWave() {
+      const speed = 120 + state.highestUnlocked * 8 + Math.random() * 14;
+      state.waves.push({
+        y: world.baseTop - 2,
+        speed
+      });
+    }
+
+    function movePlayer(dt) {
+      let dx = 0;
+      let dy = 0;
+
+      if (state.keys.has("w") || state.keys.has("arrowup") || state.touch.up) dy -= 1;
+      if (state.keys.has("s") || state.keys.has("arrowdown") || state.touch.down) dy += 1;
+      if (state.keys.has("a") || state.keys.has("arrowleft") || state.touch.left) dx -= 1;
+      if (state.keys.has("d") || state.keys.has("arrowright") || state.touch.right) dx += 1;
+
+      const mag = Math.hypot(dx, dy) || 1;
+      dx /= mag;
+      dy /= mag;
+
+      const speed = state.baseSpeed;
+      player.x += dx * speed * dt;
+      player.y += dy * speed * dt;
+
+      player.x = Math.max(player.r, Math.min(world.w - player.r, player.x));
+      player.y = Math.max(player.r, Math.min(world.h - player.r, player.y));
+    }
+
+    function updateCarrier() {
+      if (state.carryId === null) {
+        for (const b of brainrots) {
+          if (b.delivered || b.carried) continue;
+          const d = Math.hypot(player.x - b.x, player.y - b.y);
+          if (d < player.r + b.r + 4) {
+            state.carryId = b.id;
+            b.carried = true;
+            break;
+          }
+        }
+      }
+
+      if (state.carryId !== null) {
+        const carried = brainrots.find((b) => b.id === state.carryId);
+        if (carried && !carried.delivered) {
+          carried.x = player.x + 20;
+          carried.y = player.y;
+
+          const inStorage = Math.hypot(player.x - base.storageX, player.y - base.storageY) <= base.storageR;
+          if (inStorage && player.y >= world.baseTop) {
+            carried.carried = false;
+            carried.delivered = true;
+            state.carryId = null;
+            state.storage[carried.rarity.key] += 1;
+            state.incomePerSecond += carried.rarity.cps;
+            state.coins += carried.rarity.cps * 2;
+          }
+        }
+      }
+    }
+
+    function applyTpPads(dt) {
+      player.teleportLock = Math.max(0, player.teleportLock - dt);
+      if (player.y < world.baseTop) {
+        return;
+      }
+      if (player.teleportLock > 0) {
+        return;
+      }
+
+      for (const pad of tpPads) {
+        const d = Math.hypot(player.x - pad.x, player.y - pad.y);
+        if (d <= pad.r + player.r) {
+          let targetLevel = 1;
+          if (pad.mode === "l1") targetLevel = 1;
+          if (pad.mode === "max") targetLevel = state.highestUnlocked;
+          if (pad.mode === "l10") targetLevel = state.highestUnlocked >= 10 ? 10 : state.highestUnlocked;
+
+          const zone = zones[targetLevel - 1];
+          player.x = world.w * 0.5;
+          player.y = zone.dangerBottom - 40;
+          player.teleportLock = 0.8;
+          break;
+        }
+      }
+    }
+
+    function updateWaves(dt) {
+      state.waveTimer += dt;
+      if (state.waveTimer >= state.waveInterval) {
+        state.waveTimer -= state.waveInterval;
+        spawnWave();
+      }
+
+      for (const wave of state.waves) {
+        wave.y -= wave.speed * dt;
+      }
+      state.waves = state.waves.filter((wave) => wave.y > -100);
+
+      if (isWaveSafe(player.y)) {
+        return;
+      }
+
+      for (const wave of state.waves) {
+        if (Math.abs(wave.y - player.y) <= player.r + 2) {
+          state.gameOver = true;
+          state.running = false;
+          state.message = "A wave got you. Restart and use safe zones between levels.";
+          showOverlay(state.message);
+          break;
+        }
+      }
+    }
+
+    function updateEconomy(dt) {
+      state.coins += state.incomePerSecond * dt;
+    }
+
+    function updateHud() {
+      const info = getZoneInfo(player.y);
+      let zoneText = "Zone: Base";
+      if (info.type === "danger") {
+        zoneText = "Zone: L" + info.zone.level + " " + info.zone.name;
+      } else if (info.type === "safe") {
+        zoneText = "Zone: " + info.label;
+      } else if (info.type === "top") {
+        zoneText = "Zone: Top";
+      }
+      zoneTag.textContent = zoneText;
+      levelTag.textContent = "Unlocked: L" + state.highestUnlocked + "/10";
+
+      let nearest = Infinity;
+      for (const wave of state.waves) {
+        const d = wave.y - player.y;
+        if (d >= 0 && d < nearest) nearest = d;
+      }
+      if (!Number.isFinite(nearest)) {
+        const fallback = (world.baseTop - player.y) + (state.waveInterval - state.waveTimer) * 120;
+        nearest = Math.max(0, fallback);
+      }
+      waveTag.textContent = "Next Wave: " + nearest.toFixed(0) + "m";
+
+      speedTag.textContent = "Speed: " + state.baseSpeed;
+      coinTag.textContent = "Coins: " + state.coins.toFixed(0);
+      incomeTag.textContent = "Income: " + state.incomePerSecond.toFixed(1) + "/s";
+
+      if (state.carryId === null) {
+        carryTag.textContent = "Carry: none";
+      } else {
+        const carried = brainrots.find((b) => b.id === state.carryId);
+        if (carried) {
+          carryTag.textContent = "Carry: " + carried.rarity.label + " (" + carried.rarity.cps + "/s)";
+        }
+      }
+
+      storageCommonTag.textContent = "Common: " + state.storage.common;
+      storageUncommonTag.textContent = "Uncommon: " + state.storage.uncommon;
+      storageRareTag.textContent = "Rare: " + state.storage.rare;
+      storageEpicTag.textContent = "Epic: " + state.storage.epic;
+      storageMythicTag.textContent = "Mythic: " + state.storage.mythic;
+
+      upgradeBtn.textContent = "Upgrade Speed (" + state.speedUpgradeCost + ")";
+      upgradeBtn.disabled = state.coins < state.speedUpgradeCost || !state.running;
+    }
+
+    function updateCamera() {
+      const vw = canvas.clientWidth;
+      const vh = canvas.clientHeight;
+      camera.x = Math.max(0, Math.min(world.w - vw, player.x - vw * 0.5));
+      camera.y = Math.max(0, Math.min(world.h - vh, player.y - vh * 0.55));
+    }
+
+    function drawWorld() {
+      const vw = canvas.clientWidth;
+      const vh = canvas.clientHeight;
+      ctx.clearRect(0, 0, vw, vh);
+
+      ctx.fillStyle = "#0f0f0f";
+      ctx.fillRect(0, 0, vw, vh);
+
+      ctx.save();
+      ctx.translate(-camera.x, -camera.y);
+
+      ctx.fillStyle = "#1b1b1b";
+      ctx.fillRect(0, 0, world.w, world.h);
+
+      ctx.fillStyle = "#2a2a2a";
+      ctx.fillRect(0, world.baseTop, world.w, baseHeight);
+
+      ctx.strokeStyle = "#3d3d3d";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, world.baseTop);
+      ctx.lineTo(world.w, world.baseTop);
+      ctx.stroke();
+
+      for (const zone of zones) {
+        ctx.fillStyle = zone.level % 2 === 0 ? "#222" : "#262626";
+        ctx.fillRect(0, zone.dangerTop, world.w, zone.length);
+
+        ctx.fillStyle = "#203020";
+        ctx.fillRect(0, zone.safeTop, world.w, safeHeight);
+
+        ctx.fillStyle = "#d7d7d7";
+        ctx.font = "14px Arial";
+        ctx.textAlign = "left";
+        ctx.fillText("L" + zone.level + " " + zone.name + " (" + zone.length + "m)", 10, zone.dangerTop + 18);
+        ctx.fillText("SAFE", 10, zone.safeTop + 18);
+      }
+
+      for (const pad of tpPads) {
+        ctx.fillStyle = "#2e3f5f";
+        ctx.beginPath();
+        ctx.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#9fbbe7";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#e7f0ff";
+        ctx.textAlign = "center";
+        ctx.font = "12px Arial";
+        ctx.fillText(pad.label, pad.x, pad.y + 4);
+      }
+
+      ctx.fillStyle = "#304830";
+      ctx.beginPath();
+      ctx.arc(base.storageX, base.storageY, base.storageR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#9ad19a";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#dff5df";
+      ctx.textAlign = "center";
+      ctx.font = "13px Arial";
+      ctx.fillText("STORAGE", base.storageX, base.storageY + 4);
+
+      for (const b of brainrots) {
+        if (b.delivered) continue;
+        ctx.fillStyle = b.rarity.color;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#111";
+        ctx.font = "10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(b.label, b.x, b.y + 3);
+      }
+
+      for (const wave of state.waves) {
+        ctx.strokeStyle = "#9fd3ff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, wave.y);
+        ctx.lineTo(world.w, wave.y);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#f3f3f3";
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function showOverlay(text) {
+      overlay.innerHTML = "";
+      const box = document.createElement("div");
+      box.className = "msg";
+      box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'>Press Restart to play again.</div>";
+      overlay.appendChild(box);
+    }
+
+    function clearOverlay() {
+      overlay.innerHTML = "";
+    }
+
+    function resetGame() {
+      state.running = true;
+      state.gameOver = false;
+      state.keys.clear();
+      state.touch.up = false;
+      state.touch.down = false;
+      state.touch.left = false;
+      state.touch.right = false;
+      state.coins = 0;
+      state.incomePerSecond = 0;
+      state.highestUnlocked = 1;
+      state.speedLevel = 1;
+      state.baseSpeed = 180;
+      state.speedUpgradeCost = 25;
+      state.carryId = null;
+      state.waveTimer = 0;
+      state.waves = [];
+      state.storage.common = 0;
+      state.storage.uncommon = 0;
+      state.storage.rare = 0;
+      state.storage.epic = 0;
+      state.storage.mythic = 0;
+
+      player.x = world.w * 0.5;
+      player.y = world.h - baseHeight * 0.45;
+      player.teleportLock = 0;
+
+      spawnBrainrots();
+      clearOverlay();
+    }
+
+    function update(dt) {
+      if (!state.running) {
+        updateHud();
+        return;
+      }
+
+      updateEconomy(dt);
+      movePlayer(dt);
+      updateUnlocks();
+      applyTpPads(dt);
+      updateCarrier();
+      updateWaves(dt);
+
+      const topSafe = zones[zones.length - 1].safeTop;
+      if (player.y < topSafe) {
+        state.running = false;
+        state.message = "You reached the top after level 10.";
+        showOverlay(state.message);
+      }
+
+      updateCamera();
+      updateHud();
+    }
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+      update(dt);
+      drawWorld();
+      requestAnimationFrame(frame);
+    }
+
+    upgradeBtn.addEventListener("click", () => {
+      if (!state.running) return;
+      if (state.coins < state.speedUpgradeCost) return;
+      state.coins -= state.speedUpgradeCost;
+      state.speedLevel += 1;
+      state.baseSpeed += 20;
+      state.speedUpgradeCost = Math.floor(state.speedUpgradeCost * 1.6 + 5);
+      updateHud();
+    });
+
+    restartBtn.addEventListener("click", resetGame);
+
+    window.addEventListener("keydown", (e) => {
+      const controls = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"];
+      if (controls.includes(e.key)) {
+        e.preventDefault();
+      }
+      state.keys.add(e.key.toLowerCase());
+    });
+
+    window.addEventListener("keyup", (e) => {
+      state.keys.delete(e.key.toLowerCase());
+    });
+
+    function setTouch(dir, on) {
+      state.touch[dir] = on;
+    }
+
+    mobilePad.querySelectorAll("button[data-dir]").forEach((btn) => {
+      const dir = btn.getAttribute("data-dir");
+      btn.addEventListener("pointerdown", () => setTouch(dir, true));
+      btn.addEventListener("pointerup", () => setTouch(dir, false));
+      btn.addEventListener("pointercancel", () => setTouch(dir, false));
+      btn.addEventListener("pointerleave", () => setTouch(dir, false));
+    });
+
+    window.addEventListener("resize", setCanvasSize);
+
+    setCanvasSize();
+    resetGame();
+    showOverlay("Base is at the bottom. Use TP pads to jump up, grab brainrots, and bring them back to storage for coins per second.");
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
