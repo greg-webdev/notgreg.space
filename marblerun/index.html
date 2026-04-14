@@ -48,53 +48,100 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-      background: rgba(255, 252, 244, 0.82);
-      backdrop-filter: blur(8px);
+      padding: 6px 10px;
+      border-bottom: 1px solid #2c3138;
+      background: linear-gradient(180deg, #111317 0%, #0d0f13 100%);
     }
 
-    body.dark .topbar {
-      background: rgba(20, 29, 37, 0.9);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    .tab-strip {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .tabs {
       flex: 1;
       min-width: 0;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       overflow-x: auto;
       scrollbar-width: thin;
     }
 
     .tab-btn {
       width: auto;
-      white-space: nowrap;
-      border-radius: 10px;
-      border: 1px solid #ccbfa2;
-      padding: 8px 10px;
-      background: linear-gradient(180deg, #fff 0%, #f4e9d1 100%);
-      color: #1f2731;
+      min-width: 122px;
+      max-width: 260px;
+      height: 30px;
+      border-radius: 8px 8px 0 0;
+      border: 1px solid #2d3239;
+      padding: 0 10px;
+      background: linear-gradient(180deg, #1f232a 0%, #191d23 100%);
+      color: #cad3df;
       cursor: pointer;
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    .tab-close {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      line-height: 1;
+      color: #9ca7b5;
+      background: transparent;
+      user-select: none;
+    }
+
+    .tab-btn:hover .tab-close {
+      background: rgba(255, 255, 255, 0.12);
+      color: #f4f8ff;
     }
 
     .tab-btn.active {
-      border-color: #0d8b96;
-      box-shadow: 0 0 0 2px rgba(13, 139, 150, 0.18) inset;
+      border-color: #485565;
+      background: linear-gradient(180deg, #323a44 0%, #262c35 100%);
+      color: #f1f6fc;
     }
 
-    body.dark .tab-btn {
-      border-color: #415262;
-      background: linear-gradient(180deg, #1e2a35 0%, #1a2430 100%);
-      color: #dce6ef;
+    .tab-add-btn {
+      width: 30px;
+      min-width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid #3a414b;
+      background: linear-gradient(180deg, #1f252d 0%, #171c22 100%);
+      color: #d3dce8;
+      padding: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
     }
 
-    body.dark .tab-btn.active {
-      border-color: #22a8b5;
-      box-shadow: 0 0 0 2px rgba(34, 168, 181, 0.28) inset;
+    .tab-add-btn:hover {
+      border-color: #5a6573;
+      background: linear-gradient(180deg, #28303a 0%, #1f252d 100%);
+      box-shadow: none;
+      transform: none;
     }
 
     .top-actions {
@@ -108,6 +155,14 @@
     .top-actions button {
       width: auto;
       min-width: 92px;
+      border-color: #424b56;
+      background: linear-gradient(180deg, #1b2129 0%, #141a21 100%);
+      color: #d8e2ef;
+    }
+
+    .top-actions button:hover {
+      border-color: #5a6675;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
     }
 
     .zoom-chip {
@@ -528,6 +583,56 @@
       background: rgba(19, 29, 37, 0.86);
     }
 
+    .empty-tabs-screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(380px 220px at 22% 18%, rgba(56, 152, 170, 0.14), transparent 70%),
+        radial-gradient(320px 200px at 82% 78%, rgba(226, 138, 95, 0.14), transparent 72%),
+        rgba(15, 22, 30, 0.7);
+      z-index: 7;
+    }
+
+    .empty-tabs-screen.active {
+      display: flex;
+    }
+
+    .empty-tabs-card {
+      width: min(420px, 100%);
+      border-radius: 16px;
+      border: 1px solid rgba(79, 106, 130, 0.72);
+      background: linear-gradient(180deg, rgba(21, 31, 42, 0.92), rgba(14, 22, 31, 0.94));
+      box-shadow: 0 24px 46px rgba(0, 0, 0, 0.38);
+      padding: 18px;
+      text-align: center;
+      color: #dbe6f2;
+      display: grid;
+      gap: 12px;
+    }
+
+    .empty-tabs-card h2 {
+      margin: 0;
+      font-size: 1.18rem;
+    }
+
+    .empty-tabs-card p {
+      margin: 0;
+      font-size: 0.88rem;
+      opacity: 0.82;
+    }
+
+    .empty-tabs-card button {
+      max-width: 180px;
+      justify-self: center;
+      border-color: #5d7289;
+      background: linear-gradient(180deg, #2f4a65 0%, #243a50 100%);
+      color: #eff8ff;
+    }
+
     .editor-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -629,9 +734,11 @@
 </head>
 <body class="dark">
   <div class="topbar">
-    <div class="tabs" id="runTabs"></div>
+    <div class="tab-strip">
+      <div class="tabs" id="runTabs"></div>
+      <button id="newRunTab" class="tab-add-btn" title="New Tab" aria-label="New Tab">+</button>
+    </div>
     <div class="top-actions">
-      <button id="newRunTab">New Tab</button>
       <button id="toggleAnimations">Animations: On</button>
       <button id="zoomOut">Zoom -</button>
       <button id="zoomReset" class="zoom-chip">100%</button>
@@ -867,6 +974,13 @@
     <section class="canvas-shell">
       <canvas id="sim"></canvas>
       <div id="hud" class="hud"></div>
+      <div id="emptyTabsScreen" class="empty-tabs-screen">
+        <div class="empty-tabs-card">
+          <h2>No Tabs Open</h2>
+          <p>Create a new tab to start a fresh marble run.</p>
+          <button id="emptyNewTab">New Tab</button>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -894,6 +1008,8 @@
       loadMbrInput: document.getElementById("loadMbrInput"),
       themeToggle: document.getElementById("themeToggle"),
       settingsMenuToggle: document.getElementById("settingsMenuToggle"),
+      emptyTabsScreen: document.getElementById("emptyTabsScreen"),
+      emptyNewTab: document.getElementById("emptyNewTab"),
       menuTabs: document.getElementById("menuTabs"),
       toolCategory: document.getElementById("toolCategory"),
       tool: document.getElementById("tool"),
@@ -1025,6 +1141,8 @@
       historySuspend: false,
       sliderVisuals: [],
       activeSliderVisualId: "gravity",
+      sliderPreviewMarble: null,
+      sliderPreviewLastNow: 0,
       shortcuts: {
         undo: "ctrl+z",
         redo: "ctrl+y",
@@ -1722,9 +1840,16 @@
       const t = clamp((value - min) / Math.max(0.0001, max - min), 0, 1);
 
       const boxW = Math.min(330, world.width - 24);
-      const boxH = 74;
+      const boxH = 82;
       const x = (world.width - boxW) * 0.5;
       const y = 12;
+      const line = {
+        x1: x + 22,
+        y1: y + 30,
+        x2: x + boxW - 20,
+        y2: y + 48 + t * 8
+      };
+      const marbleR = 6.2;
 
       ctx.save();
       ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
@@ -1740,38 +1865,141 @@
       ctx.font = "700 11px IBM Plex Mono";
       ctx.fillText((slider.input.id || "slider") + " = " + value.toFixed(slider.input.step && String(slider.input.step).includes(".") ? 2 : 0), x + 8, y + 14);
 
-      if (slider.kind === "physics") {
-        ctx.strokeStyle = state.darkMode ? "rgba(119, 184, 226, 0.95)" : "rgba(95, 85, 63, 0.92)";
-        ctx.lineWidth = 2.6;
-        ctx.beginPath();
-        ctx.moveTo(x + 16, y + boxH - 14);
-        ctx.lineTo(x + boxW - 16, y + 28);
-        ctx.stroke();
+      const resetPreviewMarble = () => {
+        const startT = 0.1 + t * 0.12;
+        state.sliderPreviewMarble = {
+          key: slider.input.id,
+          x: line.x1 + (line.x2 - line.x1) * startT,
+          y: y + 7,
+          vx: 22 + t * 36,
+          vy: 0,
+          stuckFrames: 0
+        };
+      };
 
-        const ballX = x + 16 + (boxW - 32) * t;
-        const ballY = y + boxH - 14 - (boxH - 42) * t + Math.sin(now * 0.004) * 1.6;
-        ctx.fillStyle = "#f8d36a";
-        ctx.beginPath();
-        ctx.arc(ballX, ballY, 6.2, 0, TAU);
-        ctx.fill();
-      } else {
-        const drop = ((now * 0.00115) % 1);
-        const platformW = 34 + (boxW - 76) * t;
-        const platformX = x + (boxW - platformW) * 0.5;
-        const platformY = y + boxH - 16;
-        const ballY = y + 22 + (platformY - (y + 22)) * Math.min(1, drop * 1.2);
-
-        ctx.fillStyle = state.darkMode ? "rgba(45, 156, 176, 0.46)" : "rgba(13, 139, 150, 0.28)";
-        ctx.fillRect(platformX, platformY - 6, platformW, 6);
-        ctx.strokeStyle = state.darkMode ? "rgba(78, 200, 222, 0.9)" : "rgba(11, 71, 78, 0.9)";
-        ctx.lineWidth = 1.6;
-        ctx.strokeRect(platformX, platformY - 6, platformW, 6);
-
-        ctx.fillStyle = "#f9df7f";
-        ctx.beginPath();
-        ctx.arc(x + boxW * 0.5, ballY, 5.8, 0, TAU);
-        ctx.fill();
+      if (!state.sliderPreviewMarble || state.sliderPreviewMarble.key !== slider.input.id) {
+        resetPreviewMarble();
+        state.sliderPreviewLastNow = now;
       }
+
+      const m = state.sliderPreviewMarble;
+      const dt = clamp((now - (state.sliderPreviewLastNow || now)) / 1000, 0.001, 0.035);
+      state.sliderPreviewLastNow = now;
+
+      for (let i = 0; i < 2; i += 1) {
+        const stepDt = dt * 0.5;
+        m.vy += (620 + t * 640) * stepDt;
+        m.x += m.vx * stepDt;
+        m.y += m.vy * stepDt;
+
+        let pushedOut = false;
+        for (let push = 0; push < 6; push += 1) {
+          const near = nearestPointOnSegment(m.x, m.y, line);
+          const dx = m.x - near.x;
+          const dy = m.y - near.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq >= marbleR * marbleR) {
+            break;
+          }
+
+          const dist = Math.sqrt(Math.max(distSq, 0.000001));
+          let nx = dx / dist;
+          let ny = dy / dist;
+
+          if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
+            const lvx = line.x2 - line.x1;
+            const lvy = line.y2 - line.y1;
+            const len = Math.hypot(lvx, lvy) || 1;
+            nx = -lvy / len;
+            ny = lvx / len;
+            if (ny > 0) {
+              nx *= -1;
+              ny *= -1;
+            }
+          }
+
+          const overlap = marbleR - dist + 0.05;
+          m.x += nx * overlap;
+          m.y += ny * overlap;
+
+          const vn = m.vx * nx + m.vy * ny;
+          if (vn < 0) {
+            const bounce = 0.22 + (1 - world.friction) * 0.2 + t * 0.18;
+            m.vx -= (1 + bounce) * vn * nx;
+            m.vy -= (1 + bounce) * vn * ny;
+          }
+
+          const tx = -ny;
+          const ty = nx;
+          const vt = m.vx * tx + m.vy * ty;
+          const grip = clamp(world.friction * 0.42 + 0.08, 0.05, 0.45);
+          m.vx -= vt * grip * tx;
+          m.vy -= vt * grip * ty;
+          pushedOut = true;
+        }
+
+        if (pushedOut) {
+          m.stuckFrames += 1;
+          if (m.stuckFrames > 4) {
+            m.y -= marbleR * 0.56;
+            m.vy -= 44;
+            m.stuckFrames = 0;
+          }
+        } else {
+          m.stuckFrames = 0;
+        }
+
+        const floorY = y + boxH - 12;
+        if (m.y + marbleR > floorY) {
+          m.y = floorY - marbleR;
+          m.vy *= -0.36;
+          m.vx *= 0.98;
+        }
+
+        if (m.x > x + boxW + 10 || m.x < x - 20 || m.y > y + boxH + 28) {
+          resetPreviewMarble();
+          break;
+        }
+      }
+
+      ctx.strokeStyle = state.darkMode ? "rgba(121, 186, 225, 0.92)" : "rgba(98, 87, 61, 0.94)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(line.x1, line.y1);
+      ctx.lineTo(line.x2, line.y2);
+      ctx.stroke();
+
+      ctx.strokeStyle = state.darkMode ? "rgba(34, 196, 214, 0.56)" : "rgba(13, 139, 150, 0.46)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(line.x1, line.y1 - 4);
+      ctx.lineTo(line.x2, line.y2 - 4);
+      ctx.stroke();
+
+      const trailLen = 10 + t * 12;
+      const speed = Math.hypot(m.vx, m.vy);
+      if (speed > 0.1) {
+        const tx = m.x - (m.vx / speed) * trailLen;
+        const ty = m.y - (m.vy / speed) * trailLen;
+        const trail = ctx.createLinearGradient(m.x, m.y, tx, ty);
+        trail.addColorStop(0, "rgba(255, 255, 255, 0.58)");
+        trail.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.strokeStyle = trail;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+      }
+
+      const grad = ctx.createRadialGradient(m.x - marbleR * 0.35, m.y - marbleR * 0.35, 1, m.x, m.y, marbleR);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.4, "#f3d56b");
+      grad.addColorStop(1, "#6b5120");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, marbleR, 0, TAU);
+      ctx.fill();
       ctx.restore();
     }
 
@@ -1867,18 +2095,43 @@
       state.runs[state.activeRunIndex].data = exportCurrentSceneData();
     }
 
+    function updateEmptyTabsScreen() {
+      const hasTabs = state.runs.length > 0;
+      ui.emptyTabsScreen.classList.toggle("active", !hasTabs);
+      hud.style.display = hasTabs ? "block" : "none";
+    }
+
     function renderRunTabs() {
       ui.runTabs.innerHTML = "";
       for (let i = 0; i < state.runs.length; i += 1) {
         const run = state.runs[i];
         const btn = document.createElement("button");
         btn.className = "tab-btn" + (i === state.activeRunIndex ? " active" : "");
-        btn.textContent = run.name;
+
+        const label = document.createElement("span");
+        label.className = "tab-label";
+        label.textContent = run.name;
+
+        const close = document.createElement("span");
+        close.className = "tab-close";
+        close.textContent = "x";
+        close.title = "Close Tab";
+        close.addEventListener("pointerdown", (evt) => {
+          evt.stopPropagation();
+        });
+        close.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          closeRunTab(i);
+        });
+
+        btn.appendChild(label);
+        btn.appendChild(close);
         btn.addEventListener("click", () => {
           switchToRun(i);
         });
         ui.runTabs.appendChild(btn);
       }
+      updateEmptyTabsScreen();
     }
 
     function switchToRun(index) {
@@ -1891,6 +2144,38 @@
       saveActiveRunData();
       state.activeRunIndex = index;
       importSceneData(state.runs[index].data || makeEmptySceneData());
+      renderRunTabs();
+    }
+
+    function closeRunTab(index) {
+      if (index < 0 || index >= state.runs.length) {
+        return;
+      }
+
+      const closingActive = index === state.activeRunIndex;
+      if (closingActive) {
+        saveActiveRunData();
+      }
+
+      state.runs.splice(index, 1);
+
+      if (!state.runs.length) {
+        state.activeRunIndex = -1;
+        importSceneData(makeEmptySceneData());
+        renderRunTabs();
+        return;
+      }
+
+      if (!closingActive) {
+        if (index < state.activeRunIndex) {
+          state.activeRunIndex -= 1;
+        }
+        renderRunTabs();
+        return;
+      }
+
+      state.activeRunIndex = Math.min(index, state.runs.length - 1);
+      importSceneData(state.runs[state.activeRunIndex].data || makeEmptySceneData());
       renderRunTabs();
     }
 
@@ -1962,7 +2247,7 @@
     }
 
     function loadFromMbrPayload(payload) {
-      if (!payload || !Array.isArray(payload.runs) || payload.runs.length === 0) {
+      if (!payload || !Array.isArray(payload.runs)) {
         throw new Error("Invalid .mbr file");
       }
 
@@ -1998,6 +2283,13 @@
 
       state.darkMode = payload.theme !== "light";
       applyTheme();
+
+      if (!state.runs.length) {
+        state.activeRunIndex = -1;
+        importSceneData(makeEmptySceneData());
+        renderRunTabs();
+        return;
+      }
 
       const desiredId = payload.activeRunId;
       let idx = state.runs.findIndex((run) => run.id === desiredId);
@@ -4720,6 +5012,10 @@
       createRunTab();
     });
 
+    ui.emptyNewTab.addEventListener("click", () => {
+      createRunTab();
+    });
+
     ui.settingsMenuToggle.addEventListener("click", () => {
       if (state.menuCollapsed) {
         state.menuCollapsed = false;
@@ -5053,6 +5349,21 @@
     });
 
     window.addEventListener("keydown", (evt) => {
+      const key = evt.key.toLowerCase();
+      if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && !evt.shiftKey && key === "t") {
+        evt.preventDefault();
+        createRunTab();
+        return;
+      }
+
+      if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && !evt.shiftKey && key === "w") {
+        evt.preventDefault();
+        if (state.activeRunIndex >= 0) {
+          closeRunTab(state.activeRunIndex);
+        }
+        return;
+      }
+
       if (isTypingTarget(evt.target)) {
         return;
       }
