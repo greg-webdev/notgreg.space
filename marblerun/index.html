@@ -3053,6 +3053,7 @@
         sequenceWaitSec: triggerConfig.sequenceWaitSec,
         sequenceTeleportX: triggerConfig.sequenceTeleportX,
         sequenceTeleportY: triggerConfig.sequenceTeleportY,
+        sequenceSteps: triggerConfig.sequenceSteps,
         flash: 0
       };
       normalizeTriggerConfig(trigger);
@@ -3063,6 +3064,7 @@
         id: trigger.id.slice(-4),
         action: trigger.action,
         target: trigger.target,
+        steps: trigger.sequenceSteps.length,
         rect: trigger.x.toFixed(1) + "," + trigger.y.toFixed(1) + " " + trigger.w.toFixed(1) + "x" + trigger.h.toFixed(1)
       });
     }
@@ -3107,6 +3109,459 @@
       return "all-moving";
     }
 
+    function sanitizeTriggerStepAction(value) {
+      const action = typeof value === "string" ? value : "toggle";
+      if (action === "toggle" || action === "start" || action === "stop") {
+        return action;
+      }
+      return "toggle";
+    }
+
+    function sanitizeTriggerSequenceStepType(value) {
+      const type = typeof value === "string" ? value : "wait";
+      if (
+        type === "wait" ||
+        type === "move-part" ||
+        type === "teleport-marbles" ||
+        type === "target-action" ||
+        type === "spawn-marbles"
+      ) {
+        return type;
+      }
+      return "wait";
+    }
+
+    function buildTriggerAllObjectOptions() {
+      const options = [{ value: "", label: "None" }];
+      for (const part of state.parts) {
+        options.push({ value: part.id, label: "Part: " + part.tool + " (" + part.id.slice(-4) + ")" });
+      }
+      for (const pad of state.pads) {
+        options.push({ value: pad.id, label: "Pad: " + pad.tool + " (" + pad.id.slice(-4) + ")" });
+      }
+      return options;
+    }
+
+    function buildTriggerMovingPartOptions() {
+      const options = [{ value: "", label: "Selected Moving Part" }];
+      for (const part of state.parts) {
+        if (part.motion === "static" || part.padType) {
+          continue;
+        }
+        options.push({ value: part.id, label: "Part: " + part.tool + " (" + part.id.slice(-4) + ")" });
+      }
+      return options;
+    }
+
+    function createDefaultTriggerSequenceStep(type) {
+      const safeType = sanitizeTriggerSequenceStepType(type);
+      if (safeType === "move-part") {
+        return { type: "move-part", partId: "", x: null, y: null };
+      }
+      if (safeType === "teleport-marbles") {
+        return { type: "teleport-marbles", x: null, y: null };
+      }
+      if (safeType === "target-action") {
+        return { type: "target-action", action: "toggle", target: "all-moving", selectedPartId: "" };
+      }
+      if (safeType === "spawn-marbles") {
+        return { type: "spawn-marbles", count: 8, speed: 0, spread: 140, x: null, y: null };
+      }
+      return { type: "wait", seconds: 0.5 };
+    }
+
+    function sanitizeTriggerSequenceStep(step) {
+      const type = sanitizeTriggerSequenceStepType(step && step.type);
+      if (type === "wait") {
+        const seconds = Number(step && step.seconds);
+        return {
+          type,
+          seconds: Number.isFinite(seconds) ? clamp(seconds, 0, 30) : 0.5
+        };
+      }
+
+      if (type === "move-part") {
+        const partId = findPartById(step && step.partId) ? step.partId : "";
+        const x = Number(step && step.x);
+        const y = Number(step && step.y);
+        return {
+          type,
+          partId,
+          x: Number.isFinite(x) ? x : null,
+          y: Number.isFinite(y) ? y : null
+        };
+      }
+
+      if (type === "teleport-marbles") {
+        const x = Number(step && step.x);
+        const y = Number(step && step.y);
+        return {
+          type,
+          x: Number.isFinite(x) ? x : null,
+          y: Number.isFinite(y) ? y : null
+        };
+      }
+
+      if (type === "target-action") {
+        const selectedPartId = findPartById(step && step.selectedPartId) ? step.selectedPartId : "";
+        return {
+          type,
+          action: sanitizeTriggerStepAction(step && step.action),
+          target: sanitizeTriggerTarget(step && step.target),
+          selectedPartId
+        };
+      }
+
+      const count = Number(step && step.count);
+      const speed = Number(step && step.speed);
+      const spread = Number(step && step.spread);
+      const x = Number(step && step.x);
+      const y = Number(step && step.y);
+      return {
+        type,
+        count: Number.isFinite(count) ? clamp(Math.round(count), 1, 200) : 8,
+        speed: Number.isFinite(speed) ? clamp(speed, -900, 900) : 0,
+        spread: Number.isFinite(spread) ? clamp(spread, 0, 600) : 140,
+        x: Number.isFinite(x) ? x : null,
+        y: Number.isFinite(y) ? y : null
+      };
+    }
+
+    function cloneTriggerSequenceSteps(steps) {
+      if (!Array.isArray(steps)) {
+        return [];
+      }
+      return steps.map((step) => sanitizeTriggerSequenceStep(step));
+    }
+
+    function buildLegacySequenceStepsFromValues(movePartId, moveX, moveY, waitSec, teleportX, teleportY) {
+      const steps = [];
+
+      const canMove = findPartById(movePartId) && (Number.isFinite(moveX) || Number.isFinite(moveY));
+      if (canMove) {
+        steps.push({
+          type: "move-part",
+          partId: movePartId,
+          x: Number.isFinite(moveX) ? moveX : null,
+          y: Number.isFinite(moveY) ? moveY : null
+        });
+      }
+
+      const canTeleport = Number.isFinite(teleportX) && Number.isFinite(teleportY);
+      if (canTeleport && Number.isFinite(waitSec) && waitSec > 0) {
+        steps.push({ type: "wait", seconds: clamp(waitSec, 0, 30) });
+      }
+
+      if (canTeleport) {
+        steps.push({ type: "teleport-marbles", x: teleportX, y: teleportY });
+      }
+
+      return cloneTriggerSequenceSteps(steps);
+    }
+
+    function buildLegacySequenceStepsFromMenu() {
+      const movePartId = findPartById(ui.triggerMovePart.value) ? ui.triggerMovePart.value : "";
+      const moveX = parseOptionalNum(ui.triggerMoveX);
+      const moveY = parseOptionalNum(ui.triggerMoveY);
+      const waitRaw = Number(ui.triggerWait.value);
+      const waitSec = Number.isFinite(waitRaw) ? clamp(waitRaw, 0, 30) : 1;
+      const teleportX = parseOptionalNum(ui.triggerTeleportX);
+      const teleportY = parseOptionalNum(ui.triggerTeleportY);
+      return buildLegacySequenceStepsFromValues(movePartId, moveX, moveY, waitSec, teleportX, teleportY);
+    }
+
+    function buildLegacySequenceStepsFromTrigger(trigger) {
+      if (!trigger) {
+        return [];
+      }
+      return buildLegacySequenceStepsFromValues(
+        trigger.sequenceMovePartId,
+        trigger.sequenceMoveX,
+        trigger.sequenceMoveY,
+        trigger.sequenceWaitSec,
+        trigger.sequenceTeleportX,
+        trigger.sequenceTeleportY
+      );
+    }
+
+    function setTriggerSequenceDraft(steps) {
+      state.triggerSequenceDraft = cloneTriggerSequenceSteps(steps);
+      renderTriggerSequenceEditor();
+    }
+
+    function renderTriggerSequenceEditor() {
+      if (!ui.triggerSequenceList) {
+        return;
+      }
+
+      ui.triggerSequenceList.innerHTML = "";
+      if (!state.triggerSequenceDraft.length) {
+        const empty = document.createElement("div");
+        empty.className = "trigger-sequence-empty";
+        empty.textContent = "No events yet. Add one, or click Use Legacy Fields to import the Move/Wait/Teleport inputs.";
+        ui.triggerSequenceList.appendChild(empty);
+        return;
+      }
+
+      const allObjects = buildTriggerAllObjectOptions();
+      const movingParts = buildTriggerMovingPartOptions();
+
+      const createInputRow = (labelText, input) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        const label = document.createElement("label");
+        label.textContent = labelText;
+        row.appendChild(label);
+        row.appendChild(input);
+        return row;
+      };
+
+      const createSelect = (options, value) => {
+        const select = document.createElement("select");
+        for (const option of options) {
+          const el = document.createElement("option");
+          el.value = option.value;
+          el.textContent = option.label;
+          select.appendChild(el);
+        }
+        if (options.some((option) => option.value === value)) {
+          select.value = value;
+        }
+        return select;
+      };
+
+      for (let index = 0; index < state.triggerSequenceDraft.length; index += 1) {
+        const step = state.triggerSequenceDraft[index];
+        const card = document.createElement("div");
+        card.className = "trigger-sequence-step";
+
+        const head = document.createElement("div");
+        head.className = "trigger-sequence-step-head";
+
+        const typeSelect = createSelect([
+          { value: "wait", label: "Wait" },
+          { value: "move-part", label: "Move Object" },
+          { value: "teleport-marbles", label: "Teleport Marbles" },
+          { value: "target-action", label: "Target Action" },
+          { value: "spawn-marbles", label: "Spawn Marbles" }
+        ], step.type);
+        typeSelect.addEventListener("change", () => {
+          state.triggerSequenceDraft[index] = createDefaultTriggerSequenceStep(typeSelect.value);
+          renderTriggerSequenceEditor();
+        });
+        head.appendChild(typeSelect);
+
+        const stepButtons = document.createElement("div");
+        stepButtons.className = "trigger-sequence-step-buttons";
+
+        const upBtn = document.createElement("button");
+        upBtn.type = "button";
+        upBtn.textContent = "↑";
+        upBtn.title = "Move Up";
+        upBtn.disabled = index === 0;
+        upBtn.addEventListener("click", () => {
+          if (index <= 0) {
+            return;
+          }
+          const temp = state.triggerSequenceDraft[index - 1];
+          state.triggerSequenceDraft[index - 1] = state.triggerSequenceDraft[index];
+          state.triggerSequenceDraft[index] = temp;
+          renderTriggerSequenceEditor();
+        });
+
+        const downBtn = document.createElement("button");
+        downBtn.type = "button";
+        downBtn.textContent = "↓";
+        downBtn.title = "Move Down";
+        downBtn.disabled = index >= state.triggerSequenceDraft.length - 1;
+        downBtn.addEventListener("click", () => {
+          if (index >= state.triggerSequenceDraft.length - 1) {
+            return;
+          }
+          const temp = state.triggerSequenceDraft[index + 1];
+          state.triggerSequenceDraft[index + 1] = state.triggerSequenceDraft[index];
+          state.triggerSequenceDraft[index] = temp;
+          renderTriggerSequenceEditor();
+        });
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.textContent = "×";
+        removeBtn.title = "Remove";
+        removeBtn.addEventListener("click", () => {
+          state.triggerSequenceDraft.splice(index, 1);
+          renderTriggerSequenceEditor();
+        });
+
+        stepButtons.appendChild(upBtn);
+        stepButtons.appendChild(downBtn);
+        stepButtons.appendChild(removeBtn);
+        head.appendChild(stepButtons);
+        card.appendChild(head);
+
+        const grid = document.createElement("div");
+        grid.className = "trigger-sequence-step-grid";
+
+        if (step.type === "wait") {
+          const seconds = document.createElement("input");
+          seconds.type = "number";
+          seconds.min = "0";
+          seconds.max = "30";
+          seconds.step = "0.05";
+          seconds.value = String(step.seconds == null ? 0.5 : step.seconds);
+          seconds.addEventListener("change", () => {
+            const value = Number(seconds.value);
+            step.seconds = Number.isFinite(value) ? clamp(value, 0, 30) : 0;
+          });
+          grid.appendChild(createInputRow("Seconds", seconds));
+        } else if (step.type === "move-part") {
+          const objectSelect = createSelect(allObjects, step.partId || "");
+          objectSelect.addEventListener("change", () => {
+            step.partId = findPartById(objectSelect.value) ? objectSelect.value : "";
+          });
+
+          const xInput = document.createElement("input");
+          xInput.type = "number";
+          xInput.step = "1";
+          xInput.placeholder = "Keep X";
+          xInput.value = step.x == null ? "" : String(step.x);
+          xInput.addEventListener("change", () => {
+            const value = Number(xInput.value);
+            step.x = Number.isFinite(value) ? value : null;
+          });
+
+          const yInput = document.createElement("input");
+          yInput.type = "number";
+          yInput.step = "1";
+          yInput.placeholder = "Keep Y";
+          yInput.value = step.y == null ? "" : String(step.y);
+          yInput.addEventListener("change", () => {
+            const value = Number(yInput.value);
+            step.y = Number.isFinite(value) ? value : null;
+          });
+
+          grid.appendChild(createInputRow("Object", objectSelect));
+          grid.appendChild(createInputRow("Move To X", xInput));
+          grid.appendChild(createInputRow("Move To Y", yInput));
+        } else if (step.type === "teleport-marbles") {
+          const xInput = document.createElement("input");
+          xInput.type = "number";
+          xInput.step = "1";
+          xInput.placeholder = "Required";
+          xInput.value = step.x == null ? "" : String(step.x);
+          xInput.addEventListener("change", () => {
+            const value = Number(xInput.value);
+            step.x = Number.isFinite(value) ? value : null;
+          });
+
+          const yInput = document.createElement("input");
+          yInput.type = "number";
+          yInput.step = "1";
+          yInput.placeholder = "Required";
+          yInput.value = step.y == null ? "" : String(step.y);
+          yInput.addEventListener("change", () => {
+            const value = Number(yInput.value);
+            step.y = Number.isFinite(value) ? value : null;
+          });
+
+          grid.appendChild(createInputRow("Teleport X", xInput));
+          grid.appendChild(createInputRow("Teleport Y", yInput));
+        } else if (step.type === "target-action") {
+          const actionSelect = createSelect([
+            { value: "toggle", label: "Toggle" },
+            { value: "start", label: "Start" },
+            { value: "stop", label: "Stop" }
+          ], step.action || "toggle");
+          actionSelect.addEventListener("change", () => {
+            step.action = sanitizeTriggerStepAction(actionSelect.value);
+          });
+
+          const targetSelect = createSelect([
+            { value: "all-moving", label: "All Moving Parts" },
+            { value: "smooth", label: "Smooth Movers" },
+            { value: "linear", label: "Linear Movers" },
+            { value: "warp", label: "Warp Movers" },
+            { value: "spinners", label: "Spinners" },
+            { value: "selected", label: "Selected Part" }
+          ], step.target || "all-moving");
+          targetSelect.addEventListener("change", () => {
+            step.target = sanitizeTriggerTarget(targetSelect.value);
+          });
+
+          const selectedPart = createSelect(movingParts, step.selectedPartId || "");
+          selectedPart.addEventListener("change", () => {
+            step.selectedPartId = findPartById(selectedPart.value) ? selectedPart.value : "";
+          });
+
+          grid.appendChild(createInputRow("Action", actionSelect));
+          grid.appendChild(createInputRow("Target", targetSelect));
+          grid.appendChild(createInputRow("Selected Target", selectedPart));
+        } else {
+          const countInput = document.createElement("input");
+          countInput.type = "number";
+          countInput.min = "1";
+          countInput.max = "200";
+          countInput.step = "1";
+          countInput.value = String(step.count == null ? 8 : step.count);
+          countInput.addEventListener("change", () => {
+            const value = Number(countInput.value);
+            step.count = Number.isFinite(value) ? clamp(Math.round(value), 1, 200) : 8;
+          });
+
+          const speedInput = document.createElement("input");
+          speedInput.type = "number";
+          speedInput.min = "-900";
+          speedInput.max = "900";
+          speedInput.step = "5";
+          speedInput.value = String(step.speed == null ? 0 : step.speed);
+          speedInput.addEventListener("change", () => {
+            const value = Number(speedInput.value);
+            step.speed = Number.isFinite(value) ? clamp(value, -900, 900) : 0;
+          });
+
+          const spreadInput = document.createElement("input");
+          spreadInput.type = "number";
+          spreadInput.min = "0";
+          spreadInput.max = "600";
+          spreadInput.step = "1";
+          spreadInput.value = String(step.spread == null ? 140 : step.spread);
+          spreadInput.addEventListener("change", () => {
+            const value = Number(spreadInput.value);
+            step.spread = Number.isFinite(value) ? clamp(value, 0, 600) : 140;
+          });
+
+          const xInput = document.createElement("input");
+          xInput.type = "number";
+          xInput.step = "1";
+          xInput.placeholder = "Random X";
+          xInput.value = step.x == null ? "" : String(step.x);
+          xInput.addEventListener("change", () => {
+            const value = Number(xInput.value);
+            step.x = Number.isFinite(value) ? value : null;
+          });
+
+          const yInput = document.createElement("input");
+          yInput.type = "number";
+          yInput.step = "1";
+          yInput.placeholder = "Default Y";
+          yInput.value = step.y == null ? "" : String(step.y);
+          yInput.addEventListener("change", () => {
+            const value = Number(yInput.value);
+            step.y = Number.isFinite(value) ? value : null;
+          });
+
+          grid.appendChild(createInputRow("Count", countInput));
+          grid.appendChild(createInputRow("Speed X", speedInput));
+          grid.appendChild(createInputRow("Spread", spreadInput));
+          grid.appendChild(createInputRow("Spawn X", xInput));
+          grid.appendChild(createInputRow("Spawn Y", yInput));
+        }
+
+        card.appendChild(grid);
+        ui.triggerSequenceList.appendChild(card);
+      }
+    }
+
     function normalizeTriggerConfig(trigger) {
       if (!trigger || typeof trigger !== "object") {
         return;
@@ -3119,7 +3574,11 @@
       trigger.sequenceMoveY = Number.isFinite(trigger.sequenceMoveY) ? trigger.sequenceMoveY : null;
       trigger.sequenceTeleportX = Number.isFinite(trigger.sequenceTeleportX) ? trigger.sequenceTeleportX : null;
       trigger.sequenceTeleportY = Number.isFinite(trigger.sequenceTeleportY) ? trigger.sequenceTeleportY : null;
-      trigger.sequenceWaitSec = Number.isFinite(trigger.sequenceWaitSec) ? clamp(trigger.sequenceWaitSec, 0, 20) : 1;
+      trigger.sequenceWaitSec = Number.isFinite(trigger.sequenceWaitSec) ? clamp(trigger.sequenceWaitSec, 0, 30) : 1;
+      trigger.sequenceSteps = cloneTriggerSequenceSteps(Array.isArray(trigger.sequenceSteps) ? trigger.sequenceSteps : []);
+      if (!trigger.sequenceSteps.length) {
+        trigger.sequenceSteps = buildLegacySequenceStepsFromTrigger(trigger);
+      }
       trigger.flash = Number.isFinite(trigger.flash) ? trigger.flash : 0;
     }
 
@@ -3128,11 +3587,13 @@
       const target = sanitizeTriggerTarget(ui.triggerTarget.value);
       const movePartId = findPartById(ui.triggerMovePart.value) ? ui.triggerMovePart.value : "";
       const waitRaw = Number(ui.triggerWait.value);
-      const waitSec = Number.isFinite(waitRaw) ? clamp(waitRaw, 0, 20) : 1;
+      const waitSec = Number.isFinite(waitRaw) ? clamp(waitRaw, 0, 30) : 1;
       const moveX = parseOptionalNum(ui.triggerMoveX);
       const moveY = parseOptionalNum(ui.triggerMoveY);
       const teleportX = parseOptionalNum(ui.triggerTeleportX);
       const teleportY = parseOptionalNum(ui.triggerTeleportY);
+      const legacySequenceSteps = buildLegacySequenceStepsFromValues(movePartId, moveX, moveY, waitSec, teleportX, teleportY);
+      const draftSequenceSteps = cloneTriggerSequenceSteps(state.triggerSequenceDraft);
 
       let selectedPartId = state.selectedPartId;
       if (target === "selected" && movePartId) {
@@ -3148,7 +3609,8 @@
         sequenceMoveY: moveY,
         sequenceWaitSec: waitSec,
         sequenceTeleportX: teleportX,
-        sequenceTeleportY: teleportY
+        sequenceTeleportY: teleportY,
+        sequenceSteps: draftSequenceSteps.length ? draftSequenceSteps : legacySequenceSteps
       };
     }
 
@@ -3182,12 +3644,17 @@
       } else {
         ui.triggerMovePart.value = "";
       }
+
+      if (state.menuTab === "triggers") {
+        renderTriggerSequenceEditor();
+      }
     }
 
     function syncTriggerMenuFromSelectedTrigger() {
       rebuildTriggerMovePartOptions();
       const trigger = getSelectedTrigger();
       if (!trigger) {
+        setTriggerSequenceDraft(buildLegacySequenceStepsFromMenu());
         ui.applyTriggerToSelected.disabled = true;
         return;
       }
@@ -3201,6 +3668,7 @@
       ui.triggerWait.value = String(trigger.sequenceWaitSec == null ? 1 : trigger.sequenceWaitSec);
       ui.triggerTeleportX.value = trigger.sequenceTeleportX == null ? "" : formatNum(trigger.sequenceTeleportX);
       ui.triggerTeleportY.value = trigger.sequenceTeleportY == null ? "" : formatNum(trigger.sequenceTeleportY);
+      setTriggerSequenceDraft(trigger.sequenceSteps && trigger.sequenceSteps.length ? trigger.sequenceSteps : buildLegacySequenceStepsFromTrigger(trigger));
       ui.applyTriggerToSelected.disabled = false;
     }
 
@@ -3225,13 +3693,15 @@
       trigger.sequenceWaitSec = next.sequenceWaitSec;
       trigger.sequenceTeleportX = next.sequenceTeleportX;
       trigger.sequenceTeleportY = next.sequenceTeleportY;
+      trigger.sequenceSteps = next.sequenceSteps;
       normalizeTriggerConfig(trigger);
 
       rebuildTriggerLinkOptions();
       debugLog("TRIGGER_UPDATED", {
         id: trigger.id.slice(-4),
         action: trigger.action,
-        target: trigger.target
+        target: trigger.target,
+        steps: trigger.sequenceSteps.length
       });
       updateSelectionInfo();
     }
@@ -4093,95 +4563,201 @@
       }
     }
 
-    function queueTriggerSequence(trigger) {
-      const movePartId = trigger.sequenceMovePartId || trigger.selectedPartId;
-      const movePart = findPartById(movePartId);
-      if (movePart && Number.isFinite(trigger.sequenceMoveX) && Number.isFinite(trigger.sequenceMoveY)) {
-        movePartToPosition(movePart, trigger.sequenceMoveX, trigger.sequenceMoveY);
-        debugLog("TRIGGER_SEQUENCE_MOVE", {
-          trigger: trigger.id.slice(-4),
-          part: movePart.id.slice(-4),
-          x: trigger.sequenceMoveX.toFixed(1),
-          y: trigger.sequenceMoveY.toFixed(1)
+    function getTriggerTargetsFromValues(target, selectedPartId, fallbackSelectedId = null) {
+      const list = [];
+      if (target === "all-moving") {
+        for (const part of state.parts) {
+          if (part.motion !== "static") {
+            list.push(part);
+          }
+        }
+      } else if (target === "smooth") {
+        for (const part of state.parts) {
+          if (part.motion === "smooth") {
+            list.push(part);
+          }
+        }
+      } else if (target === "linear") {
+        for (const part of state.parts) {
+          if (part.motion === "linear") {
+            list.push(part);
+          }
+        }
+      } else if (target === "warp") {
+        for (const part of state.parts) {
+          if (part.motion === "warp") {
+            list.push(part);
+          }
+        }
+      } else if (target === "spinners") {
+        for (const part of state.parts) {
+          if (part.motion === "spin") {
+            list.push(part);
+          }
+        }
+      } else if (target === "selected") {
+        const chosenId = selectedPartId || fallbackSelectedId;
+        const found = findPartById(chosenId);
+        if (found && found.motion !== "static" && !found.padType) {
+          list.push(found);
+        }
+      }
+      return list;
+    }
+
+    function executeTriggerSequenceStep(job, trigger, step) {
+      const triggerShort = ((trigger && trigger.id) || job.triggerId || "").slice(-4);
+
+      if (step.type === "wait") {
+        const seconds = Number.isFinite(step.seconds) ? clamp(step.seconds, 0, 30) : 0;
+        debugLog("TRIGGER_SEQUENCE_WAIT", {
+          trigger: triggerShort,
+          seconds: seconds.toFixed(2)
         });
+        return seconds;
       }
 
-      if (!Number.isFinite(trigger.sequenceTeleportX) || !Number.isFinite(trigger.sequenceTeleportY)) {
+      if (step.type === "move-part") {
+        const targetPart = findPartById(step.partId || (trigger && (trigger.sequenceMovePartId || trigger.selectedPartId)));
+        if (targetPart && (Number.isFinite(step.x) || Number.isFinite(step.y))) {
+          const nextX = Number.isFinite(step.x) ? step.x : targetPart.x;
+          const nextY = Number.isFinite(step.y) ? step.y : targetPart.y;
+          movePartToPosition(targetPart, nextX, nextY);
+          debugLog("TRIGGER_SEQUENCE_MOVE", {
+            trigger: triggerShort,
+            part: targetPart.id.slice(-4),
+            x: nextX.toFixed(1),
+            y: nextY.toFixed(1)
+          });
+        } else {
+          debugLog("TRIGGER_SEQUENCE_MOVE_SKIPPED", { trigger: triggerShort });
+        }
+        return 0;
+      }
+
+      if (step.type === "teleport-marbles") {
+        if (Number.isFinite(step.x) && Number.isFinite(step.y)) {
+          teleportAllMarblesTo(step.x, step.y);
+          debugLog("TRIGGER_SEQUENCE_TELEPORT", {
+            trigger: triggerShort,
+            marbles: state.marbles.length,
+            x: step.x.toFixed(1),
+            y: step.y.toFixed(1)
+          });
+        } else {
+          debugLog("TRIGGER_SEQUENCE_TELEPORT_SKIPPED", { trigger: triggerShort });
+        }
+        return 0;
+      }
+
+      if (step.type === "target-action") {
+        const fallbackPart = trigger ? (trigger.sequenceMovePartId || trigger.selectedPartId) : null;
+        const targets = getTriggerTargetsFromValues(step.target, step.selectedPartId, fallbackPart);
+        let affected = 0;
+        for (const part of targets) {
+          if (part.activationTriggerId === "__manual__") {
+            continue;
+          }
+          if (part.activationTriggerId && trigger && part.activationTriggerId !== trigger.id) {
+            continue;
+          }
+          applyTriggerAction(part, step.action);
+          affected += 1;
+        }
+        debugLog("TRIGGER_SEQUENCE_TARGET_ACTION", {
+          trigger: triggerShort,
+          action: step.action,
+          target: step.target,
+          affected
+        });
+        return 0;
+      }
+
+      const count = Number.isFinite(step.count) ? clamp(Math.round(step.count), 1, 200) : 8;
+      const speed = Number.isFinite(step.speed) ? clamp(step.speed, -900, 900) : 0;
+      const spread = Number.isFinite(step.spread) ? clamp(step.spread, 0, 600) : 140;
+      for (let i = 0; i < count; i += 1) {
+        const jitter = (Math.random() - 0.5) * spread;
+        const x = Number.isFinite(step.x) ? step.x + jitter : null;
+        const y = Number.isFinite(step.y) ? step.y : null;
+        const vx = speed + (Math.random() - 0.5) * (spread * 0.25);
+        spawnMarble(x, y, vx);
+      }
+      debugLog("TRIGGER_SEQUENCE_SPAWN", {
+        trigger: triggerShort,
+        count,
+        speed: speed.toFixed(1),
+        spread: spread.toFixed(1)
+      });
+      return 0;
+    }
+
+    function queueTriggerSequence(trigger) {
+      const sequenceSteps = trigger.sequenceSteps && trigger.sequenceSteps.length
+        ? cloneTriggerSequenceSteps(trigger.sequenceSteps)
+        : buildLegacySequenceStepsFromTrigger(trigger);
+      if (!sequenceSteps.length) {
+        debugLog("TRIGGER_SEQUENCE_EMPTY", { trigger: trigger.id.slice(-4) });
         return;
       }
-
       state.triggerJobs.push({
         triggerId: trigger.id,
-        waitRemaining: clamp(trigger.sequenceWaitSec || 0, 0, 20),
-        teleportX: trigger.sequenceTeleportX,
-        teleportY: trigger.sequenceTeleportY
+        waitRemaining: 0,
+        stepIndex: 0,
+        steps: sequenceSteps
       });
       debugLog("TRIGGER_SEQUENCE_QUEUED", {
         trigger: trigger.id.slice(-4),
-        wait: (trigger.sequenceWaitSec || 0).toFixed(2),
-        x: trigger.sequenceTeleportX.toFixed(1),
-        y: trigger.sequenceTeleportY.toFixed(1)
+        events: sequenceSteps.length
       });
     }
 
     function processTriggerJobs(dt) {
       for (let i = state.triggerJobs.length - 1; i >= 0; i -= 1) {
         const job = state.triggerJobs[i];
-        job.waitRemaining -= dt;
-        if (job.waitRemaining > 0) {
+
+        if (!Array.isArray(job.steps) || !job.steps.length) {
+          state.triggerJobs.splice(i, 1);
           continue;
         }
-        teleportAllMarblesTo(job.teleportX, job.teleportY);
-        debugLog("TRIGGER_SEQUENCE_TELEPORT", {
-          trigger: (job.triggerId || "").slice(-4),
-          marbles: state.marbles.length,
-          x: job.teleportX.toFixed(1),
-          y: job.teleportY.toFixed(1)
-        });
-        state.triggerJobs.splice(i, 1);
+
+        if (Number.isFinite(job.waitRemaining) && job.waitRemaining > 0) {
+          job.waitRemaining -= dt;
+          if (job.waitRemaining > 0) {
+            continue;
+          }
+          job.waitRemaining = 0;
+        }
+
+        const trigger = findTriggerById(job.triggerId);
+        let safety = 0;
+        while (safety < 64) {
+          if (job.stepIndex >= job.steps.length) {
+            state.triggerJobs.splice(i, 1);
+            break;
+          }
+
+          const rawStep = job.steps[job.stepIndex];
+          const step = sanitizeTriggerSequenceStep(rawStep);
+          job.steps[job.stepIndex] = step;
+          job.stepIndex += 1;
+          const wait = executeTriggerSequenceStep(job, trigger, step);
+          if (wait > 0) {
+            job.waitRemaining = wait;
+            break;
+          }
+          safety += 1;
+        }
+
+        if (safety >= 64) {
+          debugLog("TRIGGER_SEQUENCE_ABORT", { trigger: (job.triggerId || "").slice(-4), reason: "safety" });
+          state.triggerJobs.splice(i, 1);
+        }
       }
     }
 
     function getTriggerTargets(trigger) {
-      const list = [];
-      if (trigger.target === "all-moving") {
-        for (const part of state.parts) {
-          if (part.motion !== "static") {
-            list.push(part);
-          }
-        }
-      } else if (trigger.target === "smooth") {
-        for (const part of state.parts) {
-          if (part.motion === "smooth") {
-            list.push(part);
-          }
-        }
-      } else if (trigger.target === "linear") {
-        for (const part of state.parts) {
-          if (part.motion === "linear") {
-            list.push(part);
-          }
-        }
-      } else if (trigger.target === "warp") {
-        for (const part of state.parts) {
-          if (part.motion === "warp") {
-            list.push(part);
-          }
-        }
-      } else if (trigger.target === "spinners") {
-        for (const part of state.parts) {
-          if (part.motion === "spin") {
-            list.push(part);
-          }
-        }
-      } else if (trigger.target === "selected") {
-        const selectedId = trigger.sequenceMovePartId || trigger.selectedPartId;
-        const found = findPartById(selectedId);
-        if (found && found.motion !== "static" && !found.padType) {
-          list.push(found);
-        }
-      }
-      return list;
+      return getTriggerTargetsFromValues(trigger.target, trigger.selectedPartId, trigger.sequenceMovePartId);
     }
 
     function fireTrigger(trigger) {
@@ -6166,6 +6742,21 @@
       applyTriggerMenuToSelectedTrigger();
     });
 
+    ui.addSequenceStep.addEventListener("click", () => {
+      const type = sanitizeTriggerSequenceStepType(ui.sequenceStepType.value);
+      state.triggerSequenceDraft.push(createDefaultTriggerSequenceStep(type));
+      renderTriggerSequenceEditor();
+    });
+
+    ui.clearSequenceSteps.addEventListener("click", () => {
+      setTriggerSequenceDraft([]);
+    });
+
+    ui.addDefaultSequence.addEventListener("click", () => {
+      const legacy = buildLegacySequenceStepsFromMenu();
+      setTriggerSequenceDraft(legacy);
+    });
+
     ui.toolCategory.addEventListener("change", () => {
       rebuildToolOptions();
       drawToolPreview();
@@ -6646,6 +7237,7 @@
     initSliderVisuals();
     updateUiValueLabels();
     refreshShortcutInputs();
+    setTriggerSequenceDraft(buildLegacySequenceStepsFromMenu());
     clearDebugLogs();
     setDebugMode(false);
     setViewScale(1);
