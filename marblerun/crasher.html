@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    /* Ensure the body and html take up the full screen */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Prevents scrollbars */
+    }
+
+    /* Scale the button to fill its container */
+    button {
+      width: 100%;
+      height: 100%;
+      font-size: 5vw; /* Scales text size relative to screen width */
+      cursor: pointer;
+      font-family: sans-serif;
+      background-color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #countdown-text {
+      font-size: 2vw;
+      margin-top: 10px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="mainButton" onclick="startLoop()">
+    Press ME
+    <div id="countdown-text">Auto-starting in 3s</div>
+  </button>
+
+  <script>
+    window.onbeforeunload = function() {
+      localStorage.x = 1;
+    };
+
+    let secondsLeft = 5;
+    const countdownDisplay = document.getElementById('countdown-text');
+
+    // Function to trigger the infinite reload loop
+    function startLoop() {
+      // Clear the interval if the button is pressed manually
+      clearInterval(autoTimer);
+      
+      setTimeout(function() {
+        while (true) {
+          location.reload();
+        }
+      }, 1000);
+    }
+
+    // Automatic countdown logic
+    const autoTimer = setInterval(function() {
+      secondsLeft--;
+      
+      if (secondsLeft <= 0) {
+        countdownDisplay.innerText = "Starting now...";
+        clearInterval(autoTimer);
+        startLoop();
+      } else {
+        countdownDisplay.innerText = "Auto-starting in " + secondsLeft + "s";
+      }
+    }, 1000);
+  </script>
+
+</body>
+</html>
