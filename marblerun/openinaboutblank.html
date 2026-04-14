@@ -6,7 +6,8 @@
   <title>Open Marble Run in about:blank (Standalone)</title>
 </head>
 <body>
-  <template id="marbleRunSource"><!DOCTYPE html>
+  <template id="marbleRunSource">
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -262,7 +263,7 @@
 
     .menu-tabs {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 6px;
     }
 
@@ -773,6 +774,7 @@
         <button class="menu-tab-btn" data-menu-tab="build">Build</button>
         <button class="menu-tab-btn" data-menu-tab="physics">Physics</button>
         <button class="menu-tab-btn" data-menu-tab="selected">Selected</button>
+        <button class="menu-tab-btn" data-menu-tab="triggers">Triggers</button>
         <button class="menu-tab-btn" data-menu-tab="settings">Settings</button>
       </div>
 
@@ -921,18 +923,19 @@
           <button id="updateSelectedFromMenu">Update Selected Item</button>
         </div>
 
-        <div class="group" data-menu-tab="selected">
-          <div class="group-title">Trigger Zone Config</div>
+        <div class="group" data-menu-tab="triggers">
+          <div class="group-title">Trigger Zone Control</div>
           <div class="row">
             <label for="triggerAction">Action</label>
             <select id="triggerAction">
               <option value="toggle">Toggle</option>
               <option value="start">Start</option>
               <option value="stop">Stop</option>
+              <option value="sequence">Sequence (Move -> Wait -> Teleport)</option>
             </select>
           </div>
           <div class="row">
-            <label for="triggerTarget">Target</label>
+            <label for="triggerTarget">Moving Target Group</label>
             <select id="triggerTarget">
               <option value="all-moving">All Moving Parts</option>
               <option value="smooth">Smooth Movers</option>
@@ -942,6 +945,35 @@
               <option value="selected">Selected Part</option>
             </select>
           </div>
+          <div class="row">
+            <label for="triggerMovePart">Object To Move</label>
+            <select id="triggerMovePart">
+              <option value="">None</option>
+            </select>
+          </div>
+          <div class="editor-grid">
+            <div class="row">
+              <label for="triggerMoveX">Move To X</label>
+              <input id="triggerMoveX" type="number" step="1" placeholder="No move" />
+            </div>
+            <div class="row">
+              <label for="triggerMoveY">Move To Y</label>
+              <input id="triggerMoveY" type="number" step="1" placeholder="No move" />
+            </div>
+            <div class="row">
+              <label for="triggerWait">Wait Seconds</label>
+              <input id="triggerWait" type="number" min="0" max="20" step="0.05" value="1" />
+            </div>
+            <div class="row">
+              <label for="triggerTeleportX">Teleport All Balls X</label>
+              <input id="triggerTeleportX" type="number" step="1" placeholder="No teleport" />
+            </div>
+            <div class="row">
+              <label for="triggerTeleportY">Teleport All Balls Y</label>
+              <input id="triggerTeleportY" type="number" step="1" placeholder="No teleport" />
+            </div>
+          </div>
+          <button id="applyTriggerToSelected" disabled>Apply To Selected Trigger Zone</button>
         </div>
 
         <div class="group" data-menu-tab="settings">
@@ -1055,6 +1087,13 @@
       movingTriggerLink: document.getElementById("movingTriggerLink"),
       triggerAction: document.getElementById("triggerAction"),
       triggerTarget: document.getElementById("triggerTarget"),
+      triggerMovePart: document.getElementById("triggerMovePart"),
+      triggerMoveX: document.getElementById("triggerMoveX"),
+      triggerMoveY: document.getElementById("triggerMoveY"),
+      triggerWait: document.getElementById("triggerWait"),
+      triggerTeleportX: document.getElementById("triggerTeleportX"),
+      triggerTeleportY: document.getElementById("triggerTeleportY"),
+      applyTriggerToSelected: document.getElementById("applyTriggerToSelected"),
       applySelected: document.getElementById("applySelected"),
       selectedItemMeta: document.getElementById("selectedItemMeta"),
       selectedActive: document.getElementById("selectedActive"),
@@ -1144,6 +1183,7 @@
       simTime: 0,
       selectedPartId: null,
       selectedLineIndex: -1,
+      selectedTriggerId: null,
       selectedPartIds: [],
       selectedLineIndices: [],
       score: 0,
@@ -1151,6 +1191,7 @@
       dragMode: null,
       dragLast: null,
       selectionRect: null,
+      triggerJobs: [],
       runs: [],
       activeRunIndex: -1,
       nextRunId: 1,
@@ -1443,6 +1484,22 @@
       return state.lineSegments[state.selectedLineIndex];
     }
 
+    function findTriggerById(id) {
+      if (!id) {
+        return null;
+      }
+      for (const trigger of state.triggers) {
+        if (trigger.id === id) {
+          return trigger;
+        }
+      }
+      return null;
+    }
+
+    function getSelectedTrigger() {
+      return findTriggerById(state.selectedTriggerId);
+    }
+
     function isPartSelected(id) {
       return state.selectedPartId === id || state.selectedPartIds.includes(id);
     }
@@ -1465,6 +1522,7 @@
     function applyMultiSelection(partIds, lineIndices) {
       const uniquePartIds = Array.from(new Set(partIds)).filter((id) => !!findPartById(id));
       const uniqueLineIndices = Array.from(new Set(lineIndices)).filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+      state.selectedTriggerId = null;
 
       if (uniquePartIds.length > 0) {
         state.selectedPartId = uniquePartIds[0];
@@ -1497,6 +1555,7 @@
       } else {
         state.selectedLineIndex = index;
       }
+      state.selectedTriggerId = null;
       if (state.selectedLineIndex >= 0) {
         state.selectedPartId = null;
         clearExtraSelection();
@@ -1672,6 +1731,10 @@
       const groups = document.querySelectorAll(".controls .group");
       for (const group of groups) {
         group.classList.toggle("menu-section-hidden", group.dataset.menuTab !== tab);
+      }
+
+      if (tab === "triggers") {
+        syncTriggerMenuFromSelectedTrigger();
       }
     }
 
@@ -2085,9 +2148,13 @@
         normalizePartGeometry(pad);
       }
       state.triggers = cloneData(safe.triggers || []);
+      for (const trigger of state.triggers) {
+        normalizeTriggerConfig(trigger);
+      }
       state.buildHistory = cloneData(safe.buildHistory || []);
       state.score = Number.isFinite(safe.score) ? safe.score : 0;
       state.simTime = Number.isFinite(safe.simTime) ? safe.simTime : 0;
+      state.triggerJobs = [];
       state.selectedPartId = safe.selectedPartId || null;
       state.selectedLineIndex = Number.isInteger(safe.selectedLineIndex) ? safe.selectedLineIndex : -1;
       clearExtraSelection();
@@ -2106,6 +2173,7 @@
       state.dragLast = null;
       state.selectionRect = null;
       rebuildTriggerLinkOptions();
+      rebuildTriggerMovePartOptions();
       updateSelectionInfo();
       if (!state.historyLocked) {
         state.redoStack.length = 0;
@@ -2517,17 +2585,25 @@
       const w = Math.max(20, Math.abs(ax - bx));
       const h = Math.max(20, Math.abs(ay - by));
       const id = "t-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 9999).toString(36);
+      const triggerConfig = readTriggerMenuConfig();
       const trigger = {
         id,
         x,
         y,
         w,
         h,
-        action: ui.triggerAction.value,
-        target: ui.triggerTarget.value,
-        selectedPartId: state.selectedPartId,
+        action: triggerConfig.action,
+        target: triggerConfig.target,
+        selectedPartId: triggerConfig.selectedPartId,
+        sequenceMovePartId: triggerConfig.sequenceMovePartId,
+        sequenceMoveX: triggerConfig.sequenceMoveX,
+        sequenceMoveY: triggerConfig.sequenceMoveY,
+        sequenceWaitSec: triggerConfig.sequenceWaitSec,
+        sequenceTeleportX: triggerConfig.sequenceTeleportX,
+        sequenceTeleportY: triggerConfig.sequenceTeleportY,
         flash: 0
       };
+      normalizeTriggerConfig(trigger);
       state.triggers.push(trigger);
       rememberBuild("triggers", trigger);
       rebuildTriggerLinkOptions();
@@ -2548,6 +2624,153 @@
         }
       }
       return null;
+    }
+
+    function sanitizeTriggerAction(value) {
+      const action = typeof value === "string" ? value : "toggle";
+      if (action === "toggle" || action === "start" || action === "stop" || action === "sequence") {
+        return action;
+      }
+      return "toggle";
+    }
+
+    function sanitizeTriggerTarget(value) {
+      const target = typeof value === "string" ? value : "all-moving";
+      if (
+        target === "all-moving" ||
+        target === "smooth" ||
+        target === "linear" ||
+        target === "warp" ||
+        target === "spinners" ||
+        target === "selected"
+      ) {
+        return target;
+      }
+      return "all-moving";
+    }
+
+    function normalizeTriggerConfig(trigger) {
+      if (!trigger || typeof trigger !== "object") {
+        return;
+      }
+      trigger.action = sanitizeTriggerAction(trigger.action);
+      trigger.target = sanitizeTriggerTarget(trigger.target);
+      trigger.selectedPartId = findPartById(trigger.selectedPartId) ? trigger.selectedPartId : null;
+      trigger.sequenceMovePartId = findPartById(trigger.sequenceMovePartId) ? trigger.sequenceMovePartId : "";
+      trigger.sequenceMoveX = Number.isFinite(trigger.sequenceMoveX) ? trigger.sequenceMoveX : null;
+      trigger.sequenceMoveY = Number.isFinite(trigger.sequenceMoveY) ? trigger.sequenceMoveY : null;
+      trigger.sequenceTeleportX = Number.isFinite(trigger.sequenceTeleportX) ? trigger.sequenceTeleportX : null;
+      trigger.sequenceTeleportY = Number.isFinite(trigger.sequenceTeleportY) ? trigger.sequenceTeleportY : null;
+      trigger.sequenceWaitSec = Number.isFinite(trigger.sequenceWaitSec) ? clamp(trigger.sequenceWaitSec, 0, 20) : 1;
+      trigger.flash = Number.isFinite(trigger.flash) ? trigger.flash : 0;
+    }
+
+    function readTriggerMenuConfig() {
+      const action = sanitizeTriggerAction(ui.triggerAction.value);
+      const target = sanitizeTriggerTarget(ui.triggerTarget.value);
+      const movePartId = findPartById(ui.triggerMovePart.value) ? ui.triggerMovePart.value : "";
+      const waitRaw = Number(ui.triggerWait.value);
+      const waitSec = Number.isFinite(waitRaw) ? clamp(waitRaw, 0, 20) : 1;
+      const moveX = parseOptionalNum(ui.triggerMoveX);
+      const moveY = parseOptionalNum(ui.triggerMoveY);
+      const teleportX = parseOptionalNum(ui.triggerTeleportX);
+      const teleportY = parseOptionalNum(ui.triggerTeleportY);
+
+      let selectedPartId = state.selectedPartId;
+      if (target === "selected" && movePartId) {
+        selectedPartId = movePartId;
+      }
+
+      return {
+        action,
+        target,
+        selectedPartId: findPartById(selectedPartId) ? selectedPartId : null,
+        sequenceMovePartId: movePartId,
+        sequenceMoveX: moveX,
+        sequenceMoveY: moveY,
+        sequenceWaitSec: waitSec,
+        sequenceTeleportX: teleportX,
+        sequenceTeleportY: teleportY
+      };
+    }
+
+    function rebuildTriggerMovePartOptions() {
+      const prev = ui.triggerMovePart.value;
+      const options = [{ value: "", label: "None" }];
+
+      for (const part of state.parts) {
+        options.push({
+          value: part.id,
+          label: "Part: " + part.tool + " (" + part.id.slice(-4) + ")"
+        });
+      }
+      for (const pad of state.pads) {
+        options.push({
+          value: pad.id,
+          label: "Pad: " + pad.tool + " (" + pad.id.slice(-4) + ")"
+        });
+      }
+
+      ui.triggerMovePart.innerHTML = "";
+      for (const opt of options) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.textContent = opt.label;
+        ui.triggerMovePart.appendChild(el);
+      }
+
+      if (options.some((o) => o.value === prev)) {
+        ui.triggerMovePart.value = prev;
+      } else {
+        ui.triggerMovePart.value = "";
+      }
+    }
+
+    function syncTriggerMenuFromSelectedTrigger() {
+      rebuildTriggerMovePartOptions();
+      const trigger = getSelectedTrigger();
+      if (!trigger) {
+        ui.applyTriggerToSelected.disabled = true;
+        return;
+      }
+
+      normalizeTriggerConfig(trigger);
+      ui.triggerAction.value = trigger.action;
+      ui.triggerTarget.value = trigger.target;
+      ui.triggerMovePart.value = trigger.sequenceMovePartId || "";
+      ui.triggerMoveX.value = trigger.sequenceMoveX == null ? "" : formatNum(trigger.sequenceMoveX);
+      ui.triggerMoveY.value = trigger.sequenceMoveY == null ? "" : formatNum(trigger.sequenceMoveY);
+      ui.triggerWait.value = String(trigger.sequenceWaitSec == null ? 1 : trigger.sequenceWaitSec);
+      ui.triggerTeleportX.value = trigger.sequenceTeleportX == null ? "" : formatNum(trigger.sequenceTeleportX);
+      ui.triggerTeleportY.value = trigger.sequenceTeleportY == null ? "" : formatNum(trigger.sequenceTeleportY);
+      ui.applyTriggerToSelected.disabled = false;
+    }
+
+    function applyTriggerMenuToSelectedTrigger() {
+      const trigger = getSelectedTrigger();
+      if (!trigger) {
+        return;
+      }
+
+      pushHistorySnapshot();
+      const next = readTriggerMenuConfig();
+      trigger.action = next.action;
+      trigger.target = next.target;
+      if (next.target === "selected") {
+        trigger.selectedPartId = next.selectedPartId || trigger.selectedPartId || null;
+      } else {
+        trigger.selectedPartId = next.selectedPartId;
+      }
+      trigger.sequenceMovePartId = next.sequenceMovePartId;
+      trigger.sequenceMoveX = next.sequenceMoveX;
+      trigger.sequenceMoveY = next.sequenceMoveY;
+      trigger.sequenceWaitSec = next.sequenceWaitSec;
+      trigger.sequenceTeleportX = next.sequenceTeleportX;
+      trigger.sequenceTeleportY = next.sequenceTeleportY;
+      normalizeTriggerConfig(trigger);
+
+      rebuildTriggerLinkOptions();
+      updateSelectionInfo();
     }
 
     function rebuildTriggerLinkOptions() {
@@ -2578,12 +2801,17 @@
       } else {
         ui.movingTriggerLink.value = "";
       }
+
+      if (state.menuTab === "triggers") {
+        rebuildTriggerMovePartOptions();
+      }
     }
 
     function setSelectedPart(partOrId) {
       const id = typeof partOrId === "string" ? partOrId : partOrId ? partOrId.id : null;
       state.selectedPartId = id;
       state.selectedLineIndex = -1;
+      state.selectedTriggerId = null;
       clearExtraSelection();
       if (id) {
         setMenuTab("selected");
@@ -2593,9 +2821,55 @@
       updateSelectionInfo();
     }
 
+    function setSelectedTriggerId(id) {
+      state.selectedTriggerId = findTriggerById(id) ? id : null;
+      state.selectedPartId = null;
+      state.selectedLineIndex = -1;
+      clearExtraSelection();
+      if (state.selectedTriggerId) {
+        setMenuTab("triggers");
+      } else if (state.menuTab === "selected" || state.menuTab === "triggers") {
+        setMenuTab("build");
+      }
+      syncTriggerMenuFromSelectedTrigger();
+      updateSelectionInfo();
+    }
+
     function syncSelectedEditorFromPart() {
       const selectedLine = getSelectedLine();
       const part = findPartById(state.selectedPartId);
+      const trigger = getSelectedTrigger();
+
+      if (trigger) {
+        ui.selectedItemMeta.textContent = "trigger zone";
+        ui.selectedActive.value = "on";
+        ui.selectedX.value = "";
+        ui.selectedY.value = "";
+        ui.selectedFromX.value = "";
+        ui.selectedFromY.value = "";
+        ui.selectedToX.value = "";
+        ui.selectedToY.value = "";
+        ui.selectedAngle.value = "";
+        ui.selectedSize.value = "";
+        ui.selectedWidth.value = "";
+        ui.selectedHeight.value = "";
+        ui.selectedActive.disabled = true;
+        ui.selectedX.disabled = true;
+        ui.selectedY.disabled = true;
+        ui.selectedFromX.disabled = true;
+        ui.selectedFromY.disabled = true;
+        ui.selectedToX.disabled = true;
+        ui.selectedToY.disabled = true;
+        ui.selectedAngle.disabled = true;
+        ui.selectedSize.disabled = true;
+        ui.selectedWidth.disabled = true;
+        ui.selectedHeight.disabled = true;
+        ui.movingTriggerLink.disabled = true;
+        ui.movingTriggerLink.value = "";
+        ui.updateSelectedFromMenu.disabled = true;
+        return;
+      }
+
       if (!part && !selectedLine) {
         ui.selectedItemMeta.textContent = "none";
         ui.selectedActive.value = "on";
@@ -2769,6 +3043,40 @@
 
     function updateSelectionInfo() {
       sanitizeExtraSelection();
+      if (state.menuTab === "triggers") {
+        syncTriggerMenuFromSelectedTrigger();
+      }
+      const selectedTrigger = getSelectedTrigger();
+      if (selectedTrigger) {
+        const sequenceSummary = selectedTrigger.action === "sequence"
+          ? " | move=" +
+            (selectedTrigger.sequenceMovePartId ? selectedTrigger.sequenceMovePartId.slice(-4) : "none") +
+            " wait=" +
+            (selectedTrigger.sequenceWaitSec == null ? 0 : selectedTrigger.sequenceWaitSec).toFixed(2) +
+            "s tp=(" +
+            (selectedTrigger.sequenceTeleportX == null ? "-" : selectedTrigger.sequenceTeleportX.toFixed(0)) +
+            "," +
+            (selectedTrigger.sequenceTeleportY == null ? "-" : selectedTrigger.sequenceTeleportY.toFixed(0)) +
+            ")"
+          : "";
+        ui.selectionInfo.textContent =
+          "Selected trigger zone: " +
+          selectedTrigger.action +
+          " -> " +
+          selectedTrigger.target +
+          " | rect=(" +
+          selectedTrigger.x.toFixed(0) +
+          "," +
+          selectedTrigger.y.toFixed(0) +
+          ") " +
+          selectedTrigger.w.toFixed(0) +
+          "x" +
+          selectedTrigger.h.toFixed(0) +
+          sequenceSummary;
+        syncSelectedEditorFromPart();
+        return;
+      }
+
       const selectedLine = getSelectedLine();
       if (selectedLine) {
         const lineCount = 1 + state.selectedLineIndices.length;
@@ -3287,6 +3595,67 @@
       }
     }
 
+    function movePartToPosition(part, x, y) {
+      if (!part || !Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      const dx = x - part.x;
+      const dy = y - part.y;
+      part.x = x;
+      part.y = y;
+      ensurePartPathEndpoints(part);
+      part.fromX += dx;
+      part.fromY += dy;
+      part.toX += dx;
+      part.toY += dy;
+      if (isTeleportPad(part) && Number.isFinite(part.teleportTargetX) && Number.isFinite(part.teleportTargetY)) {
+        part.teleportTargetX += dx;
+        part.teleportTargetY += dy;
+      }
+    }
+
+    function teleportAllMarblesTo(x, y) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      for (const marble of state.marbles) {
+        marble.x = x;
+        marble.y = y;
+        marble.cooldown.teleport = Math.max(marble.cooldown.teleport || 0, 0.2);
+      }
+    }
+
+    function queueTriggerSequence(trigger) {
+      const movePartId = trigger.sequenceMovePartId || trigger.selectedPartId;
+      const movePart = findPartById(movePartId);
+      if (movePart && Number.isFinite(trigger.sequenceMoveX) && Number.isFinite(trigger.sequenceMoveY)) {
+        movePartToPosition(movePart, trigger.sequenceMoveX, trigger.sequenceMoveY);
+      }
+
+      if (!Number.isFinite(trigger.sequenceTeleportX) || !Number.isFinite(trigger.sequenceTeleportY)) {
+        return;
+      }
+
+      state.triggerJobs.push({
+        triggerId: trigger.id,
+        waitRemaining: clamp(trigger.sequenceWaitSec || 0, 0, 20),
+        teleportX: trigger.sequenceTeleportX,
+        teleportY: trigger.sequenceTeleportY
+      });
+    }
+
+    function processTriggerJobs(dt) {
+      for (let i = state.triggerJobs.length - 1; i >= 0; i -= 1) {
+        const job = state.triggerJobs[i];
+        job.waitRemaining -= dt;
+        if (job.waitRemaining > 0) {
+          continue;
+        }
+        teleportAllMarblesTo(job.teleportX, job.teleportY);
+        state.triggerJobs.splice(i, 1);
+      }
+    }
+
     function getTriggerTargets(trigger) {
       const list = [];
       if (trigger.target === "all-moving") {
@@ -3320,7 +3689,8 @@
           }
         }
       } else if (trigger.target === "selected") {
-        const found = findPartById(trigger.selectedPartId);
+        const selectedId = trigger.sequenceMovePartId || trigger.selectedPartId;
+        const found = findPartById(selectedId);
         if (found && found.motion !== "static" && !found.padType) {
           list.push(found);
         }
@@ -3329,15 +3699,20 @@
     }
 
     function fireTrigger(trigger) {
-      const targets = getTriggerTargets(trigger);
-      for (const part of targets) {
-        if (part.activationTriggerId === "__manual__") {
-          continue;
+      normalizeTriggerConfig(trigger);
+      if (trigger.action === "sequence") {
+        queueTriggerSequence(trigger);
+      } else {
+        const targets = getTriggerTargets(trigger);
+        for (const part of targets) {
+          if (part.activationTriggerId === "__manual__") {
+            continue;
+          }
+          if (part.activationTriggerId && part.activationTriggerId !== trigger.id) {
+            continue;
+          }
+          applyTriggerAction(part, trigger.action);
         }
-        if (part.activationTriggerId && part.activationTriggerId !== trigger.id) {
-          continue;
-        }
-        applyTriggerAction(part, trigger.action);
       }
       trigger.flash = 0.22;
     }
@@ -3803,6 +4178,7 @@
       rebuildColliderCache();
       let bestPart = null;
       let bestLine = -1;
+      let bestTrigger = null;
       let bestDist = maxDist * maxDist;
 
       for (let i = 0; i < state.lineSegments.length; i += 1) {
@@ -3838,10 +4214,39 @@
           bestDist = d;
           bestPart = pad;
           bestLine = -1;
+          bestTrigger = null;
+        }
+      }
+
+      for (const trigger of state.triggers) {
+        let dx = 0;
+        if (x < trigger.x) {
+          dx = trigger.x - x;
+        } else if (x > trigger.x + trigger.w) {
+          dx = x - (trigger.x + trigger.w);
+        }
+
+        let dy = 0;
+        if (y < trigger.y) {
+          dy = trigger.y - y;
+        } else if (y > trigger.y + trigger.h) {
+          dy = y - (trigger.y + trigger.h);
+        }
+
+        const d = dx * dx + dy * dy;
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = null;
+          bestLine = -1;
+          bestTrigger = trigger;
         }
       }
 
       if (additive) {
+        if (bestTrigger) {
+          setSelectedTriggerId(bestTrigger.id);
+          return;
+        }
         const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
         const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
           .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
@@ -3856,6 +4261,8 @@
 
       if (bestPart) {
         setSelectedPart(bestPart.id);
+      } else if (bestTrigger) {
+        setSelectedTriggerId(bestTrigger.id);
       } else {
         setSelectedLineIndex(bestLine);
       }
@@ -4008,6 +4415,12 @@
     }
 
     function moveAllSelectedBy(dx, dy) {
+      const selectedTrigger = getSelectedTrigger();
+      if (selectedTrigger) {
+        selectedTrigger.x += dx;
+        selectedTrigger.y += dy;
+      }
+
       const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
       for (const id of partIds) {
         const part = findPartById(id);
@@ -4040,11 +4453,12 @@
     }
 
     function deleteSelectedItem() {
+      const selectedTrigger = getSelectedTrigger();
       const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
       const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
         .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
 
-      if (partIds.length === 0 && lineIndices.length === 0) {
+      if (!selectedTrigger && partIds.length === 0 && lineIndices.length === 0) {
         return false;
       }
 
@@ -4057,9 +4471,15 @@
       const lineSet = new Set(lineIndices);
       state.lineSegments = state.lineSegments.filter((_, idx) => !lineSet.has(idx));
 
+      if (selectedTrigger) {
+        state.triggers = state.triggers.filter((trigger) => trigger.id !== selectedTrigger.id);
+        rebuildTriggerLinkOptions();
+      }
+
       clearExtraSelection();
       state.selectedPartId = null;
       state.selectedLineIndex = -1;
+      state.selectedTriggerId = null;
       updateSelectionInfo();
       return true;
     }
@@ -4143,7 +4563,11 @@
         if (x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h) {
           pushHistorySnapshot();
           state.triggers.splice(i, 1);
+          if (state.selectedTriggerId === t.id) {
+            state.selectedTriggerId = null;
+          }
           rebuildTriggerLinkOptions();
+          updateSelectionInfo();
           return;
         }
       }
@@ -4214,6 +4638,8 @@
       for (let substep = 0; substep < substeps; substep += 1) {
         state.simTime += subDt;
         rebuildColliderCache();
+
+        processTriggerJobs(subDt);
 
         for (const trigger of state.triggers) {
           if (trigger.flash > 0) {
@@ -4600,6 +5026,7 @@
       rebuildColliderCache();
       const partIds = [];
       const lineIndices = [];
+      const triggerIds = [];
 
       for (const part of state.parts) {
         const pose = state.partPoses.get(part.id);
@@ -4631,6 +5058,20 @@
           continue;
         }
         lineIndices.push(i);
+      }
+
+      for (const trigger of state.triggers) {
+        const cx = trigger.x + trigger.w * 0.5;
+        const cy = trigger.y + trigger.h * 0.5;
+        if (cx < minX || cx > maxX || cy < minY || cy > maxY) {
+          continue;
+        }
+        triggerIds.push(trigger.id);
+      }
+
+      if (partIds.length === 0 && lineIndices.length === 0 && triggerIds.length > 0) {
+        setSelectedTriggerId(triggerIds[0]);
+        return;
       }
 
       applyMultiSelection(partIds, lineIndices);
@@ -4802,10 +5243,11 @@
 
     function drawTriggers() {
       for (const t of state.triggers) {
-        const flash = t.flash > 0 ? 0.28 : 0.14;
+        const selected = state.selectedTriggerId === t.id;
+        const flash = t.flash > 0 ? 0.28 : selected ? 0.24 : 0.14;
         ctx.fillStyle = "rgba(14, 160, 169, " + flash.toFixed(3) + ")";
-        ctx.strokeStyle = "rgba(14, 160, 169, 0.8)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = selected ? "rgba(255, 158, 64, 0.95)" : "rgba(14, 160, 169, 0.8)";
+        ctx.lineWidth = selected ? 2.8 : 2;
         ctx.fillRect(t.x, t.y, t.w, t.h);
         ctx.strokeRect(t.x, t.y, t.w, t.h);
 
@@ -5178,6 +5620,10 @@
       syncSelectedEditorFromPart();
     });
 
+    ui.applyTriggerToSelected.addEventListener("click", () => {
+      applyTriggerMenuToSelectedTrigger();
+    });
+
     ui.toolCategory.addEventListener("change", () => {
       rebuildToolOptions();
       drawToolPreview();
@@ -5367,6 +5813,19 @@
           return;
         }
 
+        const selectedTrigger = getSelectedTrigger();
+        if (
+          selectedTrigger &&
+          pos.x >= selectedTrigger.x &&
+          pos.x <= selectedTrigger.x + selectedTrigger.w &&
+          pos.y >= selectedTrigger.y &&
+          pos.y <= selectedTrigger.y + selectedTrigger.h
+        ) {
+          pushHistorySnapshot();
+          state.dragMode = "move-trigger";
+          return;
+        }
+
         state.dragMode = "select-rect";
         state.drawStart = pos;
         state.selectionRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
@@ -5421,6 +5880,14 @@
       }
 
       if (state.dragMode === "move-line" && selectedLine && state.dragLast) {
+        const dx = state.pointer.x - state.dragLast.x;
+        const dy = state.pointer.y - state.dragLast.y;
+        moveAllSelectedBy(dx, dy);
+        state.dragLast = { x: state.pointer.x, y: state.pointer.y };
+        return;
+      }
+
+      if (state.dragMode === "move-trigger" && getSelectedTrigger() && state.dragLast) {
         const dx = state.pointer.x - state.dragLast.x;
         const dy = state.pointer.y - state.dragLast.y;
         moveAllSelectedBy(dx, dy);
@@ -5636,6 +6103,7 @@
   </script>
 </body>
 </html>
+
 
 
 </template>
