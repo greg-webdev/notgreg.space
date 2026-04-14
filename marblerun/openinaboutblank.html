@@ -1495,6 +1495,7 @@
       wedge: { shape: "wedge", motion: "static" },
       curveLarge: { shape: "curveLarge", motion: "static" },
       curveSmall: { shape: "curveSmall", motion: "static" },
+      onewaydoor: { shape: "onewaydoor", motion: "static" },
       sMoveBlock: { shape: "block", motion: "smooth" },
       sMoveCircle: { shape: "circle", motion: "smooth" },
       sMoveWedge: { shape: "wedge", motion: "smooth" },
@@ -1534,6 +1535,7 @@
           ["block", "Block"],
           ["circle", "Circle"],
           ["wedge", "Wedge"],
+          ["onewaydoor", "One-Way Door"],
           ["curveLarge", "Curve (Large)"],
           ["curveSmall", "Curve (Small)"]
         ]
@@ -1604,6 +1606,7 @@
       block: "BLK",
       circle: "CIR",
       wedge: "WDG",
+      onewaydoor: "1WAY",
       curveLarge: "CVL",
       curveSmall: "CVS",
       sMoveBlock: "SMB",
@@ -3020,6 +3023,12 @@
         part.moveDistance = 0;
       }
 
+      if (part.shape === "onewaydoor") {
+        const doorLength = clamp(world.partSize * 1.35, 24, 260);
+        const doorThickness = clamp(world.partSize * 0.28, 10, 80);
+        setPartDimensions(part, doorLength, doorThickness);
+      }
+
       if (part.padType) {
         part.active = true;
         if (part.padType === "putobjecthere") {
@@ -4267,7 +4276,10 @@
         vy,
         omega,
         cx,
-        cy
+        cy,
+        oneWay: !!s.oneWay,
+        oneWayNx: Number.isFinite(s.oneWayNx) ? s.oneWayNx : null,
+        oneWayNy: Number.isFinite(s.oneWayNy) ? s.oneWayNy : null
       });
     }
 
@@ -4342,6 +4354,33 @@
         return;
       }
 
+      if (part.shape === "onewaydoor") {
+        const hw = width * 0.5;
+        const a = worldPoint(pose, -hw, 0);
+        const b = worldPoint(pose, hw, 0);
+        const passDir = rotatePoint(0, -1, pose.angle);
+        const midX = (a.x + b.x) * 0.5;
+        const midY = (a.y + b.y) * 0.5;
+        const vel = localVelocityToWorld(pose, midX, midY);
+        pushSegment(
+          {
+            x1: a.x,
+            y1: a.y,
+            x2: b.x,
+            y2: b.y,
+            oneWay: true,
+            oneWayNx: passDir.x,
+            oneWayNy: passDir.y
+          },
+          vel.vx,
+          vel.vy,
+          pose.omega,
+          pose.x,
+          pose.y
+        );
+        return;
+      }
+
       if (part.shape === "wedge") {
         const hw = width * 0.5;
         const hh = height * 0.5;
@@ -4399,6 +4438,30 @@
       }
     }
 
+    function shouldCollideOneWaySegmentAt(x, y, vx, vy, radius, s, cp) {
+      if (!s.oneWay || !Number.isFinite(s.oneWayNx) || !Number.isFinite(s.oneWayNy)) {
+        return true;
+      }
+
+      const passNx = s.oneWayNx;
+      const passNy = s.oneWayNy;
+      const signedSide = (x - cp.x) * passNx + (y - cp.y) * passNy;
+      const svx = (s.vx || 0) - (s.omega || 0) * (cp.y - (s.cy || 0));
+      const svy = (s.vy || 0) + (s.omega || 0) * (cp.x - (s.cx || 0));
+      const passDot = (vx - svx) * passNx + (vy - svy) * passNy;
+
+      if (passDot > 0.0001) {
+        return false;
+      }
+
+      const backMargin = -Math.max(1, radius * 0.35);
+      if (signedSide < backMargin) {
+        return false;
+      }
+
+      return true;
+    }
+
     function resolveMarbleSegment(m, s) {
       const cp = nearestPointOnSegment(m.x, m.y, s);
       let nx = m.x - cp.x;
@@ -4416,6 +4479,10 @@
 
       const dist = Math.sqrt(distSq);
       if (dist >= m.r) {
+        return;
+      }
+
+      if (!shouldCollideOneWaySegmentAt(m.x, m.y, m.vx, m.vy, m.r, s, cp)) {
         return;
       }
 
@@ -5083,6 +5150,9 @@
       const isOverlappingAt = (x, y) => {
         for (const s of state.colliders.segments) {
           const cp = nearestPointOnSegment(x, y, s);
+          if (!shouldCollideOneWaySegmentAt(x, y, m.vx, m.vy, m.r, s, cp)) {
+            continue;
+          }
           if (Math.hypot(x - cp.x, y - cp.y) < m.r - 0.01) {
             return true;
           }
@@ -5170,6 +5240,9 @@
 
         for (const s of state.colliders.segments) {
           const cp = nearestPointOnSegment(m.x, m.y, s);
+          if (!shouldCollideOneWaySegmentAt(m.x, m.y, m.vx, m.vy, m.r, s, cp)) {
+            continue;
+          }
           let nx = m.x - cp.x;
           let ny = m.y - cp.y;
           let dist = Math.hypot(nx, ny);
@@ -5936,6 +6009,10 @@
         return "#f9b85c";
       }
 
+      if (part.shape === "onewaydoor") {
+        return "#7cc4ff";
+      }
+
       if (part.motion === "smooth") {
         return "#e07f5d";
       }
@@ -5964,6 +6041,25 @@
       if (part.shape === "block" || part.shape === "padSquare") {
         drawCtx.fillStyle = color;
         drawCtx.fillRect(-halfW, -halfH, dims.w, dims.h);
+      } else if (part.shape === "onewaydoor") {
+        drawCtx.fillStyle = color;
+        drawCtx.fillRect(-halfW, -halfH, dims.w, dims.h);
+        drawCtx.strokeStyle = "rgba(15, 29, 43, 0.75)";
+        drawCtx.lineWidth = 1.6;
+        drawCtx.strokeRect(-halfW, -halfH, dims.w, dims.h);
+        drawCtx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+        drawCtx.fillStyle = "rgba(255, 255, 255, 0.92)";
+        drawCtx.lineWidth = 2;
+        drawCtx.beginPath();
+        drawCtx.moveTo(0, halfH * 0.45);
+        drawCtx.lineTo(0, -halfH * 0.2);
+        drawCtx.stroke();
+        drawCtx.beginPath();
+        drawCtx.moveTo(0, -halfH * 0.56);
+        drawCtx.lineTo(-Math.max(5, dims.h * 0.28), -halfH * 0.24);
+        drawCtx.lineTo(Math.max(5, dims.h * 0.28), -halfH * 0.24);
+        drawCtx.closePath();
+        drawCtx.fill();
       } else if (part.shape === "circle") {
         drawCtx.fillStyle = color;
         drawCtx.beginPath();
@@ -6363,7 +6459,11 @@
       }
 
       const previewSize = clamp(world.partSize, 22, Math.min(w, h) * 0.7);
-      setPartDimensions(p, previewSize, previewSize);
+      if (p.shape === "onewaydoor") {
+        setPartDimensions(p, previewSize * 1.25, Math.max(10, previewSize * 0.28));
+      } else {
+        setPartDimensions(p, previewSize, previewSize);
+      }
       syncPartPathFromCenter(p);
 
       if (isPathMover(p)) {
