@@ -1374,6 +1374,12 @@
       state.pegs = cloneData(safe.pegs || []);
       state.parts = cloneData(safe.parts || []);
       state.pads = cloneData(safe.pads || []);
+      for (const part of state.parts) {
+        normalizePartGeometry(part);
+      }
+      for (const pad of state.pads) {
+        normalizePartGeometry(pad);
+      }
       state.triggers = cloneData(safe.triggers || []);
       state.buildHistory = cloneData(safe.buildHistory || []);
       state.score = Number.isFinite(safe.score) ? safe.score : 0;
