@@ -1594,6 +1594,7 @@
       ui.spinSpeedVal.textContent = world.spinSpeed.toFixed(1) + " rad/s";
       ui.moveAngleVal.textContent = Number(ui.moveAngle.value).toFixed(0) + " deg";
       ui.phaseVal.textContent = Number(ui.phase.value).toFixed(0) + " deg";
+      updateRangePreviews();
     }
 
     function rememberBuild(group, ref) {
@@ -1651,6 +1652,8 @@
         motion: preset.motion,
         padType: preset.padType || null,
         size: world.partSize,
+        sizeX: world.partSize,
+        sizeY: world.partSize,
         moveDistance: world.moveDistance,
         moveSpeed: world.moveSpeed,
         spinSpeed: world.spinSpeed,
@@ -1670,6 +1673,7 @@
         part.active = true;
       }
 
+      normalizePartGeometry(part);
       syncPartPathFromCenter(part);
 
       return part;
