@@ -3183,46 +3183,129 @@
     }
 
     function unstickMarbleFromWorld(m) {
-      let overlapCount = 0;
-      for (const s of state.colliders.segments) {
-        const cp = nearestPointOnSegment(m.x, m.y, s);
-        let nx = m.x - cp.x;
-        let ny = m.y - cp.y;
-        const dist = Math.hypot(nx, ny);
-        if (dist >= m.r || dist <= 0.00001) {
-          continue;
+      const isOverlappingAt = (x, y) => {
+        for (const s of state.colliders.segments) {
+          const cp = nearestPointOnSegment(x, y, s);
+          if (Math.hypot(x - cp.x, y - cp.y) < m.r - 0.01) {
+            return true;
+          }
         }
-        nx /= dist;
-        ny /= dist;
-        const penetration = m.r - dist;
-        if (penetration <= 0) {
-          continue;
+        for (const c of state.colliders.circles) {
+          if (Math.hypot(x - c.x, y - c.y) < m.r + c.r - 0.01) {
+            return true;
+          }
         }
-        m.x += nx * (penetration + 0.18);
-        m.y += ny * (penetration + 0.18);
-        overlapCount += 1;
+        return false;
+      };
+
+      for (let iter = 0; iter < 8; iter += 1) {
+        let overlapCount = 0;
+        let pushX = 0;
+        let pushY = 0;
+
+        for (const s of state.colliders.segments) {
+          const cp = nearestPointOnSegment(m.x, m.y, s);
+          let nx = m.x - cp.x;
+          let ny = m.y - cp.y;
+          let dist = Math.hypot(nx, ny);
+
+          if (dist <= 0.00001) {
+            const tx = s.x2 - s.x1;
+            const ty = s.y2 - s.y1;
+            const len = Math.hypot(tx, ty) || 1;
+            nx = -ty / len;
+            ny = tx / len;
+            dist = 0.00001;
+          }
+
+          if (dist >= m.r) {
+            continue;
+          }
+
+          const penetration = m.r - dist;
+          nx /= dist;
+          ny /= dist;
+
+          const pushMag = penetration + 0.25;
+          m.x += nx * pushMag;
+          m.y += ny * pushMag;
+          pushX += nx;
+          pushY += ny;
+          overlapCount += 1;
+        }
+
+        for (const c of state.colliders.circles) {
+          let nx = m.x - c.x;
+          let ny = m.y - c.y;
+          let dist = Math.hypot(nx, ny);
+          const minDist = m.r + c.r;
+
+          if (dist <= 0.00001) {
+            nx = 1;
+            ny = 0;
+            dist = 0.00001;
+          }
+
+          if (dist >= minDist) {
+            continue;
+          }
+
+          const penetration = minDist - dist;
+          nx /= dist;
+          ny /= dist;
+          const pushMag = penetration + 0.25;
+          m.x += nx * pushMag;
+          m.y += ny * pushMag;
+          pushX += nx;
+          pushY += ny;
+          overlapCount += 1;
+        }
+
+        resolveWorldBounds(m);
+        if (overlapCount === 0) {
+          return;
+        }
+
+        if (overlapCount >= 3 && Math.hypot(m.vx, m.vy) < 90) {
+          const len = Math.hypot(pushX, pushY);
+          if (len > 0.001) {
+            m.vx += (pushX / len) * 42;
+            m.vy += (pushY / len) * 42;
+          }
+          m.vy -= 74;
+        }
       }
 
-      for (const c of state.colliders.circles) {
-        let nx = m.x - c.x;
-        let ny = m.y - c.y;
-        const dist = Math.hypot(nx, ny);
-        const minDist = m.r + c.r;
-        if (dist >= minDist || dist <= 0.00001) {
-          continue;
-        }
-        nx /= dist;
-        ny /= dist;
-        const penetration = minDist - dist;
-        m.x += nx * (penetration + 0.18);
-        m.y += ny * (penetration + 0.18);
-        overlapCount += 1;
+      if (!isOverlappingAt(m.x, m.y)) {
+        return;
       }
 
-      if (overlapCount >= 3 && Math.hypot(m.vx, m.vy) < 65) {
-        m.vx += (Math.random() - 0.5) * 45;
-        m.vy -= 85;
+      const originX = m.x;
+      const originY = m.y;
+      for (let ring = 1; ring <= 9; ring += 1) {
+        const radius = ring * (m.r + 6);
+        for (let step = 0; step < 20; step += 1) {
+          const a = (step / 20) * TAU;
+          const testX = originX + Math.cos(a) * radius;
+          const testY = originY - ring * 4 + Math.sin(a) * radius;
+          if (testX - m.r < 0 || testX + m.r > world.width || testY - m.r < 0 || testY + m.r > world.height) {
+            continue;
+          }
+          if (!isOverlappingAt(testX, testY)) {
+            m.x = testX;
+            m.y = testY;
+            m.vx *= 0.7;
+            m.vy = Math.min(m.vy, 0);
+            resolveWorldBounds(m);
+            return;
+          }
+        }
       }
+
+      m.y = Math.max(m.r + 2, m.y - (m.r * 2 + 6));
+      m.vx *= 0.6;
+      m.vy = -Math.abs(m.vy) * 0.25;
+      resolveWorldBounds(m);
     }
 
     function determinePhysicsSubsteps(simDt) {
@@ -5139,6 +5222,7 @@
   </script>
 </body>
 </html>
+
 
 
 
