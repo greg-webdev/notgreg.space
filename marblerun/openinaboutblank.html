@@ -2383,6 +2383,11 @@
       updateRangePreviews();
     }
 
+    function switchToEditMode() {
+      ui.tool.value = "select";
+      syncToolMenuFromTool();
+    }
+
     function rememberBuild(group, ref) {
       state.buildHistory.push({ group, ref });
       if (state.buildHistory.length > 900) {
@@ -2415,12 +2420,13 @@
 
     function addLine(x1, y1, x2, y2) {
       if (distanceSq(x1, y1, x2, y2) < 100) {
-        return;
+        return false;
       }
       pushHistorySnapshot();
       const seg = { x1, y1, x2, y2 };
       state.lineSegments.push(seg);
       rememberBuild("lineSegments", seg);
+      return true;
     }
 
     function addPeg(x, y, r = 9) {
@@ -2440,8 +2446,7 @@
       state.parts.push(part);
       rememberBuild("parts", part);
       setSelectedPart(part.id);
-      ui.tool.value = "select";
-      syncToolMenuFromTool();
+      switchToEditMode();
       setMenuTab("selected");
     }
 
@@ -2501,8 +2506,7 @@
         rememberBuild("parts", part);
       }
       setSelectedPart(part.id);
-      ui.tool.value = "select";
-      syncToolMenuFromTool();
+      switchToEditMode();
       setMenuTab("selected");
     }
 
@@ -5498,9 +5502,13 @@
 
       if (state.pointerDown && state.drawStart) {
         if (ui.tool.value === "line") {
-          addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+          const created = addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+          if (created) {
+            switchToEditMode();
+          }
         } else if (ui.tool.value === "trigger") {
           addTriggerZone(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
+          switchToEditMode();
         }
       }
       state.pointerDown = false;
@@ -5708,6 +5716,7 @@
   </script>
 </body>
 </html>
+
 
 
 
