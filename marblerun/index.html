@@ -1784,6 +1784,8 @@
         ui.selectedToY.value = "";
         ui.selectedAngle.value = "";
         ui.selectedSize.value = "";
+        ui.selectedWidth.value = "";
+        ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
@@ -1793,6 +1795,8 @@
         ui.selectedToY.disabled = true;
         ui.selectedAngle.disabled = true;
         ui.selectedSize.disabled = true;
+        ui.selectedWidth.disabled = true;
+        ui.selectedHeight.disabled = true;
         ui.movingTriggerLink.disabled = true;
         ui.movingTriggerLink.value = "";
         ui.updateSelectedFromMenu.disabled = true;
@@ -1812,6 +1816,8 @@
         ui.selectedToY.value = formatNum(selectedLine.y2);
         ui.selectedAngle.value = (Math.atan2(selectedLine.y2 - selectedLine.y1, selectedLine.x2 - selectedLine.x1) * (180 / Math.PI)).toFixed(1);
         ui.selectedSize.value = "";
+        ui.selectedWidth.value = "";
+        ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
@@ -1821,6 +1827,8 @@
         ui.selectedToY.disabled = false;
         ui.selectedAngle.disabled = true;
         ui.selectedSize.disabled = true;
+        ui.selectedWidth.disabled = true;
+        ui.selectedHeight.disabled = true;
         ui.movingTriggerLink.disabled = true;
         ui.movingTriggerLink.value = "";
         ui.updateSelectedFromMenu.disabled = false;
@@ -1828,6 +1836,8 @@
       }
 
       ensurePartPathEndpoints(part);
+      normalizePartGeometry(part);
+      const dims = getPartDimensions(part);
       const tpTarget = isTeleportPad(part) ? ensureTeleportTarget(part) : null;
 
       ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
@@ -1847,10 +1857,14 @@
       }
       ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
       ui.selectedSize.value = formatNum(part.size);
+      ui.selectedWidth.value = formatNum(dims.w);
+      ui.selectedHeight.value = formatNum(dims.h);
       ui.selectedX.disabled = isPathMover(part);
       ui.selectedY.disabled = isPathMover(part);
       ui.selectedAngle.disabled = false;
       ui.selectedSize.disabled = false;
+      ui.selectedWidth.disabled = false;
+      ui.selectedHeight.disabled = false;
       ui.updateSelectedFromMenu.disabled = false;
 
       const isTp = isTeleportPad(part);
@@ -1894,7 +1908,13 @@
       }
 
       part.baseAngle = parseNum(ui.selectedAngle, part.baseAngle * (180 / Math.PI)) * (Math.PI / 180);
-      part.size = clamp(parseNum(ui.selectedSize, part.size), 12, 260);
+      const fallbackDims = getPartDimensions(part);
+      const baseSizeVal = parseOptionalNum(ui.selectedSize);
+      const widthVal = parseOptionalNum(ui.selectedWidth);
+      const heightVal = parseOptionalNum(ui.selectedHeight);
+      const nextWidth = widthVal == null ? (baseSizeVal == null ? fallbackDims.w : baseSizeVal) : widthVal;
+      const nextHeight = heightVal == null ? (baseSizeVal == null ? fallbackDims.h : baseSizeVal) : heightVal;
+      setPartDimensions(part, nextWidth, nextHeight);
       part.active = ui.selectedActive.value !== "off";
       if (part.motion !== "static" && !part.padType) {
         part.activationTriggerId = ui.movingTriggerLink.value;
@@ -1946,7 +1966,8 @@
         return;
       }
       ensurePartPathEndpoints(part);
-      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + part.size.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
+      const dims = getPartDimensions(part);
+      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + dims.w.toFixed(0) + "x" + dims.h.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
       syncSelectedEditorFromPart();
     }
 
@@ -1954,7 +1975,7 @@
       if (!part || part.padType) {
         return;
       }
-      part.size = world.partSize;
+      setPartDimensions(part, world.partSize, world.partSize);
       part.moveDistance = world.moveDistance;
       part.moveSpeed = world.moveSpeed;
       part.spinSpeed = world.spinSpeed;
@@ -2044,6 +2065,10 @@
       let omega = 0;
 
       if (!part.active) {
+        return { x, y, angle, vx, vy, omega };
+      }
+
+      if (!state.animationsEnabled && part.motion !== "static") {
         return { x, y, angle, vx, vy, omega };
       }
 
@@ -4046,10 +4071,4 @@
     createRunTab("Run 1", makeEmptySceneData(), true);
     resetDemoCourse();
     saveActiveRunData();
-    renderRunTabs();
-    drawToolPreview();
-    drawSelectedPreview();
-    requestAnimationFrame(frame);
-  </script>
-</body>
-</html>
+    renderRunT
