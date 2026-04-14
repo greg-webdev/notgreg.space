@@ -269,17 +269,17 @@
 
     .slider-anim-canvas {
       width: 100%;
-      height: 40px;
+      height: 18px;
       border-radius: 10px;
-      border: 1px solid rgba(186, 171, 143, 0.76);
-      background: linear-gradient(180deg, rgba(255, 250, 241, 0.95), rgba(247, 237, 217, 0.95));
+      border: 1px dashed rgba(186, 171, 143, 0.7);
+      background: rgba(255, 251, 243, 0.25);
       touch-action: none;
       cursor: ew-resize;
     }
 
     body.dark .slider-anim-canvas {
       border-color: rgba(70, 93, 116, 0.84);
-      background: linear-gradient(180deg, rgba(21, 33, 44, 0.95), rgba(16, 26, 35, 0.95));
+      background: rgba(19, 31, 42, 0.3);
     }
 
     .row label {
@@ -1012,6 +1012,8 @@
       simTime: 0,
       selectedPartId: null,
       selectedLineIndex: -1,
+      selectedPartIds: [],
+      selectedLineIndices: [],
       score: 0,
       teleporterCooldown: 0,
       dragMode: null,
@@ -1030,6 +1032,7 @@
       historyLocked: false,
       historySuspend: false,
       sliderVisuals: [],
+      activeSliderVisualId: "gravity",
       shortcuts: {
         undo: "ctrl+z",
         redo: "ctrl+y",
@@ -1306,6 +1309,54 @@
       return state.lineSegments[state.selectedLineIndex];
     }
 
+    function isPartSelected(id) {
+      return state.selectedPartId === id || state.selectedPartIds.includes(id);
+    }
+
+    function isLineSelected(index) {
+      return state.selectedLineIndex === index || state.selectedLineIndices.includes(index);
+    }
+
+    function clearExtraSelection() {
+      state.selectedPartIds = [];
+      state.selectedLineIndices = [];
+    }
+
+    function sanitizeExtraSelection() {
+      state.selectedPartIds = state.selectedPartIds.filter((id) => !!findPartById(id) && id !== state.selectedPartId);
+      state.selectedLineIndices = state.selectedLineIndices
+        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length && idx !== state.selectedLineIndex);
+    }
+
+    function applyMultiSelection(partIds, lineIndices) {
+      const uniquePartIds = Array.from(new Set(partIds)).filter((id) => !!findPartById(id));
+      const uniqueLineIndices = Array.from(new Set(lineIndices)).filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+
+      if (uniquePartIds.length > 0) {
+        state.selectedPartId = uniquePartIds[0];
+        state.selectedPartIds = uniquePartIds.slice(1);
+        state.selectedLineIndex = -1;
+        state.selectedLineIndices = uniqueLineIndices;
+      } else if (uniqueLineIndices.length > 0) {
+        state.selectedLineIndex = uniqueLineIndices[0];
+        state.selectedPartId = null;
+        state.selectedPartIds = [];
+        state.selectedLineIndices = uniqueLineIndices.slice(1);
+      } else {
+        state.selectedPartId = null;
+        state.selectedLineIndex = -1;
+        state.selectedPartIds = [];
+        state.selectedLineIndices = [];
+      }
+
+      if (state.selectedPartId || state.selectedLineIndex >= 0) {
+        setMenuTab("selected");
+      } else if (state.menuTab === "selected") {
+        setMenuTab("build");
+      }
+      updateSelectionInfo();
+    }
+
     function setSelectedLineIndex(index) {
       if (!Number.isInteger(index) || index < 0 || index >= state.lineSegments.length) {
         state.selectedLineIndex = -1;
@@ -1314,8 +1365,10 @@
       }
       if (state.selectedLineIndex >= 0) {
         state.selectedPartId = null;
+        clearExtraSelection();
         setMenuTab("selected");
       } else if (state.menuTab === "selected" && !state.selectedPartId) {
+        clearExtraSelection();
         setMenuTab("build");
       }
       updateSelectionInfo();
@@ -1628,6 +1681,7 @@
           const step = Number(input.step || 1);
           const snapped = step > 0 ? Math.round(raw / step) * step : raw;
           input.value = clamp(snapped, min, max).toString();
+          state.activeSliderVisualId = input.id;
           input.dispatchEvent(new Event("input", { bubbles: true }));
         };
 
@@ -1652,73 +1706,81 @@
           info.dragging = false;
         });
 
+        input.addEventListener("input", () => {
+          state.activeSliderVisualId = input.id;
+        });
+
         state.sliderVisuals.push(info);
       }
     }
 
     function drawSliderVisuals(now) {
-      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-
-      for (const slider of state.sliderVisuals) {
-        const rect = slider.canvas.getBoundingClientRect();
-        const bw = Math.max(1, Math.floor(rect.width * dpr));
-        const bh = Math.max(1, Math.floor(rect.height * dpr));
-        if (slider.canvas.width !== bw || slider.canvas.height !== bh) {
-          slider.canvas.width = bw;
-          slider.canvas.height = bh;
-        }
-        slider.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        const w = rect.width;
-        const h = rect.height;
-        const min = Number(slider.input.min || 0);
-        const max = Number(slider.input.max || 1);
-        const value = Number(slider.input.value || min);
-        const t = clamp((value - min) / Math.max(0.0001, max - min), 0, 1);
-
-        slider.ctx.clearRect(0, 0, w, h);
-        const bg = slider.ctx.createLinearGradient(0, 0, 0, h);
-        bg.addColorStop(0, state.darkMode ? "#1a2a36" : "#fff8ed");
-        bg.addColorStop(1, state.darkMode ? "#14222d" : "#f4e8d0");
-        slider.ctx.fillStyle = bg;
-        slider.ctx.fillRect(0, 0, w, h);
-
-        if (slider.kind === "physics") {
-          slider.ctx.strokeStyle = state.darkMode ? "rgba(125, 178, 215, 0.9)" : "rgba(102, 89, 66, 0.85)";
-          slider.ctx.lineWidth = 2.2;
-          slider.ctx.beginPath();
-          slider.ctx.moveTo(10, h - 9);
-          slider.ctx.lineTo(w - 10, 10);
-          slider.ctx.stroke();
-
-          const x = 10 + (w - 20) * t;
-          const y = h - 9 - (h - 19) * t;
-          slider.ctx.fillStyle = "#f8d36a";
-          slider.ctx.beginPath();
-          slider.ctx.arc(x, y, 5, 0, TAU);
-          slider.ctx.fill();
-        } else {
-          const drop = ((now * 0.0011) % 1);
-          const groundY = h - 9;
-          const ballY = 9 + (groundY - 9) * Math.min(1, drop * 1.3);
-          const padW = 22 + (w - 42) * t;
-          const padX = (w - padW) * 0.5;
-
-          slider.ctx.fillStyle = state.darkMode ? "rgba(48, 148, 171, 0.45)" : "rgba(15, 139, 150, 0.26)";
-          slider.ctx.fillRect(padX, groundY - 6, padW, 6);
-          slider.ctx.strokeStyle = state.darkMode ? "rgba(76, 187, 213, 0.9)" : "rgba(12, 76, 83, 0.9)";
-          slider.ctx.strokeRect(padX, groundY - 6, padW, 6);
-
-          slider.ctx.fillStyle = "#f9df7f";
-          slider.ctx.beginPath();
-          slider.ctx.arc(w * 0.5, ballY, 4.8, 0, TAU);
-          slider.ctx.fill();
-        }
-
-        slider.ctx.fillStyle = state.darkMode ? "rgba(219, 236, 247, 0.9)" : "rgba(36, 36, 36, 0.82)";
-        slider.ctx.font = "600 10px IBM Plex Mono";
-        slider.ctx.fillText(value.toFixed(slider.input.step && String(slider.input.step).includes(".") ? 2 : 0), 7, 12);
+      if (!state.sliderVisuals.length) {
+        return;
       }
+
+      const slider = state.sliderVisuals.find((entry) => entry.input.id === state.activeSliderVisualId) || state.sliderVisuals[0];
+      if (!slider) {
+        return;
+      }
+
+      const min = Number(slider.input.min || 0);
+      const max = Number(slider.input.max || 1);
+      const value = Number(slider.input.value || min);
+      const t = clamp((value - min) / Math.max(0.0001, max - min), 0, 1);
+
+      const boxW = Math.min(330, world.width - 24);
+      const boxH = 74;
+      const x = (world.width - boxW) * 0.5;
+      const y = 12;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = state.darkMode ? "rgba(16, 29, 40, 0.9)" : "rgba(255, 249, 237, 0.92)";
+      ctx.fillRect(x, y, boxW, boxH);
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = state.darkMode ? "rgba(79, 127, 157, 0.8)" : "rgba(173, 145, 101, 0.8)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, boxW, boxH);
+
+      ctx.fillStyle = state.darkMode ? "rgba(223, 239, 250, 0.95)" : "rgba(50, 44, 31, 0.9)";
+      ctx.font = "700 11px IBM Plex Mono";
+      ctx.fillText((slider.input.id || "slider") + " = " + value.toFixed(slider.input.step && String(slider.input.step).includes(".") ? 2 : 0), x + 8, y + 14);
+
+      if (slider.kind === "physics") {
+        ctx.strokeStyle = state.darkMode ? "rgba(119, 184, 226, 0.95)" : "rgba(95, 85, 63, 0.92)";
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(x + 16, y + boxH - 14);
+        ctx.lineTo(x + boxW - 16, y + 28);
+        ctx.stroke();
+
+        const ballX = x + 16 + (boxW - 32) * t;
+        const ballY = y + boxH - 14 - (boxH - 42) * t + Math.sin(now * 0.004) * 1.6;
+        ctx.fillStyle = "#f8d36a";
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 6.2, 0, TAU);
+        ctx.fill();
+      } else {
+        const drop = ((now * 0.00115) % 1);
+        const platformW = 34 + (boxW - 76) * t;
+        const platformX = x + (boxW - platformW) * 0.5;
+        const platformY = y + boxH - 16;
+        const ballY = y + 22 + (platformY - (y + 22)) * Math.min(1, drop * 1.2);
+
+        ctx.fillStyle = state.darkMode ? "rgba(45, 156, 176, 0.46)" : "rgba(13, 139, 150, 0.28)";
+        ctx.fillRect(platformX, platformY - 6, platformW, 6);
+        ctx.strokeStyle = state.darkMode ? "rgba(78, 200, 222, 0.9)" : "rgba(11, 71, 78, 0.9)";
+        ctx.lineWidth = 1.6;
+        ctx.strokeRect(platformX, platformY - 6, platformW, 6);
+
+        ctx.fillStyle = "#f9df7f";
+        ctx.beginPath();
+        ctx.arc(x + boxW * 0.5, ballY, 5.8, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     function isTypingTarget(target) {
@@ -1784,6 +1846,7 @@
       state.simTime = Number.isFinite(safe.simTime) ? safe.simTime : 0;
       state.selectedPartId = safe.selectedPartId || null;
       state.selectedLineIndex = Number.isInteger(safe.selectedLineIndex) ? safe.selectedLineIndex : -1;
+      clearExtraSelection();
       if (!findPartById(state.selectedPartId)) {
         state.selectedPartId = null;
       }
@@ -2209,6 +2272,7 @@
       const id = typeof partOrId === "string" ? partOrId : partOrId ? partOrId.id : null;
       state.selectedPartId = id;
       state.selectedLineIndex = -1;
+      clearExtraSelection();
       if (id) {
         setMenuTab("selected");
       } else if (state.menuTab === "selected") {
@@ -2392,10 +2456,12 @@
     }
 
     function updateSelectionInfo() {
+      sanitizeExtraSelection();
       const selectedLine = getSelectedLine();
       if (selectedLine) {
+        const lineCount = 1 + state.selectedLineIndices.length;
         ui.selectionInfo.textContent =
-          "Selected line: (" +
+          (lineCount > 1 ? "Selected lines: " + lineCount + " | primary (" : "Selected line: (") +
           selectedLine.x1.toFixed(0) +
           "," +
           selectedLine.y1.toFixed(0) +
@@ -2403,7 +2469,8 @@
           selectedLine.x2.toFixed(0) +
           "," +
           selectedLine.y2.toFixed(0) +
-          ")";
+          ")" +
+          (lineCount > 1 ? "" : "");
         syncSelectedEditorFromPart();
         return;
       }
@@ -2416,7 +2483,21 @@
       }
       ensurePartPathEndpoints(part);
       const dims = getPartDimensions(part);
-      ui.selectionInfo.textContent = "Selected part: " + part.tool + " | motion=" + part.motion + " | size=" + dims.w.toFixed(0) + "x" + dims.h.toFixed(0) + " | center=(" + part.x.toFixed(0) + "," + part.y.toFixed(0) + ")";
+      const partCount = 1 + state.selectedPartIds.length;
+      ui.selectionInfo.textContent =
+        (partCount > 1 ? "Selected parts: " + partCount + " | primary " : "Selected part: ") +
+        part.tool +
+        " | motion=" +
+        part.motion +
+        " | size=" +
+        dims.w.toFixed(0) +
+        "x" +
+        dims.h.toFixed(0) +
+        " | center=(" +
+        part.x.toFixed(0) +
+        "," +
+        part.y.toFixed(0) +
+        ")";
       syncSelectedEditorFromPart();
     }
 
@@ -3170,7 +3251,7 @@
       };
     }
 
-    function selectNearestPart(x, y, maxDist = 44) {
+    function selectNearestPart(x, y, maxDist = 44, additive = false) {
       rebuildColliderCache();
       let bestPart = null;
       let bestLine = -1;
@@ -3210,6 +3291,19 @@
           bestPart = pad;
           bestLine = -1;
         }
+      }
+
+      if (additive) {
+        const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
+        const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
+          .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+        if (bestPart) {
+          partIds.push(bestPart.id);
+        } else if (bestLine >= 0) {
+          lineIndices.push(bestLine);
+        }
+        applyMultiSelection(partIds, lineIndices);
+        return;
       }
 
       if (bestPart) {
@@ -3365,43 +3459,119 @@
       syncSelectedEditorFromPart();
     }
 
-    function deleteSelectedItem() {
-      if (state.selectedLineIndex >= 0 && state.selectedLineIndex < state.lineSegments.length) {
-        pushHistorySnapshot();
-        state.lineSegments.splice(state.selectedLineIndex, 1);
-        state.selectedLineIndex = -1;
-        updateSelectionInfo();
-        return true;
+    function moveAllSelectedBy(dx, dy) {
+      const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
+      for (const id of partIds) {
+        const part = findPartById(id);
+        if (!part) {
+          continue;
+        }
+        part.x += dx;
+        part.y += dy;
+        ensurePartPathEndpoints(part);
+        part.fromX += dx;
+        part.fromY += dy;
+        part.toX += dx;
+        part.toY += dy;
+        if (isTeleportPad(part) && Number.isFinite(part.teleportTargetX) && Number.isFinite(part.teleportTargetY)) {
+          part.teleportTargetX += dx;
+          part.teleportTargetY += dy;
+        }
       }
 
-      const id = state.selectedPartId;
-      if (!id) {
+      const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
+        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+      for (const index of lineIndices) {
+        const line = state.lineSegments[index];
+        line.x1 += dx;
+        line.y1 += dy;
+        line.x2 += dx;
+        line.y2 += dy;
+      }
+      syncSelectedEditorFromPart();
+    }
+
+    function deleteSelectedItem() {
+      const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
+      const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
+        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+
+      if (partIds.length === 0 && lineIndices.length === 0) {
         return false;
       }
 
-      const partIdx = state.parts.findIndex((part) => part.id === id);
-      if (partIdx >= 0) {
-        pushHistorySnapshot();
-        state.parts.splice(partIdx, 1);
-        setSelectedPart(null);
-        return true;
-      }
+      pushHistorySnapshot();
 
-      const padIdx = state.pads.findIndex((part) => part.id === id);
-      if (padIdx >= 0) {
-        pushHistorySnapshot();
-        state.pads.splice(padIdx, 1);
-        setSelectedPart(null);
-        return true;
-      }
+      const partSet = new Set(partIds);
+      state.parts = state.parts.filter((part) => !partSet.has(part.id));
+      state.pads = state.pads.filter((part) => !partSet.has(part.id));
 
-      return false;
+      const lineSet = new Set(lineIndices);
+      state.lineSegments = state.lineSegments.filter((_, idx) => !lineSet.has(idx));
+
+      clearExtraSelection();
+      state.selectedPartId = null;
+      state.selectedLineIndex = -1;
+      updateSelectionInfo();
+      return true;
     }
 
     function duplicateSelectedItem() {
-      const line = getSelectedLine();
-      if (line) {
-        pushHistorySnapshot();
+      const partIds = [state.selectedPartId, ...state.selectedPartIds].filter(Boolean);
+      const lineIndices = [state.selectedLineIndex, ...state.selectedLineIndices]
+        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < state.lineSegments.length);
+
+      if (partIds.length === 0 && lineIndices.length === 0) {
+        return false;
+      }
+
+      pushHistorySnapshot();
+
+      const newPartIds = [];
+      for (const id of partIds) {
+        const selected = findPartById(id);
+        if (!selected) {
+          continue;
+        }
+        const clone = cloneData(selected);
+        clone.id = "p-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 9999).toString(36);
+        clone.x += 24;
+        clone.y += 24;
+        if (Number.isFinite(clone.fromX)) {
+          clone.fromX += 24;
+        }
+        if (Number.isFinite(clone.fromY)) {
+          clone.fromY += 24;
+        }
+        if (Number.isFinite(clone.toX)) {
+          clone.toX += 24;
+        }
+        if (Number.isFinite(clone.toY)) {
+          clone.toY += 24;
+        }
+        if (Number.isFinite(clone.teleportTargetX)) {
+          clone.teleportTargetX += 24;
+        }
+        if (Number.isFinite(clone.teleportTargetY)) {
+          clone.teleportTargetY += 24;
+        }
+
+        if (clone.padType) {
+          state.pads.push(clone);
+          rememberBuild("pads", clone);
+        } else {
+          state.parts.push(clone);
+          rememberBuild("parts", clone);
+        }
+        newPartIds.push(clone.id);
+      }
+
+      const newLineIndices = [];
+      for (const index of lineIndices) {
+        const line = state.lineSegments[index];
+        if (!line) {
+          continue;
+        }
         const copy = {
           x1: line.x1 + 24,
           y1: line.y1 + 24,
@@ -3409,48 +3579,11 @@
           y2: line.y2 + 24
         };
         state.lineSegments.push(copy);
-        setSelectedLineIndex(state.lineSegments.length - 1);
+        newLineIndices.push(state.lineSegments.length - 1);
         rememberBuild("lineSegments", copy);
-        return true;
       }
 
-      const selected = findPartById(state.selectedPartId);
-      if (!selected) {
-        return false;
-      }
-
-      pushHistorySnapshot();
-      const clone = cloneData(selected);
-      clone.id = "p-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 9999).toString(36);
-      clone.x += 24;
-      clone.y += 24;
-      if (Number.isFinite(clone.fromX)) {
-        clone.fromX += 24;
-      }
-      if (Number.isFinite(clone.fromY)) {
-        clone.fromY += 24;
-      }
-      if (Number.isFinite(clone.toX)) {
-        clone.toX += 24;
-      }
-      if (Number.isFinite(clone.toY)) {
-        clone.toY += 24;
-      }
-      if (Number.isFinite(clone.teleportTargetX)) {
-        clone.teleportTargetX += 24;
-      }
-      if (Number.isFinite(clone.teleportTargetY)) {
-        clone.teleportTargetY += 24;
-      }
-
-      if (clone.padType) {
-        state.pads.push(clone);
-        rememberBuild("pads", clone);
-      } else {
-        state.parts.push(clone);
-        rememberBuild("parts", clone);
-      }
-      setSelectedPart(clone.id);
+      applyMultiSelection(newPartIds, newLineIndices);
       return true;
     }
 
@@ -3626,9 +3759,10 @@
       ctx.lineJoin = "round";
       for (let i = 0; i < state.lineSegments.length; i += 1) {
         const s = state.lineSegments[i];
-        const selected = i === state.selectedLineIndex;
-        ctx.strokeStyle = selected ? "#ff9e40" : "#5f5848";
-        ctx.lineWidth = selected ? 7 : 6;
+        const primarySelected = i === state.selectedLineIndex;
+        const selected = isLineSelected(i);
+        ctx.strokeStyle = primarySelected ? "#ff9e40" : selected ? "#ffcb73" : "#5f5848";
+        ctx.lineWidth = primarySelected ? 7 : selected ? 6.5 : 6;
         ctx.beginPath();
         ctx.moveTo(s.x1, s.y1);
         ctx.lineTo(s.x2, s.y2);
@@ -3762,7 +3896,7 @@
           continue;
         }
         const base = partColor(part);
-        const selected = part.id === state.selectedPartId;
+        const selected = isPartSelected(part.id);
 
         if (isPathMover(part)) {
           ensurePartPathEndpoints(part);
@@ -3796,7 +3930,7 @@
         if (!pose) {
           continue;
         }
-        const selected = pad.id === state.selectedPartId;
+        const selected = isPartSelected(pad.id);
         if (!isSolidPad(pad)) {
           const dims = getPartDimensions(pad);
           const hw = dims.w * 0.5;
@@ -3916,10 +4050,8 @@
       const maxY = Math.max(y1, y2);
 
       rebuildColliderCache();
-      let chosen = null;
-      let bestDist = Number.POSITIVE_INFINITY;
-      const cx = (minX + maxX) * 0.5;
-      const cy = (minY + maxY) * 0.5;
+      const partIds = [];
+      const lineIndices = [];
 
       for (const part of state.parts) {
         const pose = state.partPoses.get(part.id);
@@ -3929,11 +4061,7 @@
         if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
           continue;
         }
-        const d = distanceSq(cx, cy, pose.x, pose.y);
-        if (d < bestDist) {
-          bestDist = d;
-          chosen = part;
-        }
+        partIds.push(part.id);
       }
 
       for (const pad of state.pads) {
@@ -3944,14 +4072,9 @@
         if (pose.x < minX || pose.x > maxX || pose.y < minY || pose.y > maxY) {
           continue;
         }
-        const d = distanceSq(cx, cy, pose.x, pose.y);
-        if (d < bestDist) {
-          bestDist = d;
-          chosen = pad;
-        }
+        partIds.push(pad.id);
       }
 
-      let chosenLine = -1;
       for (let i = 0; i < state.lineSegments.length; i += 1) {
         const line = state.lineSegments[i];
         const mx = (line.x1 + line.x2) * 0.5;
@@ -3959,19 +4082,10 @@
         if (mx < minX || mx > maxX || my < minY || my > maxY) {
           continue;
         }
-        const d = distanceSq(cx, cy, mx, my);
-        if (d < bestDist) {
-          bestDist = d;
-          chosen = null;
-          chosenLine = i;
-        }
+        lineIndices.push(i);
       }
 
-      if (chosen) {
-        setSelectedPart(chosen.id);
-      } else {
-        setSelectedLineIndex(chosenLine);
-      }
+      applyMultiSelection(partIds, lineIndices);
     }
 
     function prepareMiniCanvas(cnv, drawCtx, targetHeight) {
@@ -4422,8 +4536,8 @@
       ctx.restore();
       drawSelectedPreview();
       drawToolPreview();
-      drawSliderVisuals(now);
       updateHud(now - (frame.lastNow || now));
+      drawSliderVisuals(now);
       frame.lastNow = now;
 
       requestAnimationFrame(frame);
@@ -4710,7 +4824,11 @@
 
       const clickedItem = getNearestSelectableAt(pos.x, pos.y, 24);
       if (clickedItem && !evt.altKey) {
-        setSelectedPart(clickedItem.id);
+        if (evt.shiftKey) {
+          applyMultiSelection([state.selectedPartId, ...state.selectedPartIds, clickedItem.id].filter(Boolean), [state.selectedLineIndex, ...state.selectedLineIndices].filter((idx) => idx >= 0));
+        } else {
+          setSelectedPart(clickedItem.id);
+        }
         state.pointerDown = false;
         state.dragMode = null;
         return;
@@ -4754,12 +4872,8 @@
       if (state.dragMode === "move-line" && selectedLine && state.dragLast) {
         const dx = state.pointer.x - state.dragLast.x;
         const dy = state.pointer.y - state.dragLast.y;
-        selectedLine.x1 += dx;
-        selectedLine.y1 += dy;
-        selectedLine.x2 += dx;
-        selectedLine.y2 += dy;
+        moveAllSelectedBy(dx, dy);
         state.dragLast = { x: state.pointer.x, y: state.pointer.y };
-        syncSelectedEditorFromPart();
         return;
       }
 
@@ -4798,7 +4912,7 @@
       if (state.dragMode === "move-part" && part && state.dragLast) {
         const dx = state.pointer.x - state.dragLast.x;
         const dy = state.pointer.y - state.dragLast.y;
-        moveSelectedPartBy(dx, dy);
+        moveAllSelectedBy(dx, dy);
         state.dragLast = { x: state.pointer.x, y: state.pointer.y };
         return;
       }
@@ -4821,7 +4935,7 @@
           const w = Math.abs(pos.x - state.drawStart.x);
           const h = Math.abs(pos.y - state.drawStart.y);
           if (w < 6 && h < 6) {
-            selectNearestPart(pos.x, pos.y);
+            selectNearestPart(pos.x, pos.y, 44, evt.shiftKey);
           } else {
             selectPartInRect(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
           }
@@ -5025,6 +5139,7 @@
   </script>
 </body>
 </html>
+
 
 
 
