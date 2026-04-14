@@ -1692,10 +1692,25 @@
       }
     }
 
+    function isDebugOnlyTool(toolValue) {
+      return toolValue === "putobjecthere";
+    }
+
+    function getVisibleToolsForGroup(group) {
+      if (!group || !Array.isArray(group.tools)) {
+        return [];
+      }
+      if (state.debugMode) {
+        return group.tools;
+      }
+      return group.tools.filter(([toolValue]) => !isDebugOnlyTool(toolValue));
+    }
+
     function renderToolButtons() {
       ui.toolButtons.innerHTML = "";
       const group = TOOL_MENU_GROUPS.find((entry) => entry.id === ui.toolCategory.value) || TOOL_MENU_GROUPS[0];
-      for (const [toolValue, label] of group.tools) {
+      const visibleTools = getVisibleToolsForGroup(group);
+      for (const [toolValue, label] of visibleTools) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "tool-chip" + (toolValue === ui.tool.value ? " active" : "");
@@ -1713,20 +1728,23 @@
 
     function rebuildToolOptions(preferredTool = null) {
       const currentGroup = TOOL_MENU_GROUPS.find((group) => group.id === ui.toolCategory.value) || TOOL_MENU_GROUPS[0];
+      const visibleTools = getVisibleToolsForGroup(currentGroup);
       const targetTool = preferredTool || ui.tool.value;
 
       ui.tool.innerHTML = "";
-      for (const [value, label] of currentGroup.tools) {
+      for (const [value, label] of visibleTools) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;
         ui.tool.appendChild(option);
       }
 
-      if (currentGroup.tools.some(([value]) => value === targetTool)) {
+      if (!visibleTools.length) {
+        ui.tool.value = "";
+      } else if (visibleTools.some(([value]) => value === targetTool)) {
         ui.tool.value = targetTool;
       } else {
-        ui.tool.value = currentGroup.tools[0][0];
+        ui.tool.value = visibleTools[0][0];
       }
 
       renderToolCategoryButtons();
@@ -1738,8 +1756,7 @@
       if (ui.toolCategory.value !== menuId) {
         ui.toolCategory.value = menuId;
       }
-      renderToolCategoryButtons();
-      renderToolButtons();
+      rebuildToolOptions(ui.tool.value);
     }
 
     function getSelectedLine() {
@@ -1954,6 +1971,8 @@
     function setDebugMode(enabled) {
       state.debugMode = !!enabled;
       ui.debugMode.checked = state.debugMode;
+      rebuildToolOptions(ui.tool.value);
+      drawToolPreview();
       debugLog(state.debugMode ? "DEBUG_MODE_ON" : "DEBUG_MODE_OFF", { marbles: state.marbles.length }, true);
     }
 
