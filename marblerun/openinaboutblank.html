@@ -384,35 +384,19 @@
         <div class="group">
           <div class="group-title">Build Tool</div>
           <div class="row">
-            <label for="tool">Part Type</label>
-            <select id="tool">
-              <option value="line">Line Track</option>
-              <option value="peg">Peg Bumper</option>
-              <option value="block">Block</option>
-              <option value="circle">Circle</option>
-              <option value="wedge">Wedge</option>
-              <option value="curveLarge">Curve (Large)</option>
-              <option value="curveSmall">Curve (Small)</option>
-              <option value="sMoveBlock">S-Move Block</option>
-              <option value="sMoveCircle">S-Move Circle</option>
-              <option value="sMoveWedge">S-Move Wedge</option>
-              <option value="lMoveBlock">L-Move Block</option>
-              <option value="lMoveCircle">L-Move Circle</option>
-              <option value="lMoveWedge">L-Move Wedge</option>
-              <option value="wMoveBlock">W-Move Block</option>
-              <option value="wMoveCircle">W-Move Circle</option>
-              <option value="wMoveWedge">W-Move Wedge</option>
-              <option value="spinBlock">Spin Block</option>
-              <option value="spinCircle">Spin Circle</option>
-              <option value="spinWedge">Spin Wedge</option>
-              <option value="spinGear">Spin Gear</option>
-              <option value="goal">Goal</option>
-              <option value="teleport">Teleport Pad</option>
-              <option value="boost">Boost Pad</option>
-              <option value="hazard">Hazard</option>
-              <option value="trigger">Trigger Zone (Drag)</option>
-              <option value="select">Select/Edit</option>
+            <label for="toolCategory">Tool Menu</label>
+            <select id="toolCategory">
+              <option value="draw">Draw Tools</option>
+              <option value="static">Static Parts</option>
+              <option value="move">Moving Parts</option>
+              <option value="spin">Spinners</option>
+              <option value="pads">Pads</option>
+              <option value="edit">Edit</option>
             </select>
+          </div>
+          <div class="row">
+            <label for="tool">Part Type</label>
+            <select id="tool"></select>
           </div>
           <canvas id="toolPreview" width="300" height="90"></canvas>
         </div>
@@ -429,7 +413,7 @@
           </div>
           <div class="row">
             <label for="friction">Surface Grip <span class="value" id="frictionVal"></span></label>
-            <input id="friction" type="range" min="0" max="0.45" step="0.01" value="0.1" />
+            <input id="friction" type="range" min="0" max="0.45" step="0.01" value="0.05" />
           </div>
           <div class="row">
             <label for="marbleSize">Marble Size <span class="value" id="sizeVal"></span></label>
@@ -570,8 +554,8 @@
         <button class="wide" id="demo">Reset Demo Course</button>
       </div>
 
-      <div class="tip" id="selectionInfo">Selected part: none</div>
-      <div class="tip">Click any item to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
+      <div class="tip" id="selectionInfo">Selected item: none</div>
+      <div class="tip">Click any item or line to select it. In Select/Edit, drag to box-select, drag FROM/TO handles to edit path, drag line endpoints to reshape tracks, and drag cyan square handle to resize. Hold Alt while building to place on top of an existing item.</div>
     </aside>
 
     <section class="canvas-shell">
@@ -598,6 +582,7 @@
       loadMbr: document.getElementById("loadMbr"),
       loadMbrInput: document.getElementById("loadMbrInput"),
       themeToggle: document.getElementById("themeToggle"),
+      toolCategory: document.getElementById("toolCategory"),
       tool: document.getElementById("tool"),
       gravity: document.getElementById("gravity"),
       bounce: document.getElementById("bounce"),
@@ -692,6 +677,7 @@
       fps: 0,
       simTime: 0,
       selectedPartId: null,
+      selectedLineIndex: -1,
       score: 0,
       teleporterCooldown: 0,
       dragMode: null,
@@ -728,6 +714,70 @@
       hazard: { shape: "padSquare", motion: "static", padType: "hazard" }
     };
 
+    const TOOL_MENU_GROUPS = [
+      {
+        id: "draw",
+        tools: [
+          ["line", "Line Track"],
+          ["peg", "Peg Bumper"],
+          ["trigger", "Trigger Zone (Drag)"]
+        ]
+      },
+      {
+        id: "static",
+        tools: [
+          ["block", "Block"],
+          ["circle", "Circle"],
+          ["wedge", "Wedge"],
+          ["curveLarge", "Curve (Large)"],
+          ["curveSmall", "Curve (Small)"]
+        ]
+      },
+      {
+        id: "move",
+        tools: [
+          ["sMoveBlock", "S-Move Block"],
+          ["sMoveCircle", "S-Move Circle"],
+          ["sMoveWedge", "S-Move Wedge"],
+          ["lMoveBlock", "L-Move Block"],
+          ["lMoveCircle", "L-Move Circle"],
+          ["lMoveWedge", "L-Move Wedge"],
+          ["wMoveBlock", "W-Move Block"],
+          ["wMoveCircle", "W-Move Circle"],
+          ["wMoveWedge", "W-Move Wedge"]
+        ]
+      },
+      {
+        id: "spin",
+        tools: [
+          ["spinBlock", "Spin Block"],
+          ["spinCircle", "Spin Circle"],
+          ["spinWedge", "Spin Wedge"],
+          ["spinGear", "Spin Gear"]
+        ]
+      },
+      {
+        id: "pads",
+        tools: [
+          ["goal", "Goal"],
+          ["teleport", "Teleport Pad"],
+          ["boost", "Boost Pad"],
+          ["hazard", "Hazard"]
+        ]
+      },
+      {
+        id: "edit",
+        tools: [["select", "Select/Edit"]]
+      }
+    ];
+
+    const TOOL_TO_MENU = Object.create(null);
+    for (const group of TOOL_MENU_GROUPS) {
+      for (const toolEntry of group.tools) {
+        TOOL_TO_MENU[toolEntry[0]] = group.id;
+      }
+    }
+
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
@@ -756,6 +806,74 @@
 
     function isPathMover(part) {
       return !!part && (part.motion === "smooth" || part.motion === "linear" || part.motion === "warp");
+    }
+
+    function isTeleportPad(part) {
+      return !!part && part.padType === "teleport";
+    }
+
+    function ensureTeleportTarget(part) {
+      if (!isTeleportPad(part)) {
+        return null;
+      }
+      if (Number.isFinite(part.teleportTargetX) && Number.isFinite(part.teleportTargetY)) {
+        return {
+          x: part.teleportTargetX,
+          y: part.teleportTargetY
+        };
+      }
+
+      const offset = Math.max(80, part.size * 1.4);
+      const fallback = {
+        x: part.x,
+        y: part.y - offset
+      };
+      return fallback;
+    }
+
+    function rebuildToolOptions(preferredTool = null) {
+      const currentGroup = TOOL_MENU_GROUPS.find((group) => group.id === ui.toolCategory.value) || TOOL_MENU_GROUPS[0];
+      const targetTool = preferredTool || ui.tool.value;
+
+      ui.tool.innerHTML = "";
+      for (const [value, label] of currentGroup.tools) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        ui.tool.appendChild(option);
+      }
+
+      if (currentGroup.tools.some(([value]) => value === targetTool)) {
+        ui.tool.value = targetTool;
+      } else {
+        ui.tool.value = currentGroup.tools[0][0];
+      }
+    }
+
+    function syncToolMenuFromTool() {
+      const menuId = TOOL_TO_MENU[ui.tool.value] || TOOL_MENU_GROUPS[0].id;
+      if (ui.toolCategory.value !== menuId) {
+        ui.toolCategory.value = menuId;
+      }
+    }
+
+    function getSelectedLine() {
+      if (state.selectedLineIndex < 0 || state.selectedLineIndex >= state.lineSegments.length) {
+        return null;
+      }
+      return state.lineSegments[state.selectedLineIndex];
+    }
+
+    function setSelectedLineIndex(index) {
+      if (!Number.isInteger(index) || index < 0 || index >= state.lineSegments.length) {
+        state.selectedLineIndex = -1;
+      } else {
+        state.selectedLineIndex = index;
+      }
+      if (state.selectedLineIndex >= 0) {
+        state.selectedPartId = null;
+      }
+      updateSelectionInfo();
     }
 
     function syncPartPathFromCenter(part) {
@@ -841,7 +959,8 @@
         buildHistory: [],
         score: 0,
         simTime: 0,
-        selectedPartId: null
+        selectedPartId: null,
+        selectedLineIndex: -1
       };
     }
 
@@ -856,7 +975,8 @@
         buildHistory: cloneData(state.buildHistory),
         score: state.score,
         simTime: state.simTime,
-        selectedPartId: state.selectedPartId
+        selectedPartId: state.selectedPartId,
+        selectedLineIndex: state.selectedLineIndex
       };
     }
 
@@ -872,8 +992,15 @@
       state.score = Number.isFinite(safe.score) ? safe.score : 0;
       state.simTime = Number.isFinite(safe.simTime) ? safe.simTime : 0;
       state.selectedPartId = safe.selectedPartId || null;
+      state.selectedLineIndex = Number.isInteger(safe.selectedLineIndex) ? safe.selectedLineIndex : -1;
       if (!findPartById(state.selectedPartId)) {
         state.selectedPartId = null;
+      }
+      if (state.selectedPartId) {
+        state.selectedLineIndex = -1;
+      }
+      if (state.selectedLineIndex < 0 || state.selectedLineIndex >= state.lineSegments.length) {
+        state.selectedLineIndex = -1;
       }
       state.pointerDown = false;
       state.drawStart = null;
@@ -1242,12 +1369,14 @@
     function setSelectedPart(partOrId) {
       const id = typeof partOrId === "string" ? partOrId : partOrId ? partOrId.id : null;
       state.selectedPartId = id;
+      state.selectedLineIndex = -1;
       updateSelectionInfo();
     }
 
     function syncSelectedEditorFromPart() {
+      const selectedLine = getSelectedLine();
       const part = findPartById(state.selectedPartId);
-      if (!part) {
+      if (!part && !selectedLine) {
         ui.selectedItemMeta.textContent = "none";
         ui.selectedActive.value = "on";
         ui.selectedX.value = "";
@@ -1273,16 +1402,52 @@
         return;
       }
 
+      if (selectedLine) {
+        const mx = (selectedLine.x1 + selectedLine.x2) * 0.5;
+        const my = (selectedLine.y1 + selectedLine.y2) * 0.5;
+        ui.selectedItemMeta.textContent = "line | static";
+        ui.selectedActive.value = "on";
+        ui.selectedX.value = formatNum(mx);
+        ui.selectedY.value = formatNum(my);
+        ui.selectedFromX.value = formatNum(selectedLine.x1);
+        ui.selectedFromY.value = formatNum(selectedLine.y1);
+        ui.selectedToX.value = formatNum(selectedLine.x2);
+        ui.selectedToY.value = formatNum(selectedLine.y2);
+        ui.selectedAngle.value = (Math.atan2(selectedLine.y2 - selectedLine.y1, selectedLine.x2 - selectedLine.x1) * (180 / Math.PI)).toFixed(1);
+        ui.selectedSize.value = "";
+        ui.selectedActive.disabled = true;
+        ui.selectedX.disabled = true;
+        ui.selectedY.disabled = true;
+        ui.selectedFromX.disabled = false;
+        ui.selectedFromY.disabled = false;
+        ui.selectedToX.disabled = false;
+        ui.selectedToY.disabled = false;
+        ui.selectedAngle.disabled = true;
+        ui.selectedSize.disabled = true;
+        ui.movingTriggerLink.disabled = true;
+        ui.movingTriggerLink.value = "";
+        ui.updateSelectedFromMenu.disabled = false;
+        return;
+      }
+
       ensurePartPathEndpoints(part);
+      const tpTarget = isTeleportPad(part) ? ensureTeleportTarget(part) : null;
 
       ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
       ui.selectedActive.value = part.active ? "on" : "off";
       ui.selectedX.value = formatNum(part.x);
       ui.selectedY.value = formatNum(part.y);
-      ui.selectedFromX.value = formatNum(part.fromX);
-      ui.selectedFromY.value = formatNum(part.fromY);
-      ui.selectedToX.value = formatNum(part.toX);
-      ui.selectedToY.value = formatNum(part.toY);
+      if (isTeleportPad(part)) {
+        ui.selectedFromX.value = formatNum(tpTarget ? tpTarget.x : part.x);
+        ui.selectedFromY.value = formatNum(tpTarget ? tpTarget.y : part.y);
+        ui.selectedToX.value = "";
+        ui.selectedToY.value = "";
+      } else {
+        ui.selectedFromX.value = formatNum(part.fromX);
+        ui.selectedFromY.value = formatNum(part.fromY);
+        ui.selectedToX.value = formatNum(part.toX);
+        ui.selectedToY.value = formatNum(part.toY);
+      }
       ui.selectedAngle.value = (part.baseAngle * (180 / Math.PI)).toFixed(1);
       ui.selectedSize.value = formatNum(part.size);
       ui.selectedX.disabled = isPathMover(part);
@@ -1291,11 +1456,12 @@
       ui.selectedSize.disabled = false;
       ui.updateSelectedFromMenu.disabled = false;
 
-      const disableMotion = !isPathMover(part);
+      const isTp = isTeleportPad(part);
+      const disableMotion = !isPathMover(part) && !isTp;
       ui.selectedFromX.disabled = disableMotion;
       ui.selectedFromY.disabled = disableMotion;
-      ui.selectedToX.disabled = disableMotion;
-      ui.selectedToY.disabled = disableMotion;
+      ui.selectedToX.disabled = disableMotion || isTp;
+      ui.selectedToY.disabled = disableMotion || isTp;
       ui.selectedActive.disabled = part.motion === "static" || !!part.padType;
 
       const canLinkTrigger = part.motion !== "static" && !part.padType;
@@ -1314,6 +1480,17 @@
     }
 
     function applySelectedEditorValues() {
+      const selectedLine = getSelectedLine();
+      if (selectedLine) {
+        selectedLine.x1 = parseNum(ui.selectedFromX, selectedLine.x1);
+        selectedLine.y1 = parseNum(ui.selectedFromY, selectedLine.y1);
+        selectedLine.x2 = parseNum(ui.selectedToX, selectedLine.x2);
+        selectedLine.y2 = parseNum(ui.selectedToY, selectedLine.y2);
+        syncSelectedEditorFromPart();
+        updateSelectionInfo();
+        return;
+      }
+
       const part = findPartById(state.selectedPartId);
       if (!part) {
         return;
@@ -1324,6 +1501,12 @@
       part.active = ui.selectedActive.value !== "off";
       if (part.motion !== "static" && !part.padType) {
         part.activationTriggerId = ui.movingTriggerLink.value;
+      }
+
+      if (isTeleportPad(part)) {
+        const tpTarget = ensureTeleportTarget(part);
+        part.teleportTargetX = parseNum(ui.selectedFromX, tpTarget ? tpTarget.x : part.x);
+        part.teleportTargetY = parseNum(ui.selectedFromY, tpTarget ? tpTarget.y : part.y);
       }
 
       if (isPathMover(part)) {
@@ -1343,9 +1526,25 @@
     }
 
     function updateSelectionInfo() {
+      const selectedLine = getSelectedLine();
+      if (selectedLine) {
+        ui.selectionInfo.textContent =
+          "Selected line: (" +
+          selectedLine.x1.toFixed(0) +
+          "," +
+          selectedLine.y1.toFixed(0) +
+          ") -> (" +
+          selectedLine.x2.toFixed(0) +
+          "," +
+          selectedLine.y2.toFixed(0) +
+          ")";
+        syncSelectedEditorFromPart();
+        return;
+      }
+
       const part = findPartById(state.selectedPartId);
       if (!part) {
-        ui.selectionInfo.textContent = "Selected part: none";
+        ui.selectionInfo.textContent = "Selected item: none";
         syncSelectedEditorFromPart();
         return;
       }
@@ -1389,7 +1588,10 @@
       if (item.group === "triggers") {
         rebuildTriggerLinkOptions();
       }
-      if (!findPartById(state.selectedPartId)) {
+      if (state.selectedLineIndex >= state.lineSegments.length) {
+        state.selectedLineIndex = -1;
+      }
+      if (!findPartById(state.selectedPartId) && state.selectedLineIndex < 0) {
         setSelectedPart(null);
         return;
       }
@@ -1406,6 +1608,7 @@
         state.pads.length = 0;
         state.triggers.length = 0;
         state.buildHistory.length = 0;
+        state.selectedLineIndex = -1;
         setSelectedPart(null);
         rebuildTriggerLinkOptions();
         return;
@@ -1875,6 +2078,30 @@
       return teleports[(idx + 1) % teleports.length];
     }
 
+    function getTeleportDestinationForPad(pad) {
+      if (isTeleportPad(pad)) {
+        if (Number.isFinite(pad.teleportTargetX) && Number.isFinite(pad.teleportTargetY)) {
+          return {
+            x: pad.teleportTargetX,
+            y: pad.teleportTargetY
+          };
+        }
+      }
+
+      const target = teleportPairForPad(pad);
+      if (!target) {
+        return null;
+      }
+      const targetPose = state.partPoses.get(target.id);
+      if (!targetPose) {
+        return null;
+      }
+      return {
+        x: targetPose.x,
+        y: targetPose.y - pad.size * 0.6
+      };
+    }
+
     function applyPads(m, dt) {
       for (const key of Object.keys(m.cooldown)) {
         m.cooldown[key] = Math.max(0, m.cooldown[key] - dt);
@@ -1919,19 +2146,50 @@
           if ((m.cooldown.teleport || 0) > 0) {
             continue;
           }
-          const target = teleportPairForPad(pad);
-          if (!target) {
+          const destination = getTeleportDestinationForPad(pad);
+          if (!destination) {
             continue;
           }
-          const targetPose = state.partPoses.get(target.id);
-          if (!targetPose) {
-            continue;
-          }
-          m.x = targetPose.x;
-          m.y = targetPose.y - pad.size * 0.6;
+          m.x = destination.x;
+          m.y = destination.y;
           m.cooldown.teleport = 0.4;
         }
       }
+    }
+
+    function resolveWorldBounds(m) {
+      if (m.x - m.r < 0) {
+        m.x = m.r;
+        m.vx = Math.abs(m.vx) * world.bounce;
+      }
+      if (m.x + m.r > world.width) {
+        m.x = world.width - m.r;
+        m.vx = -Math.abs(m.vx) * world.bounce;
+      }
+      if (m.y - m.r < 0) {
+        m.y = m.r;
+        m.vy = Math.abs(m.vy) * world.bounce;
+      }
+      if (m.y + m.r > world.height - 4) {
+        m.y = world.height - 4 - m.r;
+        m.vy = -Math.abs(m.vy) * world.bounce;
+        m.vx *= (1 - world.friction * 0.35);
+      }
+    }
+
+    function determinePhysicsSubsteps(simDt) {
+      let maxSpeed = 0;
+      let minRadius = Number.POSITIVE_INFINITY;
+      for (const m of state.marbles) {
+        maxSpeed = Math.max(maxSpeed, Math.hypot(m.vx, m.vy));
+        minRadius = Math.min(minRadius, m.r);
+      }
+      if (!Number.isFinite(minRadius)) {
+        minRadius = Number(ui.marbleSize.value) || 10;
+      }
+      const travel = maxSpeed * simDt;
+      const threshold = Math.max(5, minRadius * 0.55);
+      return clamp(Math.ceil(travel / threshold), 1, 6);
     }
 
     function getPointerPosition(evt) {
@@ -1945,7 +2203,18 @@
     function selectNearestPart(x, y, maxDist = 44) {
       rebuildColliderCache();
       let bestPart = null;
+      let bestLine = -1;
       let bestDist = maxDist * maxDist;
+
+      for (let i = 0; i < state.lineSegments.length; i += 1) {
+        const cp = nearestPointOnSegment(x, y, state.lineSegments[i]);
+        const d = distanceSq(x, y, cp.x, cp.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPart = null;
+          bestLine = i;
+        }
+      }
 
       for (const part of state.parts) {
         const pose = state.partPoses.get(part.id);
@@ -1956,6 +2225,7 @@
         if (d < bestDist) {
           bestDist = d;
           bestPart = part;
+          bestLine = -1;
         }
       }
 
@@ -1968,10 +2238,15 @@
         if (d < bestDist) {
           bestDist = d;
           bestPart = pad;
+          bestLine = -1;
         }
       }
 
-      setSelectedPart(bestPart ? bestPart.id : null);
+      if (bestPart) {
+        setSelectedPart(bestPart.id);
+      } else {
+        setSelectedLineIndex(bestLine);
+      }
     }
 
     function getNearestSelectableAt(x, y, maxDist = 44) {
@@ -2021,6 +2296,38 @@
       return null;
     }
 
+    function getSelectedLineHandleAt(x, y) {
+      const line = getSelectedLine();
+      if (!line) {
+        return null;
+      }
+      if (distanceSq(x, y, line.x1, line.y1) <= 12 * 12) {
+        return "drag-line-from";
+      }
+      if (distanceSq(x, y, line.x2, line.y2) <= 12 * 12) {
+        return "drag-line-to";
+      }
+      return null;
+    }
+
+    function isNearSelectedLine(x, y, maxDist = 14) {
+      const line = getSelectedLine();
+      if (!line) {
+        return false;
+      }
+      const cp = nearestPointOnSegment(x, y, line);
+      return distanceSq(x, y, cp.x, cp.y) <= maxDist * maxDist;
+    }
+
+    function getSelectedTeleportHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!isTeleportPad(part)) {
+        return false;
+      }
+      const target = ensureTeleportTarget(part);
+      return !!target && distanceSq(x, y, target.x, target.y) <= 13 * 13;
+    }
+
     function getSelectedResizeHandleAt(x, y) {
       const part = findPartById(state.selectedPartId);
       if (!part) {
@@ -2045,10 +2352,21 @@
       part.fromY += dy;
       part.toX += dx;
       part.toY += dy;
+      if (isTeleportPad(part) && Number.isFinite(part.teleportTargetX) && Number.isFinite(part.teleportTargetY)) {
+        part.teleportTargetX += dx;
+        part.teleportTargetY += dy;
+      }
       syncSelectedEditorFromPart();
     }
 
     function deleteSelectedItem() {
+      if (state.selectedLineIndex >= 0 && state.selectedLineIndex < state.lineSegments.length) {
+        state.lineSegments.splice(state.selectedLineIndex, 1);
+        state.selectedLineIndex = -1;
+        updateSelectionInfo();
+        return true;
+      }
+
       const id = state.selectedPartId;
       if (!id) {
         return false;
@@ -2120,6 +2438,12 @@
         const cp = nearestPointOnSegment(x, y, s);
         if (distanceSq(x, y, cp.x, cp.y) < 120) {
           state.lineSegments.splice(i, 1);
+          if (state.selectedLineIndex === i) {
+            state.selectedLineIndex = -1;
+            updateSelectionInfo();
+          } else if (state.selectedLineIndex > i) {
+            state.selectedLineIndex -= 1;
+          }
           return;
         }
       }
@@ -2131,78 +2455,67 @@
         return;
       }
 
-      state.simTime += simDt;
-      rebuildColliderCache();
+      const substeps = determinePhysicsSubsteps(simDt);
+      const subDt = simDt / substeps;
 
-      for (const trigger of state.triggers) {
-        if (trigger.flash > 0) {
-          trigger.flash = Math.max(0, trigger.flash - simDt);
-        }
-      }
+      for (let substep = 0; substep < substeps; substep += 1) {
+        state.simTime += subDt;
+        rebuildColliderCache();
 
-      if (state.raining) {
-        state.rainTimer -= simDt;
-        if (state.rainTimer <= 0) {
-          spawnMarble(24 + Math.random() * (world.width * 0.46), 8, (Math.random() - 0.5) * 45);
-          state.rainTimer = 0.065;
-        }
-      }
-
-      for (let i = state.marbles.length - 1; i >= 0; i -= 1) {
-        const m = state.marbles[i];
-
-        m.vy += world.gravity * simDt;
-
-        const damp = Math.max(0, 1 - world.airDrag * simDt * 4);
-        m.vx *= damp;
-        m.vy *= damp;
-
-        m.x += m.vx * simDt;
-        m.y += m.vy * simDt;
-
-        if (m.x - m.r < 0) {
-          m.x = m.r;
-          m.vx = Math.abs(m.vx) * world.bounce;
-        }
-        if (m.x + m.r > world.width) {
-          m.x = world.width - m.r;
-          m.vx = -Math.abs(m.vx) * world.bounce;
-        }
-        if (m.y - m.r < 0) {
-          m.y = m.r;
-          m.vy = Math.abs(m.vy) * world.bounce;
-        }
-        if (m.y + m.r > world.height - 4) {
-          m.y = world.height - 4 - m.r;
-          m.vy = -Math.abs(m.vy) * world.bounce;
-          m.vx *= (1 - world.friction * 0.35);
+        for (const trigger of state.triggers) {
+          if (trigger.flash > 0) {
+            trigger.flash = Math.max(0, trigger.flash - subDt);
+          }
         }
 
-        applyPads(m, simDt);
-        handleTriggerZones(m);
-
-        if (m.y > world.height + 180 || m.y < -220) {
-          state.marbles.splice(i, 1);
+        if (state.raining) {
+          state.rainTimer -= subDt;
+          while (state.rainTimer <= 0) {
+            spawnMarble(24 + Math.random() * (world.width * 0.46), 8, (Math.random() - 0.5) * 45);
+            state.rainTimer += 0.065;
+          }
         }
-      }
 
-      for (let pass = 0; pass < 2; pass += 1) {
-        for (let i = 0; i < state.marbles.length; i += 1) {
+        for (let i = state.marbles.length - 1; i >= 0; i -= 1) {
           const m = state.marbles[i];
 
-          for (const s of state.colliders.segments) {
-            resolveMarbleSegment(m, s);
-          }
+          m.vy += world.gravity * subDt;
 
-          for (const c of state.colliders.circles) {
-            resolveMarbleCircle(m, c);
-          }
+          const damp = Math.max(0, 1 - world.airDrag * subDt * 4);
+          m.vx *= damp;
+          m.vy *= damp;
 
-          for (let j = i + 1; j < state.marbles.length; j += 1) {
-            resolveMarbleMarble(m, state.marbles[j]);
-          }
+          m.x += m.vx * subDt;
+          m.y += m.vy * subDt;
 
-          limitSpeed(m);
+          resolveWorldBounds(m);
+          applyPads(m, subDt);
+          handleTriggerZones(m);
+
+          if (m.y > world.height + 180 || m.y < -220) {
+            state.marbles.splice(i, 1);
+          }
+        }
+
+        for (let pass = 0; pass < 3; pass += 1) {
+          for (let i = 0; i < state.marbles.length; i += 1) {
+            const m = state.marbles[i];
+
+            for (const s of state.colliders.segments) {
+              resolveMarbleSegment(m, s);
+            }
+
+            for (const c of state.colliders.circles) {
+              resolveMarbleCircle(m, c);
+            }
+
+            for (let j = i + 1; j < state.marbles.length; j += 1) {
+              resolveMarbleMarble(m, state.marbles[j]);
+            }
+
+            resolveWorldBounds(m);
+            limitSpeed(m);
+          }
         }
       }
     }
@@ -2233,16 +2546,18 @@
     function drawLineSegments() {
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      for (const s of state.lineSegments) {
-        ctx.strokeStyle = "#5f5848";
-        ctx.lineWidth = 6;
+      for (let i = 0; i < state.lineSegments.length; i += 1) {
+        const s = state.lineSegments[i];
+        const selected = i === state.selectedLineIndex;
+        ctx.strokeStyle = selected ? "#ff9e40" : "#5f5848";
+        ctx.lineWidth = selected ? 7 : 6;
         ctx.beginPath();
         ctx.moveTo(s.x1, s.y1);
         ctx.lineTo(s.x2, s.y2);
         ctx.stroke();
 
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
-        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.55)";
+        ctx.lineWidth = selected ? 1.8 : 1.3;
         ctx.beginPath();
         ctx.moveTo(s.x1, s.y1 - 0.8);
         ctx.lineTo(s.x2, s.y2 - 0.8);
@@ -2394,6 +2709,29 @@
     }
 
     function drawSelectedHandles() {
+      const selectedLine = getSelectedLine();
+      if (selectedLine) {
+        ctx.strokeStyle = "rgba(255, 158, 64, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(selectedLine.x1, selectedLine.y1);
+        ctx.lineTo(selectedLine.x2, selectedLine.y2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = "#ff9e40";
+        ctx.beginPath();
+        ctx.arc(selectedLine.x1, selectedLine.y1, 7, 0, TAU);
+        ctx.fill();
+
+        ctx.fillStyle = "#2fbf71";
+        ctx.beginPath();
+        ctx.arc(selectedLine.x2, selectedLine.y2, 7, 0, TAU);
+        ctx.fill();
+        return;
+      }
+
       const part = findPartById(state.selectedPartId);
       if (!part) {
         return;
@@ -2408,6 +2746,26 @@
       ctx.strokeStyle = "rgba(12, 62, 68, 0.9)";
       ctx.lineWidth = 2;
       ctx.strokeRect(hx - 6, hy - 6, 12, 12);
+
+      if (isTeleportPad(part)) {
+        const target = ensureTeleportTarget(part);
+        ctx.strokeStyle = "rgba(90, 109, 255, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pose.x, pose.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = "rgba(90, 109, 255, 0.16)";
+        ctx.strokeStyle = "rgba(90, 109, 255, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 8, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       if (!isPathMover(part)) {
         return;
@@ -2482,7 +2840,27 @@
         }
       }
 
-      setSelectedPart(chosen ? chosen.id : null);
+      let chosenLine = -1;
+      for (let i = 0; i < state.lineSegments.length; i += 1) {
+        const line = state.lineSegments[i];
+        const mx = (line.x1 + line.x2) * 0.5;
+        const my = (line.y1 + line.y2) * 0.5;
+        if (mx < minX || mx > maxX || my < minY || my > maxY) {
+          continue;
+        }
+        const d = distanceSq(cx, cy, mx, my);
+        if (d < bestDist) {
+          bestDist = d;
+          chosen = null;
+          chosenLine = i;
+        }
+      }
+
+      if (chosen) {
+        setSelectedPart(chosen.id);
+      } else {
+        setSelectedLineIndex(chosenLine);
+      }
     }
 
     function prepareMiniCanvas(cnv, drawCtx, targetHeight) {
@@ -2944,7 +3322,13 @@
       syncSelectedEditorFromPart();
     });
 
+    ui.toolCategory.addEventListener("change", () => {
+      rebuildToolOptions();
+      drawToolPreview();
+    });
+
     ui.tool.addEventListener("change", () => {
+      syncToolMenuFromTool();
       drawToolPreview();
     });
 
@@ -3031,6 +3415,17 @@
       }
 
       if (ui.tool.value === "select") {
+        if (getSelectedTeleportHandleAt(pos.x, pos.y)) {
+          state.dragMode = "drag-teleport-target";
+          return;
+        }
+
+        const lineHandle = getSelectedLineHandleAt(pos.x, pos.y);
+        if (lineHandle) {
+          state.dragMode = lineHandle;
+          return;
+        }
+
         if (getSelectedResizeHandleAt(pos.x, pos.y)) {
           state.dragMode = "resize-part";
           return;
@@ -3050,6 +3445,11 @@
             state.dragMode = "move-part";
             return;
           }
+        }
+
+        if (isNearSelectedLine(pos.x, pos.y)) {
+          state.dragMode = "move-line";
+          return;
         }
 
         state.dragMode = "select-rect";
@@ -3085,6 +3485,41 @@
       }
 
       const part = findPartById(state.selectedPartId);
+      const selectedLine = getSelectedLine();
+
+      if (state.dragMode === "drag-line-from" && selectedLine) {
+        selectedLine.x1 = state.pointer.x;
+        selectedLine.y1 = state.pointer.y;
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "drag-line-to" && selectedLine) {
+        selectedLine.x2 = state.pointer.x;
+        selectedLine.y2 = state.pointer.y;
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "move-line" && selectedLine && state.dragLast) {
+        const dx = state.pointer.x - state.dragLast.x;
+        const dy = state.pointer.y - state.dragLast.y;
+        selectedLine.x1 += dx;
+        selectedLine.y1 += dy;
+        selectedLine.x2 += dx;
+        selectedLine.y2 += dy;
+        state.dragLast = { x: state.pointer.x, y: state.pointer.y };
+        syncSelectedEditorFromPart();
+        return;
+      }
+
+      if (state.dragMode === "drag-teleport-target" && isTeleportPad(part)) {
+        part.teleportTargetX = state.pointer.x;
+        part.teleportTargetY = state.pointer.y;
+        syncSelectedEditorFromPart();
+        return;
+      }
+
       if (state.dragMode === "drag-from" && part && isPathMover(part)) {
         part.fromX = state.pointer.x;
         part.fromY = state.pointer.y;
@@ -3208,6 +3643,8 @@
     resizeCanvas();
     updateUiValueLabels();
     applyTheme();
+    rebuildToolOptions("line");
+    syncToolMenuFromTool();
     rebuildTriggerLinkOptions();
     createRunTab("Run 1", makeEmptySceneData(), true);
     resetDemoCourse();
@@ -3219,7 +3656,7 @@
   </script>
 </body>
 </html>
-  </template>
+</template>
 
   <style>
     body {
@@ -3297,3 +3734,4 @@
   </script>
 </body>
 </html>
+
