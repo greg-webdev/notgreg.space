@@ -718,6 +718,98 @@
       display: none !important;
     }
 
+    .trigger-sequence-builder {
+      display: grid;
+      gap: 8px;
+      border: 1px dashed rgba(156, 143, 118, 0.75);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(255, 250, 240, 0.7);
+    }
+
+    body.dark .trigger-sequence-builder {
+      border-color: rgba(66, 88, 108, 0.88);
+      background: rgba(18, 28, 36, 0.6);
+    }
+
+    .trigger-sequence-toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .trigger-sequence-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .trigger-sequence-list {
+      display: grid;
+      gap: 6px;
+      max-height: 240px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .trigger-sequence-empty {
+      font-size: 0.74rem;
+      opacity: 0.75;
+      border: 1px dashed rgba(165, 147, 116, 0.7);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    body.dark .trigger-sequence-empty {
+      border-color: rgba(69, 91, 112, 0.82);
+      background: rgba(14, 22, 29, 0.45);
+    }
+
+    .trigger-sequence-step {
+      display: grid;
+      gap: 6px;
+      border: 1px solid #d8ceb9;
+      border-radius: 10px;
+      padding: 7px;
+      background: rgba(255, 255, 255, 0.65);
+    }
+
+    body.dark .trigger-sequence-step {
+      border-color: #304150;
+      background: rgba(16, 24, 33, 0.68);
+    }
+
+    .trigger-sequence-step-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .trigger-sequence-step-buttons {
+      display: flex;
+      gap: 4px;
+    }
+
+    .trigger-sequence-step-buttons button {
+      width: auto;
+      min-width: 34px;
+      padding: 5px 7px;
+      font-size: 0.75rem;
+    }
+
+    .trigger-sequence-step-grid {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trigger-sequence-step-grid .row {
+      gap: 4px;
+    }
+
     .debug-toggle {
       display: flex;
       align-items: center;
@@ -764,6 +856,75 @@
       color: #93fcb0;
     }
 
+    .settings-popup-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(17, 23, 30, 0.45);
+      backdrop-filter: blur(3px);
+      z-index: 1400;
+    }
+
+    .settings-popup-overlay.active {
+      display: flex;
+    }
+
+    body.dark .settings-popup-overlay {
+      background: rgba(6, 11, 15, 0.58);
+    }
+
+    .settings-popup-card {
+      width: min(760px, 100%);
+      max-height: min(88vh, 980px);
+      border-radius: 16px;
+      border: 1px solid #d9c9a5;
+      background: linear-gradient(180deg, #fffaf1 0%, #fff1de 100%);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.28);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    body.dark .settings-popup-card {
+      border-color: #355167;
+      background: linear-gradient(180deg, #15212b 0%, #101a23 100%);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    .settings-popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .settings-popup-header h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+
+    .settings-popup-close {
+      width: auto;
+      min-width: 84px;
+      padding: 7px 12px;
+    }
+
+    .settings-popup-content {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .settings-popup-content .group {
+      margin: 0;
+    }
+
     @media (max-width: 1080px) {
       .app {
         grid-template-columns: 1fr;
@@ -776,6 +937,14 @@
 
       .canvas-shell {
         min-height: 44vh;
+      }
+
+      .settings-popup-overlay {
+        padding: 10px;
+      }
+
+      .settings-popup-card {
+        max-height: 94vh;
       }
     }
   </style>
@@ -968,7 +1137,7 @@
               <option value="toggle">Toggle</option>
               <option value="start">Start</option>
               <option value="stop">Stop</option>
-              <option value="sequence">Sequence (Move -> Wait -> Teleport)</option>
+              <option value="sequence">Sequence (Multi Event Timeline)</option>
             </select>
           </div>
           <div class="row">
@@ -1010,36 +1179,29 @@
               <input id="triggerTeleportY" type="number" step="1" placeholder="No teleport" />
             </div>
           </div>
+          <div class="trigger-sequence-builder">
+            <div class="row">
+              <label>Sequence Events</label>
+            </div>
+            <div class="trigger-sequence-toolbar">
+              <select id="sequenceStepType">
+                <option value="wait">Wait</option>
+                <option value="move-part">Move Object</option>
+                <option value="teleport-marbles">Teleport Marbles</option>
+                <option value="target-action">Target Action</option>
+                <option value="spawn-marbles">Spawn Marbles</option>
+              </select>
+              <button id="addSequenceStep" type="button">Add Event</button>
+            </div>
+            <div id="triggerSequenceList" class="trigger-sequence-list"></div>
+            <div class="trigger-sequence-actions">
+              <button id="clearSequenceSteps" type="button">Clear Events</button>
+              <button id="addDefaultSequence" type="button">Use Legacy Fields</button>
+            </div>
+          </div>
           <button id="applyTriggerToSelected" disabled>Apply To Selected Trigger Zone</button>
         </div>
 
-        <div class="group" data-menu-tab="settings">
-          <div class="group-title">Settings</div>
-          <div class="row">
-            <label for="maxMarblesSetting">Max Marbles <span class="value" id="maxMarblesVal"></span></label>
-            <input id="maxMarblesSetting" type="range" min="80" max="1600" step="10" value="420" />
-            <div class="settings-warning">Increasing max marbles will significantly lag your device.</div>
-          </div>
-          <div class="row">
-            <label>Shortcuts</label>
-            <div class="shortcut-grid">
-              <input id="shortcutUndo" placeholder="undo (ex: ctrl+z)" />
-              <input id="shortcutRedo" placeholder="redo (ex: ctrl+y)" />
-              <input id="shortcutDuplicate" placeholder="duplicate" />
-              <input id="shortcutSpawn" placeholder="spawn marble" />
-              <input id="shortcutPause" placeholder="pause" />
-              <input id="shortcutDelete" placeholder="delete" />
-            </div>
-          </div>
-          <div class="row">
-            <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
-            <div class="debug-actions">
-              <button id="clearDebugLogs">Clear Logs</button>
-              <button id="downloadDebugLogs">Download Logs</button>
-            </div>
-            <pre id="debugTerminal" class="debug-terminal">Debug terminal idle. Enable Debug Mode to capture simulation logs.</pre>
-          </div>
-        </div>
       </div>
 
       <div class="buttons">
@@ -1069,6 +1231,44 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <div id="settingsPopupOverlay" class="settings-popup-overlay" aria-hidden="true">
+    <div class="settings-popup-card" role="dialog" aria-modal="true" aria-labelledby="settingsPopupTitle">
+      <div class="settings-popup-header">
+        <h2 id="settingsPopupTitle">Settings</h2>
+        <button id="closeSettingsPopup" class="settings-popup-close" type="button">Close</button>
+      </div>
+      <div class="settings-popup-content">
+        <div class="group">
+          <div class="group-title">Settings</div>
+          <div class="row">
+            <label for="maxMarblesSetting">Max Marbles <span class="value" id="maxMarblesVal"></span></label>
+            <input id="maxMarblesSetting" type="range" min="80" max="1600" step="10" value="420" />
+            <div class="settings-warning">Increasing max marbles will significantly lag your device.</div>
+          </div>
+          <div class="row">
+            <label>Shortcuts</label>
+            <div class="shortcut-grid">
+              <input id="shortcutUndo" placeholder="undo (ex: ctrl+z)" />
+              <input id="shortcutRedo" placeholder="redo (ex: ctrl+y)" />
+              <input id="shortcutDuplicate" placeholder="duplicate" />
+              <input id="shortcutSpawn" placeholder="spawn marble" />
+              <input id="shortcutPause" placeholder="pause" />
+              <input id="shortcutDelete" placeholder="delete" />
+            </div>
+          </div>
+          <div class="row">
+            <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
+            <div class="debug-actions">
+              <button id="clearDebugLogs">Clear Logs</button>
+              <button id="downloadDebugLogs">Download Logs</button>
+            </div>
+            <pre id="debugTerminal" class="debug-terminal">Debug terminal idle. Enable Debug Mode to capture simulation logs.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1109,6 +1309,8 @@
       loadMbrInput: document.getElementById("loadMbrInput"),
       themeToggle: document.getElementById("themeToggle"),
       settingsMenuToggle: document.getElementById("settingsMenuToggle"),
+      settingsPopupOverlay: document.getElementById("settingsPopupOverlay"),
+      closeSettingsPopup: document.getElementById("closeSettingsPopup"),
       emptyTabsScreen: document.getElementById("emptyTabsScreen"),
       emptyNewTab: document.getElementById("emptyNewTab"),
       menuTabs: document.getElementById("menuTabs"),
@@ -1138,6 +1340,11 @@
       triggerWait: document.getElementById("triggerWait"),
       triggerTeleportX: document.getElementById("triggerTeleportX"),
       triggerTeleportY: document.getElementById("triggerTeleportY"),
+      sequenceStepType: document.getElementById("sequenceStepType"),
+      addSequenceStep: document.getElementById("addSequenceStep"),
+      clearSequenceSteps: document.getElementById("clearSequenceSteps"),
+      addDefaultSequence: document.getElementById("addDefaultSequence"),
+      triggerSequenceList: document.getElementById("triggerSequenceList"),
       applyTriggerToSelected: document.getElementById("applyTriggerToSelected"),
       applySelected: document.getElementById("applySelected"),
       selectedItemMeta: document.getElementById("selectedItemMeta"),
@@ -1241,6 +1448,7 @@
       dragLast: null,
       selectionRect: null,
       triggerJobs: [],
+      triggerSequenceDraft: [],
       nextMarbleId: 1,
       runs: [],
       activeRunIndex: -1,
@@ -1901,7 +2109,23 @@
       ui.menuToggle.textContent = state.menuCollapsed ? "Show Menu" : "Hide Menu";
     }
 
+    function openSettingsPopup() {
+      ui.settingsPopupOverlay.classList.add("active");
+      ui.settingsPopupOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    function closeSettingsPopup() {
+      ui.settingsPopupOverlay.classList.remove("active");
+      ui.settingsPopupOverlay.setAttribute("aria-hidden", "true");
+    }
+
     function setMenuTab(tab) {
+      if (tab === "settings") {
+        openSettingsPopup();
+        return;
+      }
+
+      closeSettingsPopup();
       state.menuTab = tab;
 
       const tabButtons = ui.menuTabs.querySelectorAll(".menu-tab-btn");
@@ -5961,11 +6185,17 @@
     });
 
     ui.settingsMenuToggle.addEventListener("click", () => {
-      if (state.menuCollapsed) {
-        state.menuCollapsed = false;
-        applyMenuVisibility();
+      openSettingsPopup();
+    });
+
+    ui.closeSettingsPopup.addEventListener("click", () => {
+      closeSettingsPopup();
+    });
+
+    ui.settingsPopupOverlay.addEventListener("click", (evt) => {
+      if (evt.target === ui.settingsPopupOverlay) {
+        closeSettingsPopup();
       }
-      setMenuTab("settings");
     });
 
     ui.toggleAnimations.addEventListener("click", () => {
@@ -6330,6 +6560,12 @@
     });
 
     window.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape" && ui.settingsPopupOverlay.classList.contains("active")) {
+        evt.preventDefault();
+        closeSettingsPopup();
+        return;
+      }
+
       const key = evt.key.toLowerCase();
       if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && !evt.shiftKey && key === "t") {
         evt.preventDefault();
