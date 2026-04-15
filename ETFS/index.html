@@ -210,7 +210,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { initializeFirestore, collection, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // Your web app's Firebase configuration
     const firebaseConfig = {
@@ -409,6 +409,7 @@
     let db = null;
     let auth = null;
     let firebaseReady = false;
+    let firebaseErrorReason = "";
     let firebaseInitPromise = null;
     let playersCol = null;
     let mpReadTimer = 0;
@@ -430,6 +431,15 @@
       } else {
         console.log("[ETFS][" + stamp + "] " + type);
       }
+    }
+
+    function withTimeout(promise, ms, message) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(message)), ms);
+        })
+      ]);
     }
 
     function pickAvailableBaseIndex(occupiedSet, seedStr) {
@@ -726,9 +736,13 @@
         });
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
-        await signInAnonymously(auth);
-        db = getFirestore(app);
+        await withTimeout(signInAnonymously(auth), 8000, "Anonymous sign-in timed out");
+        db = initializeFirestore(app, {
+          experimentalAutoDetectLongPolling: true,
+          useFetchStreams: false
+        });
         firebaseReady = true;
+        firebaseErrorReason = "";
         state.mpStatus = "ready";
         logEvent("initMultiplayer:ready", {
           uid: auth.currentUser ? auth.currentUser.uid : "none",
@@ -736,10 +750,30 @@
         });
       } catch (err) {
         firebaseReady = false;
+        firebaseErrorReason = err && err.message ? String(err.message) : "Unknown Firebase error";
         state.mpStatus = "error";
         logEvent("initMultiplayer:error", err && err.message ? err.message : err);
         console.error(err);
       }
+    }
+
+    async function ensureFirebaseReady() {
+      if (firebaseReady) {
+        return;
+      }
+
+      if (!firebaseInitPromise || state.mpStatus === "error") {
+        firebaseInitPromise = initMultiplayer();
+      }
+
+      await withTimeout(firebaseInitPromise, 9000, "Firebase init timed out");
+      if (firebaseReady) {
+        return;
+      }
+
+      // One retry helps recover from transient auth/network startup failures.
+      firebaseInitPromise = initMultiplayer();
+      await withTimeout(firebaseInitPromise, 9000, "Firebase init timed out");
     }
 
     async function leaveLobby() {
@@ -780,10 +814,10 @@
       mpReadInFlight = true;
       mpReadTimer = 0;
       try {
-        const snapshot = await getDocs(playersCol);
+        const snapshot = await withTimeout(getDocs(playersCol), 5000, "Multiplayer read timed out");
         const nowTs = Date.now();
         const next = new Map();
-        const remoteBaseIndices = new Set();
+        const participants = [];
         let active = 0;
         let localPresent = false;
         let localBaseFromDoc = null;
@@ -796,6 +830,11 @@
             return;
           }
           active += 1;
+          participants.push({
+            id: docSnap.id,
+            baseIndex: typeof data.baseIndex === "number" ? data.baseIndex : null,
+            data
+          });
           if (docSnap.id === localPlayerId) {
             localPresent = true;
             if (typeof data.baseIndex === "number" && data.baseIndex >= 0 && data.baseIndex < baseSlots.length) {
@@ -806,18 +845,48 @@
           if (typeof data.x !== "number" || typeof data.y !== "number") {
             return;
           }
-          if (typeof data.baseIndex === "number" && data.baseIndex >= 0 && data.baseIndex < baseSlots.length) {
-            remoteBaseIndices.add(data.baseIndex);
-          }
           next.set(docSnap.id, data);
         });
 
-        let correctedBase = state.localBaseIndex;
-        if (localPresent && typeof localBaseFromDoc === "number") {
-          correctedBase = localBaseFromDoc;
+        // Deterministic base assignment:
+        // 1) If multiple players claim same slot, lexicographically smallest id keeps it.
+        // 2) Remaining players are assigned unique free slots by stable id order.
+        participants.sort((a, b) => a.id.localeCompare(b.id));
+        const slotWinners = new Map();
+        for (const p of participants) {
+          const idx = p.baseIndex;
+          if (idx === null || idx < 0 || idx >= baseSlots.length) {
+            continue;
+          }
+          const currentWinner = slotWinners.get(idx);
+          if (!currentWinner || p.id.localeCompare(currentWinner) < 0) {
+            slotWinners.set(idx, p.id);
+          }
         }
-        if (correctedBase < 0 || correctedBase >= baseSlots.length || remoteBaseIndices.has(correctedBase) || !localPresent) {
-          correctedBase = pickAvailableBaseIndex(remoteBaseIndices, localPlayerId);
+
+        const assigned = new Map();
+        const occupied = new Set();
+        for (const [idx, winnerId] of slotWinners.entries()) {
+          assigned.set(winnerId, idx);
+          occupied.add(idx);
+        }
+
+        for (const p of participants) {
+          if (assigned.has(p.id)) {
+            continue;
+          }
+          const choice = pickAvailableBaseIndex(occupied, p.id);
+          assigned.set(p.id, choice);
+          occupied.add(choice);
+        }
+
+        let correctedBase = state.localBaseIndex;
+        if (localPresent) {
+          correctedBase = assigned.has(localPlayerId)
+            ? assigned.get(localPlayerId)
+            : (typeof localBaseFromDoc === "number" ? localBaseFromDoc : state.localBaseIndex);
+        } else {
+          correctedBase = pickAvailableBaseIndex(occupied, localPlayerId);
         }
         if (correctedBase !== state.localBaseIndex) {
           state.localBaseIndex = correctedBase;
@@ -843,15 +912,6 @@
         logEvent("joinLobby:blocked", "Firebase unavailable");
         throw new Error("Firebase unavailable");
       }
-
-      const withTimeout = (promise, ms, message) => {
-        return Promise.race([
-          promise,
-          new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(message)), ms);
-          })
-        ]);
-      };
 
       const cleanedLobby = (lobbyId || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || defaultLobbyId;
       logEvent("joinLobby:start", { requestedLobby: lobbyId, cleanedLobby });
@@ -919,7 +979,9 @@
       state.mpStatus = "live";
       mpReadTimer = mpReadInterval;
       mpWriteTimer = 0;
-      await pollMultiplayerRead(true);
+      pollMultiplayerRead(true).catch((err) => {
+        logEvent("joinLobby:initialPollError", err && err.message ? err.message : err);
+      });
       logEvent("joinLobby:done", { lobbyId: cleanedLobby, mpStatus: state.mpStatus });
     }
 
@@ -1014,12 +1076,14 @@
             state.mpPeers = 0;
             logEvent("menu:startSingle", { mpStatus: state.mpStatus });
           } else {
-            if (firebaseInitPromise) {
-              await firebaseInitPromise;
-            }
+            await ensureFirebaseReady();
             if (!firebaseReady) {
               logEvent("menu:multiplayerUnavailable", "Firebase anonymous sign-in failed");
-              showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed.");
+              const protocolHint = window.location.protocol === "file:"
+                ? " Open this game via https:// (GitHub Pages) or a local http server."
+                : "";
+              const reason = firebaseErrorReason ? " Reason: " + firebaseErrorReason + "." : "";
+              showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed." + reason + protocolHint);
               return;
             }
 
