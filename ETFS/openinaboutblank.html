@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -321,7 +321,8 @@
       baseSpeed: 180,
       speedUpgradeCost: 25,
       invincible: false,
-      carryId: null,
+      carryIds: [],
+      maxCarry: 9,
       waveTimer: 0,
       waveInterval: 8,
       waves: [],
@@ -470,10 +471,13 @@
     }
 
     function spawnWave() {
-      const speed = 120 + state.highestUnlocked * 8 + Math.random() * 14;
+      const speedProfiles = [80, 110, 140, 170, 210, 250];
+      const speedBase = speedProfiles[Math.floor(Math.random() * speedProfiles.length)];
+      const speed = speedBase + state.highestUnlocked * 4 + Math.random() * 12;
       state.waves.push({
         y: 2,
-        speed
+        speed,
+        width: 2 + Math.min(6, speed / 70)
       });
       if (state.waves.length > 18) {
         state.waves.splice(0, state.waves.length - 18);
@@ -634,34 +638,27 @@
       box.innerHTML =
         "<div style='font-weight:700;'>Escape the Tsunami for Squares</div>" +
         "<div style='margin-top:8px; display:grid; gap:8px; text-align:left;'>" +
-        "<label>Mode<select id='menuMode' style='width:100%; margin-top:4px;'><option value='single'>Singleplayer</option><option value='multi'>Multiplayer</option></select></label>" +
         "<label>Lobby<select id='menuLobbyType' style='width:100%; margin-top:4px;'><option value='default'>Default Lobby</option><option value='custom'>Custom Lobby</option></select></label>" +
         "<label id='customLobbyWrap' style='display:none;'>Custom Lobby ID<input id='customLobbyInput' maxlength='30' placeholder='type lobby id' style='width:100%; margin-top:4px;'/></label>" +
         "<label>Username<input id='menuUsername' maxlength='16' placeholder='your name' style='width:100%; margin-top:4px;'/></label>" +
         "<label id='passwordWrap' style='display:none;'>Password<input id='menuPassword' type='password' maxlength='8' placeholder='required for protected names' style='width:100%; margin-top:4px;'/></label>" +
         "</div>" +
         errorLine +
-        "<div style='margin-top:10px;'><button id='menuStartBtn' type='button'>Start</button></div>";
+        "<div style='margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;'><button id='menuStartSingleBtn' type='button'>Start Singleplayer</button><button id='menuStartMultiBtn' type='button'>Start Multiplayer</button></div>";
 
       overlay.appendChild(box);
 
-      const modeSel = document.getElementById("menuMode");
       const lobbyTypeSel = document.getElementById("menuLobbyType");
       const customLobbyWrap = document.getElementById("customLobbyWrap");
       const customLobbyInput = document.getElementById("customLobbyInput");
       const userInput = document.getElementById("menuUsername");
       const passWrap = document.getElementById("passwordWrap");
       const passInput = document.getElementById("menuPassword");
-      const startBtn = document.getElementById("menuStartBtn");
-
-      modeSel.addEventListener("change", () => {
-        const isMulti = modeSel.value === "multi";
-        lobbyTypeSel.parentElement.style.display = isMulti ? "block" : "none";
-        customLobbyWrap.style.display = isMulti && lobbyTypeSel.value === "custom" ? "block" : "none";
-      });
+      const startSingleBtn = document.getElementById("menuStartSingleBtn");
+      const startMultiBtn = document.getElementById("menuStartMultiBtn");
 
       lobbyTypeSel.addEventListener("change", () => {
-        customLobbyWrap.style.display = modeSel.value === "multi" && lobbyTypeSel.value === "custom" ? "block" : "none";
+        customLobbyWrap.style.display = lobbyTypeSel.value === "custom" ? "block" : "none";
       });
 
       userInput.addEventListener("input", () => {
@@ -669,8 +666,7 @@
         passWrap.style.display = protectedNames.has(normalized) ? "block" : "none";
       });
 
-      startBtn.addEventListener("click", async () => {
-        const mode = modeSel.value;
+      async function startFromMenu(mode) {
         const username = normalizeUsername(userInput.value);
         const protectedName = protectedNames.has(username.toLowerCase());
         if (protectedName && (passInput.value || "").trim() !== "g") {
@@ -703,9 +699,17 @@
         state.running = true;
         clearOverlay();
         updateHud();
+      }
+
+      startSingleBtn.addEventListener("click", () => {
+        startFromMenu("single");
       });
 
-      modeSel.dispatchEvent(new Event("change"));
+      startMultiBtn.addEventListener("click", () => {
+        startFromMenu("multi");
+      });
+
+      lobbyTypeSel.dispatchEvent(new Event("change"));
     }
 
     function syncMultiplayer(dt) {
@@ -758,7 +762,7 @@
     }
 
     function updateCarrier() {
-      if (state.carryId === null) {
+      if (state.carryIds.length < state.maxCarry) {
         for (const b of brainrots) {
           if (b.delivered || b.carried) continue;
           const px0 = player.x - player.size * 0.5;
@@ -767,34 +771,47 @@
           const by0 = b.y - b.size * 0.5;
           const overlap = px0 < bx0 + b.size && px0 + player.size > bx0 && py0 < by0 + b.size && py0 + player.size > by0;
           if (overlap) {
-            state.carryId = b.id;
+            state.carryIds.push(b.id);
             b.carried = true;
-            break;
+            if (state.carryIds.length >= state.maxCarry) {
+              break;
+            }
           }
         }
       }
 
-      if (state.carryId !== null) {
-        const carried = brainrots.find((b) => b.id === state.carryId);
-        if (carried && !carried.delivered) {
-          carried.x = player.x + 24;
-          carried.y = player.y;
+      const inStorage =
+        player.x >= base.storageX &&
+        player.x <= base.storageX + base.storageSize &&
+        player.y >= base.storageY &&
+        player.y <= base.storageY + base.storageSize;
 
-          const inStorage =
-            player.x >= base.storageX &&
-            player.x <= base.storageX + base.storageSize &&
-            player.y >= base.storageY &&
-            player.y <= base.storageY + base.storageSize;
-          if (inStorage && player.y >= world.baseTop) {
-            carried.carried = false;
-            carried.delivered = true;
-            state.carryId = null;
-            state.storage[carried.rarity.key] += 1;
-            state.incomePerSecond += carried.rarity.cps;
-            state.coins += carried.rarity.cps * 2;
-          }
+      const nextCarryIds = [];
+      let carryIndex = 0;
+      for (const id of state.carryIds) {
+        const carried = brainrots.find((b) => b.id === id);
+        if (!carried || carried.delivered) {
+          continue;
+        }
+
+        const col = carryIndex % 3;
+        const row = Math.floor(carryIndex / 3);
+        carried.x = player.x + 20 + col * 14;
+        carried.y = player.y + (row - 1) * 14;
+        carryIndex += 1;
+
+        if (inStorage && player.y >= world.baseTop) {
+          carried.carried = false;
+          carried.delivered = true;
+          state.storage[carried.rarity.key] += 1;
+          state.incomePerSecond += carried.rarity.cps;
+          state.coins += carried.rarity.cps * 2;
+        } else {
+          nextCarryIds.push(id);
         }
       }
+
+      state.carryIds = nextCarryIds;
     }
 
     function updateWaves(dt) {
@@ -850,7 +867,7 @@
         if (d >= 0 && d < nearest) nearest = d;
       }
       if (!Number.isFinite(nearest)) {
-        const estWaveSpeed = 120 + state.highestUnlocked * 8 + 7;
+        const estWaveSpeed = 150 + state.highestUnlocked * 4;
         const fallback = player.y + (state.waveInterval - state.waveTimer) * estWaveSpeed;
         nearest = Math.max(0, fallback);
       }
@@ -861,13 +878,10 @@
       coinTag.textContent = "Square Coins: " + state.coins.toFixed(0);
       incomeTag.textContent = "Square Income: " + state.incomePerSecond.toFixed(1) + "/s";
 
-      if (state.carryId === null) {
+      if (state.carryIds.length === 0) {
         carryTag.textContent = "Carry: none";
       } else {
-        const carried = brainrots.find((b) => b.id === state.carryId);
-        if (carried) {
-          carryTag.textContent = "Carry: " + carried.rarity.label + " (" + carried.rarity.cps + "/s)";
-        }
+        carryTag.textContent = "Carry: " + state.carryIds.length + "/" + state.maxCarry;
       }
 
       storageSummaryTag.textContent =
@@ -970,7 +984,7 @@
 
       for (const wave of state.waves) {
         ctx.strokeStyle = "#9fd3ff";
-        ctx.lineWidth = 3;
+        ctx.lineWidth = wave.width || 3;
         ctx.beginPath();
         ctx.moveTo(0, wave.y);
         ctx.lineTo(drawWidth, wave.y);
@@ -1039,7 +1053,7 @@
       state.baseSpeed = 180;
       state.speedUpgradeCost = 25;
       state.invincible = false;
-      state.carryId = null;
+      state.carryIds = [];
       state.waveTimer = 0;
       state.waves = [];
       state.storage.common = 0;
@@ -1160,38 +1174,30 @@
   </template>
 
   <div class="launcher">
-    <div>Escape the Tsunami for Squares Launcher</div>
-    <button id="openBtn" type="button">Open Escape the Tsunami for Squares in about:blank</button>
+    <div style="font-size:18px;font-weight:700;">Escape the Tsunami for Squares</div>
+    <button id="openBtn" type="button">Open in about:blank</button>
     <div id="status"></div>
   </div>
 
   <script>
-    const source = document.getElementById("gameSource");
-    const openBtn = document.getElementById("openBtn");
-    const status = document.getElementById("status");
+    (function () {
+      const btn = document.getElementById("openBtn");
+      const status = document.getElementById("status");
+      const source = document.getElementById("gameSource");
 
-    function setStatus(text) {
-      status.textContent = text || "";
-    }
-
-    openBtn.addEventListener("click", () => {
-      if (!source) {
-        setStatus("Missing embedded game source.");
-        return;
-      }
-
-      const win = window.open("about:blank", "_blank");
-      if (!win) {
-        setStatus("Popup blocked. Allow popups and try again.");
-        return;
-      }
-
-      const html = "<!DOCTYPE html>\n" + source.innerHTML;
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      setStatus("Opened Escape the Tsunami for Squares in about:blank.");
-    });
+      btn.addEventListener("click", () => {
+        const win = window.open("about:blank", "_blank");
+        if (!win) {
+          status.textContent = "Popup blocked. Allow popups and try again.";
+          return;
+        }
+        const html = source.innerHTML;
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        status.textContent = "Opened in about:blank.";
+      });
+    })();
   </script>
 </body>
 </html>
