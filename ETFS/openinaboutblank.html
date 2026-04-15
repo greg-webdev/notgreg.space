@@ -371,6 +371,7 @@
       invincible: false,
       carryIds: [],
       maxCarry: 9,
+      squarebotUnlocked: false,
       view3D: false,
       waveTimer: 0,
       waveInterval: 8,
@@ -430,15 +431,20 @@
     const localPlayerId = deviceId + "-" + tabId;
 
     const baseSlots = Array.from({ length: 10 }, (_, i) => {
-      const width = 146;
-      const gap = 12;
-      const total = width * 10 + gap * 9;
-      const startX = world.w * 0.5 - total * 0.5;
+      const cols = 5;
+      const width = 286;
+      const height = 84;
+      const gapX = 14;
+      const gapY = 16;
+      const totalW = width * cols + gapX * (cols - 1);
+      const startX = world.w * 0.5 - totalW * 0.5;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
       return {
-        x: startX + i * (width + gap),
-        y: world.h - baseHeight + 42,
+        x: startX + col * (width + gapX),
+        y: world.h - baseHeight + 46 + row * (height + gapY),
         w: width,
-        h: 100,
+        h: height,
         index: i + 1
       };
     });
@@ -695,6 +701,9 @@
     }
 
     function isNearTextbot() {
+      if (!state.squarebotUnlocked) {
+        return false;
+      }
       return Math.abs(player.x - textbot.x) <= textbot.nearRange && Math.abs(player.y - textbot.y) <= textbot.nearRange;
     }
 
@@ -1446,13 +1455,15 @@
         ctx.fillText(b.label, b.x, b.y + 3);
       }
 
-      ctx.fillStyle = isNearTextbot() ? "#8cd" : "#252525";
-      ctx.fillRect(textbot.x - textbot.size * 0.5, textbot.y - textbot.size * 0.5, textbot.size, textbot.size);
-      if (isNearTextbot()) {
-        ctx.fillStyle = "#cfeeff";
-        ctx.font = "12px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("SQUAREBOT [T]", textbot.x, textbot.y - 14);
+      if (state.squarebotUnlocked) {
+        ctx.fillStyle = isNearTextbot() ? "#8cd" : "#252525";
+        ctx.fillRect(textbot.x - textbot.size * 0.5, textbot.y - textbot.size * 0.5, textbot.size, textbot.size);
+        if (isNearTextbot()) {
+          ctx.fillStyle = "#cfeeff";
+          ctx.font = "12px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("SQUAREBOT [T]", textbot.x, textbot.y - 14);
+        }
       }
 
       for (const wave of state.waves) {
@@ -1630,6 +1641,14 @@
     }, { passive: false });
 
     canvas.addEventListener("pointerdown", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (!state.squarebotUnlocked && x >= 0 && x <= 10 && y >= rect.height - 10 && y <= rect.height) {
+        state.squarebotUnlocked = true;
+        logEvent("squarebot:unlocked", "bottom-left 10x10 clicked");
+      }
+
       if (e.button !== 2) {
         return;
       }
