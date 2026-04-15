@@ -582,29 +582,44 @@
         throw new Error("Firebase unavailable");
       }
 
+      const withTimeout = (promise, ms, message) => {
+        return Promise.race([
+          promise,
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(message)), ms);
+          })
+        ]);
+      };
+
       const cleanedLobby = (lobbyId || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || defaultLobbyId;
       logEvent("joinLobby:start", { requestedLobby: lobbyId, cleanedLobby });
 
       await leaveLobby();
       playersCol = collection(db, "rooms", cleanedLobby, "players");
 
-      const snapshot = await getDocs(playersCol);
-      const now = Date.now();
       let activeCount = 0;
       let hasLocal = false;
-      snapshot.forEach((snap) => {
-        if (snap.id === localPlayerId) {
-          hasLocal = true;
-        }
-        const data = snap.data();
-        if (!data) {
-          return;
-        }
-        if (typeof data.t === "number" && now - data.t > 20000) {
-          return;
-        }
-        activeCount += 1;
-      });
+      try {
+        logEvent("joinLobby:getDocs:start", { cleanedLobby });
+        const snapshot = await withTimeout(getDocs(playersCol), 3000, "Lobby read timed out");
+        const now = Date.now();
+        snapshot.forEach((snap) => {
+          if (snap.id === localPlayerId) {
+            hasLocal = true;
+          }
+          const data = snap.data();
+          if (!data) {
+            return;
+          }
+          if (typeof data.t === "number" && now - data.t > 20000) {
+            return;
+          }
+          activeCount += 1;
+        });
+        logEvent("joinLobby:getDocs:done", { cleanedLobby, activeCount, hasLocal });
+      } catch (err) {
+        logEvent("joinLobby:getDocs:warn", err && err.message ? err.message : err);
+      }
 
       if (activeCount >= 5 && !hasLocal) {
         playersCol = null;
@@ -612,14 +627,16 @@
         throw new Error("Lobby is full (5/5)");
       }
 
-      await setDoc(doc(playersCol, localPlayerId), {
+      logEvent("joinLobby:setDoc:start", { cleanedLobby, localPlayerId });
+      await withTimeout(setDoc(doc(playersCol, localPlayerId), {
         x: player.x,
         y: player.y,
         speed: state.baseSpeed,
         invincible: state.invincible,
         label: state.username.slice(0, 12) || "player",
         t: Date.now()
-      }, { merge: true });
+      }, { merge: true }), 4000, "Lobby write timed out");
+      logEvent("joinLobby:setDoc:done", { cleanedLobby, localPlayerId });
 
       playersUnsubscribe = onSnapshot(playersCol, (snap) => {
         const nowTs = Date.now();
