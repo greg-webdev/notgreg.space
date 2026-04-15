@@ -152,6 +152,26 @@
       line-height: 1.4;
     }
 
+    .menu-fullscreen {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      border: none;
+      background: rgba(10, 10, 10, 0.94);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .menu-card {
+      width: min(96vw, 640px);
+      border: 1px solid #666;
+      background: #1c1c1c;
+      padding: 14px;
+      text-align: center;
+      line-height: 1.4;
+    }
+
     .mobile {
       display: none;
       grid-template-columns: 58px 58px 58px;
@@ -340,6 +360,8 @@
       waveTimer: 0,
       waveInterval: 8,
       waves: [],
+      regenTimer: 0,
+      regenInterval: 2.5,
       mpStatus: "offline",
       mpPeers: 0,
       localBaseIndex: 0,
@@ -679,7 +701,7 @@
 
         remotePlayers.clear();
         next.forEach((v, k) => remotePlayers.set(k, v));
-        state.mpPeers = Math.min(5, Math.max(1, active));
+        state.mpPeers = Math.min(10, Math.max(1, active));
         state.mpStatus = "live";
         logEvent("mp:readPoll", { active, remotePeers: next.size, lobbyId: state.lobbyId });
       } catch (err) {
@@ -753,10 +775,10 @@
         state.localBaseIndex = chosen;
       }
 
-      if (activeCount >= 5 && !hasLocal) {
+      if (activeCount >= 10 && !hasLocal) {
         playersCol = null;
         logEvent("joinLobby:full", { cleanedLobby, activeCount });
-        throw new Error("Lobby is full (5/5)");
+        throw new Error("Lobby is full (10/10)");
       }
 
       logEvent("joinLobby:setDoc:start", { cleanedLobby, localPlayerId });
@@ -792,9 +814,10 @@
       overlay.innerHTML = "";
 
       const box = document.createElement("div");
-      box.className = "msg";
+      box.className = "msg menu-fullscreen";
       box.innerHTML =
-        "<div style='font-weight:700;'>Escape the Tsunami for Squares</div>" +
+        "<div class='menu-card'>" +
+        "<div style='font-weight:700;font-size:20px;'>Escape the Tsunami for Squares</div>" +
         "<div style='margin-top:8px; display:grid; gap:8px; text-align:left;'>" +
         "<label>Lobby<select id='menuLobbyType' style='width:100%; margin-top:4px;'><option value='default'>Default Lobby</option><option value='custom'>Custom Lobby</option></select></label>" +
         "<label id='customLobbyWrap' style='display:none;'>Custom Lobby ID<input id='customLobbyInput' maxlength='30' placeholder='type lobby id' style='width:100%; margin-top:4px;'/></label>" +
@@ -803,7 +826,8 @@
         "</div>" +
         errorLine +
         "<div id='menuStatus' style='min-height:1.2em;color:#cfcfcf;margin-top:6px;'></div>" +
-        "<div style='margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;'><button id='menuStartSingleBtn' type='button'>Start Singleplayer</button><button id='menuStartMultiBtn' type='button'>Start Multiplayer</button></div>";
+        "<div style='margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;'><button id='menuStartSingleBtn' type='button'>Start Singleplayer</button><button id='menuStartMultiBtn' type='button'>Start Multiplayer</button></div>" +
+        "</div>";
 
       overlay.appendChild(box);
 
@@ -941,6 +965,34 @@
       }).finally(() => {
         mpWriteInFlight = false;
       });
+    }
+
+    function regenerateSquares(dt) {
+      state.regenTimer += dt;
+      if (state.regenTimer < state.regenInterval) {
+        return;
+      }
+      state.regenTimer = 0;
+
+      const delivered = brainrots.filter((b) => b.delivered && !b.carried);
+      if (delivered.length === 0) {
+        return;
+      }
+
+      const respawnCount = Math.min(3, delivered.length);
+      for (let i = 0; i < respawnCount; i += 1) {
+        const idx = Math.floor(Math.random() * delivered.length);
+        const sq = delivered.splice(idx, 1)[0];
+        if (!sq) {
+          continue;
+        }
+        const zone = zones[Math.floor(Math.random() * zones.length)];
+        sq.delivered = false;
+        sq.carried = false;
+        sq.rarity = pickRarity(zone.level);
+        sq.x = 90 + Math.random() * (world.w - 180);
+        sq.y = zone.dangerTop + 38 + Math.random() * (zone.length - 76);
+      }
     }
 
     function movePlayer(dt) {
@@ -1101,7 +1153,7 @@
         "Square Rates " + rarityDefs.map((r) => r.label.slice(0, 2).toUpperCase() + r.cps).join(" ");
 
       if (state.gameMode === "multi") {
-        mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers + "/5" + (state.lobbyId ? " " + state.lobbyId : "");
+        mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers + "/10" + (state.lobbyId ? " " + state.lobbyId : "");
       } else {
         mpTag.textContent = "MP: off";
       }
@@ -1294,6 +1346,7 @@
       state.carryIds = [];
       state.waveTimer = 0;
       state.waves = [];
+      state.regenTimer = 0;
       state.storage = makeStorageObject();
 
       player.x = world.w * 0.5;
@@ -1312,6 +1365,7 @@
       }
 
       updateEconomy(dt);
+      regenerateSquares(dt);
       movePlayer(dt);
       updateUnlocks();
       updateCarrier();
