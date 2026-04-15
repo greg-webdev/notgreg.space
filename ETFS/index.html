@@ -1179,6 +1179,9 @@
     restartBtn.addEventListener("click", resetGame);
 
     window.addEventListener("keydown", (e) => {
+      if (typeof e.key !== "string") {
+        return;
+      }
       const controls = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"];
       if (controls.includes(e.key)) {
         e.preventDefault();
@@ -1191,6 +1194,9 @@
     });
 
     window.addEventListener("keyup", (e) => {
+      if (typeof e.key !== "string") {
+        return;
+      }
       state.keys.delete(e.key.toLowerCase());
     });
 

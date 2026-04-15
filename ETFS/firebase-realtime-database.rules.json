@@ -5,9 +5,9 @@
     "rooms": {
       "$roomId": {
         "players": {
-          ".read": true,
+          ".read": "auth != null",
           "$playerId": {
-            ".write": "newData.val() == null || (newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('label').isString())",
+            ".write": "auth != null && (newData.val() == null || (newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('label').isString()))",
             ".validate": "newData.val() == null || (newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('x').isNumber() && newData.child('y').isNumber() && newData.child('label').isString() && newData.child('label').val().length > 0 && newData.child('label').val().length <= 16 && newData.child('t').isNumber() && (!newData.child('speed').exists() || newData.child('speed').isNumber()) && (!newData.child('invincible').exists() || newData.child('invincible').isBoolean()))"
           }
         }

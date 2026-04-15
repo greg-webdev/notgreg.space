@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId}/players/{playerId} {
+      // Anonymous auth counts as authenticated once signInAnonymously succeeds.
+      allow read: if request.auth != null;
+
+      allow create, update: if request.auth != null
+        && request.resource.data.keys().hasOnly(['x', 'y', 'label', 't', 'speed', 'invincible'])
+        && request.resource.data.x is number
+        && request.resource.data.y is number
+        && request.resource.data.t is number
+        && request.resource.data.label is string
+        && request.resource.data.label.size() > 0
+        && request.resource.data.label.size() <= 16
+        && (!('speed' in request.resource.data) || request.resource.data.speed is number)
+        && (!('invincible' in request.resource.data) || request.resource.data.invincible is bool);
+
+      allow delete: if request.auth != null;
+    }
+  }
+}
