@@ -311,6 +311,7 @@
     const state = {
       running: false,
       gameOver: false,
+      mainMenuOpen: false,
       keys: new Set(),
       touch: { up: false, down: false, left: false, right: false },
       gameMode: "single",
@@ -975,6 +976,25 @@
       logEvent("joinLobby:done", { lobbyId: cleanedLobby, mpStatus: state.mpStatus });
     }
 
+    async function joinDefaultLobbyWithOverflow() {
+      let idx = 1;
+      while (idx <= 200) {
+        const lobbyId = idx === 1 ? defaultLobbyId : defaultLobbyId + "-" + idx;
+        try {
+          await joinLobby(lobbyId);
+          return;
+        } catch (err) {
+          const message = err && err.message ? String(err.message) : "";
+          if (message.includes("Lobby is full")) {
+            idx += 1;
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw new Error("Unable to find open default lobby slot");
+    }
+
     function normalizeUsername(name) {
       const trimmed = (name || "").trim();
       if (!trimmed) {
@@ -984,6 +1004,13 @@
     }
 
     function showMainMenu(errorText) {
+      state.mainMenuOpen = true;
+      state.keys.clear();
+      state.touch.up = false;
+      state.touch.down = false;
+      state.touch.left = false;
+      state.touch.right = false;
+
       const errorLine = errorText ? "<div style='color:#ff9a9a;margin-top:8px;'>" + errorText + "</div>" : "";
       overlay.innerHTML = "";
 
@@ -1077,15 +1104,18 @@
               return;
             }
 
-            const chosenLobby = lobbyTypeSel.value === "custom"
-              ? normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase()
-              : defaultLobbyId;
-
-            await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
-            logEvent("menu:startMulti", { chosenLobby });
+            if (lobbyTypeSel.value === "custom") {
+              const chosenLobby = normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase();
+              await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
+              logEvent("menu:startMulti", { chosenLobby });
+            } else {
+              await withTimeout(joinDefaultLobbyWithOverflow(), 12000, "Multiplayer timed out. Check internet/Firebase and try again.");
+              logEvent("menu:startMulti", { chosenLobby: state.lobbyId });
+            }
           }
 
           resetGame();
+          state.mainMenuOpen = false;
           state.running = true;
           clearOverlay();
           updateHud();
@@ -1621,6 +1651,9 @@
     restartBtn.addEventListener("click", resetGame);
 
     canvas.addEventListener("pointerdown", (e) => {
+      if (state.mainMenuOpen) {
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -1632,6 +1665,9 @@
 
     window.addEventListener("keydown", (e) => {
       if (typeof e.key !== "string") {
+        return;
+      }
+      if (state.mainMenuOpen) {
         return;
       }
       const controls = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"];
@@ -1656,6 +1692,9 @@
     });
 
     function setTouch(dir, on) {
+      if (state.mainMenuOpen) {
+        return;
+      }
       state.touch[dir] = on;
     }
 
