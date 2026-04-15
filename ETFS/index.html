@@ -320,12 +320,33 @@
 
     const defaultLobbyId = "default-squares-lobby";
     const protectedNames = new Set(["geg", "greg", "gregory"]);
-    const playerKey = "escape-squares-player-id";
-    let localPlayerId = localStorage.getItem(playerKey);
-    if (!localPlayerId) {
-      localPlayerId = "p" + Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(playerKey, localPlayerId);
+    const deviceKey = "escape-squares-device-id";
+    let deviceId = localStorage.getItem(deviceKey);
+    if (!deviceId) {
+      deviceId = "d" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(deviceKey, deviceId);
     }
+    const tabKey = "escape-squares-tab-id";
+    let tabId = sessionStorage.getItem(tabKey);
+    if (!tabId) {
+      tabId = "t" + Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem(tabKey, tabId);
+    }
+    const localPlayerId = deviceId + "-" + tabId;
+
+    const baseSlots = Array.from({ length: 5 }, (_, i) => {
+      const width = 210;
+      const gap = 20;
+      const total = width * 5 + gap * 4;
+      const startX = world.w * 0.5 - total * 0.5;
+      return {
+        x: startX + i * (width + gap),
+        y: world.h - baseHeight + 42,
+        w: width,
+        h: 100,
+        index: i + 1
+      };
+    });
 
     let db = null;
     let auth = null;
@@ -347,6 +368,32 @@
       } else {
         console.log("[ETFS][" + stamp + "] " + type);
       }
+    }
+
+    function getBaseOwners() {
+      const owners = [];
+      if (state.username) {
+        owners.push(state.username);
+      }
+      remotePlayers.forEach((rp) => {
+        if (rp && typeof rp.label === "string" && rp.label.trim()) {
+          owners.push(rp.label.trim());
+        }
+      });
+
+      const uniqueOwners = [];
+      for (const owner of owners) {
+        const normalized = owner.toLowerCase();
+        if (!uniqueOwners.some((x) => x.toLowerCase() === normalized)) {
+          uniqueOwners.push(owner);
+        }
+      }
+
+      while (uniqueOwners.length < 5) {
+        uniqueOwners.push("");
+      }
+
+      return uniqueOwners.slice(0, 5);
     }
 
     function rarityWeights(level) {
@@ -497,7 +544,8 @@
         firebaseReady = true;
         state.mpStatus = "ready";
         logEvent("initMultiplayer:ready", {
-          uid: auth.currentUser ? auth.currentUser.uid : "none"
+          uid: auth.currentUser ? auth.currentUser.uid : "none",
+          localPlayerId
         });
       } catch (err) {
         firebaseReady = false;
@@ -1009,6 +1057,29 @@
       ctx.textAlign = "center";
       ctx.font = "13px Arial";
       ctx.fillText("SQUARE STORAGE", base.storageX + base.storageSize * 0.5, base.storageY + base.storageSize * 0.55);
+
+      const baseOwners = getBaseOwners();
+      for (let i = 0; i < baseSlots.length; i += 1) {
+        const slot = baseSlots[i];
+        const owner = baseOwners[i];
+        const claimed = owner.length > 0;
+
+        ctx.fillStyle = claimed ? "#2a3038" : "#242424";
+        ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
+        ctx.strokeStyle = claimed ? "#84b7ff" : "#666";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+
+        ctx.fillStyle = "#e8e8e8";
+        ctx.textAlign = "center";
+        ctx.font = "12px Arial";
+        const label = claimed ? owner + "'s base" : "Not claimed";
+        ctx.fillText(label, slot.x + slot.w * 0.5, slot.y + slot.h * 0.52);
+
+        ctx.fillStyle = "#bdbdbd";
+        ctx.font = "10px Arial";
+        ctx.fillText("Base " + slot.index, slot.x + slot.w * 0.5, slot.y + 16);
+      }
 
       for (const sq of ambientSquares) {
         ctx.fillStyle = "rgb(" + sq.shade + "," + sq.shade + "," + sq.shade + ")";
