@@ -186,7 +186,6 @@
         <div class="tag slim" id="mpTag">MP: connecting</div>
       </div>
       <div class="hud-right">
-        <button id="modeBtn" type="button">3D: OFF</button>
         <button id="upgradeBtn" type="button">Upgrade Square Speed</button>
         <button id="restartBtn" type="button">Restart Squares Run</button>
       </div>
@@ -238,7 +237,6 @@
     const storageSummaryTag = document.getElementById("storageSummaryTag");
     const mpTag = document.getElementById("mpTag");
 
-    const modeBtn = document.getElementById("modeBtn");
     const upgradeBtn = document.getElementById("upgradeBtn");
     const restartBtn = document.getElementById("restartBtn");
     const mobilePad = document.getElementById("mobilePad");
@@ -329,7 +327,6 @@
       carryIds: [],
       maxCarry: 9,
       squarebotUnlocked: false,
-      view3D: false,
       waveTimer: 0,
       waveInterval: 8,
       waves: [],
@@ -350,14 +347,6 @@
     };
 
     const camera = { x: 0, y: 0 };
-    const camControl = {
-      zoom: 1,
-      yaw: 0,
-      dragOn: false,
-      lastX: 0,
-      lastY: 0
-    };
-
     const base = {
       storageX: world.w * 0.84 - 44,
       storageY: world.h - baseHeight * 0.5 - 44,
@@ -677,7 +666,8 @@
       state.waves.push({
         y: 2,
         speed,
-        width: 2 + Math.min(6, speed / 70)
+        width: 2 + Math.min(6, speed / 70),
+        thickness: 26 + Math.random() * 22
       });
       if (state.waves.length > 18) {
         state.waves.splice(0, state.waves.length - 18);
@@ -1287,7 +1277,8 @@
       }
 
       for (const wave of state.waves) {
-        if (Math.abs(wave.y - player.y) <= player.size * 0.5 + 2) {
+        const bandHalf = (wave.thickness || 8) * 0.5;
+        if (Math.abs(wave.y - player.y) <= player.size * 0.5 + bandHalf) {
           state.gameOver = true;
           state.running = false;
           state.message = "A square wave got you. Restart and use safe zones between levels.";
@@ -1358,52 +1349,6 @@
       camera.y = Math.max(0, Math.min(world.h - vh, player.y - vh * 0.55));
     }
 
-    function drawCube(x, y, size, fillColor, edgeColor) {
-      const half = size * 0.5;
-      const depth = Math.max(6, size * 0.45);
-      const ox = Math.cos(camControl.yaw) * depth;
-      const oy = Math.sin(camControl.yaw) * depth * 0.45 - depth * 0.7;
-
-      const base = {
-        tl: { x: x - half, y: y - half },
-        tr: { x: x + half, y: y - half },
-        br: { x: x + half, y: y + half },
-        bl: { x: x - half, y: y + half }
-      };
-
-      const top = {
-        tl: { x: base.tl.x - ox, y: base.tl.y - oy },
-        tr: { x: base.tr.x - ox, y: base.tr.y - oy },
-        br: { x: base.br.x - ox, y: base.br.y - oy },
-        bl: { x: base.bl.x - ox, y: base.bl.y - oy }
-      };
-
-      ctx.fillStyle = fillColor;
-      ctx.fillRect(base.tl.x, base.tl.y, size, size);
-
-      ctx.fillStyle = "rgba(255,255,255,0.20)";
-      ctx.beginPath();
-      ctx.moveTo(top.tl.x, top.tl.y);
-      ctx.lineTo(top.tr.x, top.tr.y);
-      ctx.lineTo(base.tr.x, base.tr.y);
-      ctx.lineTo(base.tl.x, base.tl.y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
-      ctx.beginPath();
-      ctx.moveTo(base.tr.x, base.tr.y);
-      ctx.lineTo(top.tr.x, top.tr.y);
-      ctx.lineTo(top.br.x, top.br.y);
-      ctx.lineTo(base.br.x, base.br.y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.strokeStyle = edgeColor;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(base.tl.x, base.tl.y, size, size);
-    }
-
     function drawWorld() {
       const vw = canvas.clientWidth;
       const vh = canvas.clientHeight;
@@ -1413,14 +1358,7 @@
       ctx.fillRect(0, 0, vw, vh);
 
       ctx.save();
-      if (state.view3D) {
-        ctx.translate(vw * 0.5, vh * 0.55);
-        ctx.scale(camControl.zoom, camControl.zoom);
-        ctx.rotate(-camControl.yaw);
-        ctx.translate(-player.x, -player.y);
-      } else {
-        ctx.translate(-camera.x, -camera.y);
-      }
+      ctx.translate(-camera.x, -camera.y);
 
       const drawWidth = Math.max(world.w, camera.x + vw + 2);
 
@@ -1441,7 +1379,7 @@
         ctx.fillStyle = zone.level % 2 === 0 ? "#222" : "#262626";
         ctx.fillRect(0, zone.dangerTop, drawWidth, zone.length);
 
-        ctx.fillStyle = "#203020";
+        ctx.fillStyle = "#182818";
         ctx.fillRect(0, zone.safeTop, drawWidth, safeHeight);
 
         ctx.fillStyle = "#d7d7d7";
@@ -1450,6 +1388,10 @@
         ctx.fillText("L" + zone.level + " " + zone.name + " (" + zone.length + "m)", 10, zone.dangerTop + 18);
         ctx.fillText("SAFE", 10, zone.safeTop + 18);
       }
+
+      ctx.fillStyle = "#3a3a3a";
+      ctx.fillRect(0, 0, 12, world.baseTop);
+      ctx.fillRect(world.w - 12, 0, 12, world.baseTop);
 
       ctx.fillStyle = "#26323b";
       ctx.fillRect(world.w * 0.5 - 190, world.baseTop + 8, 380, 24);
@@ -1533,34 +1475,29 @@
       }
 
       for (const wave of state.waves) {
-        ctx.strokeStyle = "#9fd3ff";
-        ctx.lineWidth = wave.width || 3;
+        const waveBand = wave.thickness || 28;
+        ctx.fillStyle = "rgba(74, 159, 255, 0.5)";
+        ctx.fillRect(0, wave.y - waveBand * 0.5, drawWidth, waveBand);
+        ctx.strokeStyle = "#a7dcff";
+        ctx.lineWidth = Math.max(2, (wave.width || 3) + 1);
         ctx.beginPath();
-        ctx.moveTo(0, wave.y);
-        ctx.lineTo(drawWidth, wave.y);
+        ctx.moveTo(0, wave.y - waveBand * 0.5);
+        ctx.lineTo(drawWidth, wave.y - waveBand * 0.5);
         ctx.stroke();
       }
 
-      if (state.view3D) {
-        drawCube(player.x, player.y, player.size, "#f3f3f3", "#111");
-      } else {
-        ctx.fillStyle = "#f3f3f3";
-        ctx.fillRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
-        ctx.strokeStyle = "#111";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
-      }
+      ctx.fillStyle = "#f3f3f3";
+      ctx.fillRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
 
       remotePlayers.forEach((rp, id) => {
-        if (state.view3D) {
-          drawCube(rp.x, rp.y, player.size, "#80d8ff", "#143b4b");
-        } else {
-          ctx.fillStyle = "#80d8ff";
-          ctx.fillRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
-          ctx.strokeStyle = "#143b4b";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
-        }
+        ctx.fillStyle = "#80d8ff";
+        ctx.fillRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
+        ctx.strokeStyle = "#143b4b";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
         ctx.fillStyle = "#bfefff";
         ctx.font = "10px Arial";
         ctx.textAlign = "center";
@@ -1598,12 +1535,6 @@
       overlay.style.pointerEvents = "none";
     }
 
-    function updateModeButton() {
-      modeBtn.textContent = state.view3D
-        ? "3D: ON (Zoom " + camControl.zoom.toFixed(2) + "x)"
-        : "3D: OFF";
-    }
-
     function resetGame() {
       state.running = true;
       state.gameOver = false;
@@ -1625,9 +1556,6 @@
       state.waves = [];
       state.regenTimer = 0;
       state.storage = makeStorageObject();
-      camControl.zoom = 1;
-      camControl.yaw = 0;
-      updateModeButton();
 
       player.x = world.w * 0.5;
       player.y = world.h - baseHeight * 0.45;
@@ -1691,21 +1619,6 @@
     });
 
     restartBtn.addEventListener("click", resetGame);
-    modeBtn.addEventListener("click", () => {
-      state.view3D = !state.view3D;
-      updateModeButton();
-    });
-
-    canvas.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-    });
-
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? 0.08 : -0.08;
-      camControl.zoom = Math.max(0.6, Math.min(2.6, camControl.zoom + delta));
-      updateModeButton();
-    }, { passive: false });
 
     canvas.addEventListener("pointerdown", (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -1715,27 +1628,6 @@
         state.squarebotUnlocked = true;
         logEvent("squarebot:unlocked", "bottom-left 10x10 clicked");
       }
-
-      if (e.button !== 2) {
-        return;
-      }
-      camControl.dragOn = true;
-      camControl.lastX = e.clientX;
-      camControl.lastY = e.clientY;
-    });
-
-    window.addEventListener("pointermove", (e) => {
-      if (!camControl.dragOn) {
-        return;
-      }
-      const dx = e.clientX - camControl.lastX;
-      camControl.lastX = e.clientX;
-      camControl.lastY = e.clientY;
-      camControl.yaw += dx * 0.008;
-    });
-
-    window.addEventListener("pointerup", () => {
-      camControl.dragOn = false;
     });
 
     window.addEventListener("keydown", (e) => {
@@ -1789,7 +1681,6 @@
     resetGame();
     state.running = false;
     showMainMenu();
-    updateModeButton();
     restartBtn.textContent = "Restart Squares Run";
     requestAnimationFrame(frame);
   </script>
