@@ -220,7 +220,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // Your web app's Firebase configuration
     const firebaseConfig = {
@@ -404,8 +404,12 @@
     let firebaseReady = false;
     let firebaseInitPromise = null;
     let playersCol = null;
-    let mpSyncTimer = 0;
-    let playersUnsubscribe = null;
+    let mpReadTimer = 0;
+    let mpWriteTimer = 0;
+    const mpReadInterval = 2.5;
+    const mpWriteInterval = 2.5;
+    let mpReadInFlight = false;
+    let mpWriteInFlight = false;
     const remotePlayers = new Map();
 
     let nextBrainrotId = 1;
@@ -615,13 +619,8 @@
 
     async function leaveLobby() {
       logEvent("leaveLobby:start", {
-        hadSubscription: Boolean(playersUnsubscribe),
         hadPlayersCollection: Boolean(playersCol)
       });
-      if (playersUnsubscribe) {
-        playersUnsubscribe();
-        playersUnsubscribe = null;
-      }
 
       if (playersCol) {
         deleteDoc(doc(playersCol, localPlayerId)).catch((err) => {
@@ -630,12 +629,65 @@
       }
 
       playersCol = null;
+      mpReadInFlight = false;
+      mpWriteInFlight = false;
+      mpReadTimer = 0;
+      mpWriteTimer = 0;
       remotePlayers.clear();
       state.mpPeers = 0;
       if (state.gameMode !== "multi") {
         state.mpStatus = firebaseReady ? "off" : "error";
       }
       logEvent("leaveLobby:done", { mpStatus: state.mpStatus });
+    }
+
+    async function pollMultiplayerRead(force) {
+      if (!playersCol || state.gameMode !== "multi") {
+        return;
+      }
+      if (mpReadInFlight) {
+        return;
+      }
+      if (!force && mpReadTimer < mpReadInterval) {
+        return;
+      }
+
+      mpReadInFlight = true;
+      mpReadTimer = 0;
+      try {
+        const snapshot = await getDocs(playersCol);
+        const nowTs = Date.now();
+        const next = new Map();
+        let active = 0;
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (!data) {
+            return;
+          }
+          if (typeof data.t === "number" && nowTs - data.t > 20000) {
+            return;
+          }
+          active += 1;
+          if (docSnap.id === localPlayerId) {
+            return;
+          }
+          if (typeof data.x !== "number" || typeof data.y !== "number") {
+            return;
+          }
+          next.set(docSnap.id, data);
+        });
+
+        remotePlayers.clear();
+        next.forEach((v, k) => remotePlayers.set(k, v));
+        state.mpPeers = Math.min(5, Math.max(1, active));
+        state.mpStatus = "live";
+        logEvent("mp:readPoll", { active, remotePeers: next.size, lobbyId: state.lobbyId });
+      } catch (err) {
+        state.mpStatus = "error";
+        logEvent("mp:readPollError", err && err.message ? err.message : err);
+      } finally {
+        mpReadInFlight = false;
+      }
     }
 
     async function joinLobby(lobbyId) {
@@ -719,44 +771,11 @@
       }, { merge: true }), 4000, "Lobby write timed out");
       logEvent("joinLobby:setDoc:done", { cleanedLobby, localPlayerId });
 
-      playersUnsubscribe = onSnapshot(playersCol, (snap) => {
-        const nowTs = Date.now();
-        const next = new Map();
-        let active = 0;
-        snap.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (!data) {
-            return;
-          }
-          if (typeof data.t === "number" && nowTs - data.t > 20000) {
-            return;
-          }
-          active += 1;
-          if (docSnap.id === localPlayerId) {
-            return;
-          }
-          if (typeof data.x !== "number" || typeof data.y !== "number") {
-            return;
-          }
-          next.set(docSnap.id, data);
-        });
-
-        remotePlayers.clear();
-        next.forEach((v, k) => remotePlayers.set(k, v));
-        state.mpPeers = Math.min(5, Math.max(1, active));
-        state.mpStatus = "live";
-        logEvent("joinLobby:snapshot", {
-          active,
-          remotePeers: next.size,
-          lobbyId: cleanedLobby
-        });
-      }, (err) => {
-        state.mpStatus = "error";
-        logEvent("joinLobby:snapshotError", err && err.message ? err.message : err);
-      });
-
       state.lobbyId = cleanedLobby;
       state.mpStatus = "live";
+      mpReadTimer = mpReadInterval;
+      mpWriteTimer = 0;
+      await pollMultiplayerRead(true);
       logEvent("joinLobby:done", { lobbyId: cleanedLobby, mpStatus: state.mpStatus });
     }
 
@@ -893,11 +912,16 @@
         return;
       }
 
-      mpSyncTimer += dt;
-      if (mpSyncTimer < 0.15) {
+      mpReadTimer += dt;
+      mpWriteTimer += dt;
+      if (mpReadTimer >= mpReadInterval) {
+        pollMultiplayerRead(false);
+      }
+      if (mpWriteInFlight || mpWriteTimer < mpWriteInterval) {
         return;
       }
-      mpSyncTimer = 0;
+      mpWriteInFlight = true;
+      mpWriteTimer = 0;
 
       const payload = {
         x: player.x,
@@ -914,6 +938,8 @@
       setDoc(doc(playersCol, localPlayerId), payload, { merge: true }).catch(() => {
         state.mpStatus = "error";
         logEvent("syncMultiplayer:setDocError", { lobbyId: state.lobbyId });
+      }).finally(() => {
+        mpWriteInFlight = false;
       });
     }
 
