@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Open Brainrot Tsunami in about:blank</title>
+  <title>Open ETFB in about:blank</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -79,10 +79,19 @@
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+      justify-content: space-between;
       border: 1px solid #444;
       background: #1a1a1a;
       padding: 6px;
       font-size: 14px;
+    }
+
+    .hud-left,
+    .hud-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
     }
 
     .tag {
@@ -92,19 +101,9 @@
       white-space: nowrap;
     }
 
-    .tag.legend-label {
-      background: #202020;
-      border-color: #555;
-      font-weight: 700;
-    }
-
-    .chip {
-      display: inline-block;
-      width: 9px;
-      height: 9px;
-      margin-right: 6px;
-      border: 1px solid #111;
-      vertical-align: middle;
+    .tag.slim {
+      font-size: 12px;
+      color: #d4d4d4;
     }
 
     button {
@@ -172,6 +171,10 @@
     }
 
     @media (max-width: 900px), (pointer: coarse) {
+      .hud {
+        justify-content: flex-start;
+      }
+
       .mobile {
         display: grid;
       }
@@ -181,27 +184,22 @@
 <body>
   <div class="layout">
     <div class="hud">
-      <div class="tag" id="zoneTag">Zone: Base</div>
-      <div class="tag" id="levelTag">Unlocked: L1/10</div>
-      <div class="tag" id="waveTag">Next Wave: 0m</div>
-      <div class="tag" id="speedTag">Speed: 180</div>
-      <div class="tag" id="coinTag">Coins: 0</div>
-      <div class="tag" id="incomeTag">Income: 0/s</div>
-      <div class="tag" id="carryTag">Carry: none</div>
-      <div class="tag legend-label">Legend</div>
-      <div class="tag"><span class="chip" style="background:#7bc67b;"></span>Common 1/s</div>
-      <div class="tag"><span class="chip" style="background:#7bb3d9;"></span>Uncommon 2/s</div>
-      <div class="tag"><span class="chip" style="background:#9d88ff;"></span>Rare 4/s</div>
-      <div class="tag"><span class="chip" style="background:#d98ac0;"></span>Epic 7/s</div>
-      <div class="tag"><span class="chip" style="background:#ffc56b;"></span>Mythic 11/s</div>
-      <div class="tag legend-label">Storage</div>
-      <div class="tag" id="storageCommonTag">Common: 0</div>
-      <div class="tag" id="storageUncommonTag">Uncommon: 0</div>
-      <div class="tag" id="storageRareTag">Rare: 0</div>
-      <div class="tag" id="storageEpicTag">Epic: 0</div>
-      <div class="tag" id="storageMythicTag">Mythic: 0</div>
-      <button id="upgradeBtn" type="button">Upgrade Speed</button>
-      <button id="restartBtn" type="button">Restart</button>
+      <div class="hud-left">
+        <div class="tag" id="zoneTag">Zone: Base</div>
+        <div class="tag" id="waveTag">Next Wave: 0m</div>
+        <div class="tag" id="speedTag">Speed: 180</div>
+        <div class="tag" id="godTag">God: OFF</div>
+        <div class="tag" id="coinTag">Coins: 0</div>
+        <div class="tag" id="incomeTag">Income: 0/s</div>
+        <div class="tag" id="carryTag">Carry: none</div>
+        <div class="tag slim" id="ratesTag">Rates C1 U2 R4 E7 M11</div>
+        <div class="tag slim" id="storageSummaryTag">Storage C0 U0 R0 E0 M0</div>
+        <div class="tag slim" id="mpTag">MP: connecting</div>
+      </div>
+      <div class="hud-right">
+        <button id="upgradeBtn" type="button">Upgrade Speed</button>
+        <button id="restartBtn" type="button">Restart</button>
+      </div>
     </div>
 
     <div class="canvas-wrap">
@@ -219,23 +217,33 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBeVe5g8Uo-xaONw3YzNwpKUi5MtB3FE7w",
+      authDomain: "etfbgeg.firebaseapp.com",
+      projectId: "etfbgeg",
+      storageBucket: "etfbgeg.firebasestorage.app",
+      messagingSenderId: "94282003655",
+      appId: "1:94282003655:web:4ef828ce9ee6401781bae2"
+    };
+
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
 
     const zoneTag = document.getElementById("zoneTag");
-    const levelTag = document.getElementById("levelTag");
     const waveTag = document.getElementById("waveTag");
     const speedTag = document.getElementById("speedTag");
+    const godTag = document.getElementById("godTag");
     const coinTag = document.getElementById("coinTag");
     const incomeTag = document.getElementById("incomeTag");
     const carryTag = document.getElementById("carryTag");
-    const storageCommonTag = document.getElementById("storageCommonTag");
-    const storageUncommonTag = document.getElementById("storageUncommonTag");
-    const storageRareTag = document.getElementById("storageRareTag");
-    const storageEpicTag = document.getElementById("storageEpicTag");
-    const storageMythicTag = document.getElementById("storageMythicTag");
+    const storageSummaryTag = document.getElementById("storageSummaryTag");
+    const mpTag = document.getElementById("mpTag");
 
     const upgradeBtn = document.getElementById("upgradeBtn");
     const restartBtn = document.getElementById("restartBtn");
@@ -299,7 +307,7 @@
     ];
 
     const state = {
-      running: true,
+      running: false,
       gameOver: false,
       keys: new Set(),
       touch: { up: false, down: false, left: false, right: false },
@@ -309,10 +317,13 @@
       speedLevel: 1,
       baseSpeed: 180,
       speedUpgradeCost: 25,
+      invincible: false,
       carryId: null,
       waveTimer: 0,
       waveInterval: 8,
       waves: [],
+      mpStatus: "offline",
+      mpPeers: 0,
       storage: {
         common: 0,
         uncommon: 0,
@@ -326,23 +337,37 @@
     const player = {
       x: world.w * 0.5,
       y: world.h - baseHeight * 0.45,
-      r: 13,
+      size: 22,
       teleportLock: 0
     };
 
     const camera = { x: 0, y: 0 };
 
     const base = {
-      storageX: world.w * 0.84,
-      storageY: world.h - baseHeight * 0.5,
-      storageR: 55
+      storageX: world.w * 0.84 - 44,
+      storageY: world.h - baseHeight * 0.5 - 44,
+      storageSize: 88
     };
 
-    const tpPads = [
-      { x: world.w * 0.2, y: world.h - baseHeight * 0.7, r: 34, label: "TP L1", mode: "l1" },
-      { x: world.w * 0.2, y: world.h - baseHeight * 0.5, r: 34, label: "TP MAX", mode: "max" },
-      { x: world.w * 0.2, y: world.h - baseHeight * 0.3, r: 34, label: "TP L10", mode: "l10" }
-    ];
+    const textbot = {
+      x: world.w * 0.5,
+      y: (zones[2].dangerTop + zones[2].dangerBottom) * 0.5,
+      size: 20,
+      nearRange: 120
+    };
+
+    const roomId = (new URLSearchParams(window.location.search).get("room") || "public").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || "public";
+    const playerKey = "etfb-player-id";
+    let localPlayerId = localStorage.getItem(playerKey);
+    if (!localPlayerId) {
+      localPlayerId = "p" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(playerKey, localPlayerId);
+    }
+
+    let db = null;
+    let playersCol = null;
+    let mpSyncTimer = 0;
+    const remotePlayers = new Map();
 
     let nextBrainrotId = 1;
     const brainrots = [];
@@ -376,7 +401,7 @@
             id: nextBrainrotId,
             x: 90 + Math.random() * (world.w - 180),
             y: zone.dangerTop + 38 + Math.random() * (zone.length - 76),
-            r: 11,
+            size: 20,
             rarity,
             label: "B" + nextBrainrotId,
             delivered: false,
@@ -428,8 +453,102 @@
     function spawnWave() {
       const speed = 120 + state.highestUnlocked * 8 + Math.random() * 14;
       state.waves.push({
-        y: world.baseTop - 2,
+        y: 2,
         speed
+      });
+      if (state.waves.length > 18) {
+        state.waves.splice(0, state.waves.length - 18);
+      }
+    }
+
+    function isNearTextbot() {
+      return Math.abs(player.x - textbot.x) <= textbot.nearRange && Math.abs(player.y - textbot.y) <= textbot.nearRange;
+    }
+
+    function openTextbot() {
+      if (!isNearTextbot()) {
+        return;
+      }
+
+      const speedInput = window.prompt("Textbot: type any speed number", String(state.baseSpeed));
+      if (speedInput !== null) {
+        const speedValue = Number(speedInput);
+        if (Number.isFinite(speedValue) && speedValue >= 0) {
+          state.baseSpeed = speedValue;
+        }
+      }
+
+      const invInput = window.prompt("Textbot: invincibility on/off", state.invincible ? "on" : "off");
+      if (invInput !== null) {
+        const value = invInput.trim().toLowerCase();
+        if (["on", "1", "true", "yes", "y"].includes(value)) {
+          state.invincible = true;
+        } else if (["off", "0", "false", "no", "n"].includes(value)) {
+          state.invincible = false;
+        }
+      }
+
+      updateHud();
+    }
+
+    function initMultiplayer() {
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        playersCol = collection(db, "rooms", roomId, "players");
+        state.mpStatus = "live";
+
+        onSnapshot(playersCol, (snapshot) => {
+          const now = Date.now();
+          const next = new Map();
+          snapshot.forEach((snap) => {
+            if (snap.id === localPlayerId) {
+              return;
+            }
+            const data = snap.data();
+            if (!data || typeof data.x !== "number" || typeof data.y !== "number") {
+              return;
+            }
+            if (typeof data.t === "number" && now - data.t > 15000) {
+              return;
+            }
+            next.set(snap.id, data);
+          });
+
+          remotePlayers.clear();
+          next.forEach((v, k) => remotePlayers.set(k, v));
+          state.mpPeers = remotePlayers.size;
+        }, () => {
+          state.mpStatus = "error";
+        });
+      } catch (err) {
+        state.mpStatus = "error";
+        console.error(err);
+      }
+    }
+
+    function syncMultiplayer(dt) {
+      if (!playersCol) {
+        return;
+      }
+
+      mpSyncTimer += dt;
+      if (mpSyncTimer < 0.15) {
+        return;
+      }
+      mpSyncTimer = 0;
+
+      const payload = {
+        x: player.x,
+        y: player.y,
+        speed: state.baseSpeed,
+        invincible: state.invincible,
+        label: localPlayerId.slice(0, 4),
+        t: Date.now()
+      };
+
+      setDoc(doc(playersCol, localPlayerId), payload, { merge: true }).catch(() => {
+        state.mpStatus = "error";
       });
     }
 
@@ -450,16 +569,21 @@
       player.x += dx * speed * dt;
       player.y += dy * speed * dt;
 
-      player.x = Math.max(player.r, Math.min(world.w - player.r, player.x));
-      player.y = Math.max(player.r, Math.min(world.h - player.r, player.y));
+      const half = player.size * 0.5;
+      player.x = Math.max(half, Math.min(world.w - half, player.x));
+      player.y = Math.max(half, Math.min(world.h - half, player.y));
     }
 
     function updateCarrier() {
       if (state.carryId === null) {
         for (const b of brainrots) {
           if (b.delivered || b.carried) continue;
-          const d = Math.hypot(player.x - b.x, player.y - b.y);
-          if (d < player.r + b.r + 4) {
+          const px0 = player.x - player.size * 0.5;
+          const py0 = player.y - player.size * 0.5;
+          const bx0 = b.x - b.size * 0.5;
+          const by0 = b.y - b.size * 0.5;
+          const overlap = px0 < bx0 + b.size && px0 + player.size > bx0 && py0 < by0 + b.size && py0 + player.size > by0;
+          if (overlap) {
             state.carryId = b.id;
             b.carried = true;
             break;
@@ -470,10 +594,14 @@
       if (state.carryId !== null) {
         const carried = brainrots.find((b) => b.id === state.carryId);
         if (carried && !carried.delivered) {
-          carried.x = player.x + 20;
+          carried.x = player.x + 24;
           carried.y = player.y;
 
-          const inStorage = Math.hypot(player.x - base.storageX, player.y - base.storageY) <= base.storageR;
+          const inStorage =
+            player.x >= base.storageX &&
+            player.x <= base.storageX + base.storageSize &&
+            player.y >= base.storageY &&
+            player.y <= base.storageY + base.storageSize;
           if (inStorage && player.y >= world.baseTop) {
             carried.carried = false;
             carried.delivered = true;
@@ -486,32 +614,6 @@
       }
     }
 
-    function applyTpPads(dt) {
-      player.teleportLock = Math.max(0, player.teleportLock - dt);
-      if (player.y < world.baseTop) {
-        return;
-      }
-      if (player.teleportLock > 0) {
-        return;
-      }
-
-      for (const pad of tpPads) {
-        const d = Math.hypot(player.x - pad.x, player.y - pad.y);
-        if (d <= pad.r + player.r) {
-          let targetLevel = 1;
-          if (pad.mode === "l1") targetLevel = 1;
-          if (pad.mode === "max") targetLevel = state.highestUnlocked;
-          if (pad.mode === "l10") targetLevel = state.highestUnlocked >= 10 ? 10 : state.highestUnlocked;
-
-          const zone = zones[targetLevel - 1];
-          player.x = world.w * 0.5;
-          player.y = zone.dangerBottom - 40;
-          player.teleportLock = 0.8;
-          break;
-        }
-      }
-    }
-
     function updateWaves(dt) {
       state.waveTimer += dt;
       if (state.waveTimer >= state.waveInterval) {
@@ -520,16 +622,20 @@
       }
 
       for (const wave of state.waves) {
-        wave.y -= wave.speed * dt;
+        wave.y += wave.speed * dt;
       }
-      state.waves = state.waves.filter((wave) => wave.y > -100);
+      state.waves = state.waves.filter((wave) => wave.y < world.h + 120);
 
       if (isWaveSafe(player.y)) {
         return;
       }
 
+      if (state.invincible) {
+        return;
+      }
+
       for (const wave of state.waves) {
-        if (Math.abs(wave.y - player.y) <= player.r + 2) {
+        if (Math.abs(wave.y - player.y) <= player.size * 0.5 + 2) {
           state.gameOver = true;
           state.running = false;
           state.message = "A wave got you. Restart and use safe zones between levels.";
@@ -554,20 +660,21 @@
         zoneText = "Zone: Top";
       }
       zoneTag.textContent = zoneText;
-      levelTag.textContent = "Unlocked: L" + state.highestUnlocked + "/10";
 
       let nearest = Infinity;
       for (const wave of state.waves) {
-        const d = wave.y - player.y;
+        const d = player.y - wave.y;
         if (d >= 0 && d < nearest) nearest = d;
       }
       if (!Number.isFinite(nearest)) {
-        const fallback = (world.baseTop - player.y) + (state.waveInterval - state.waveTimer) * 120;
+        const estWaveSpeed = 120 + state.highestUnlocked * 8 + 7;
+        const fallback = player.y + (state.waveInterval - state.waveTimer) * estWaveSpeed;
         nearest = Math.max(0, fallback);
       }
       waveTag.textContent = "Next Wave: " + nearest.toFixed(0) + "m";
 
       speedTag.textContent = "Speed: " + state.baseSpeed;
+      godTag.textContent = "God: " + (state.invincible ? "ON" : "OFF");
       coinTag.textContent = "Coins: " + state.coins.toFixed(0);
       incomeTag.textContent = "Income: " + state.incomePerSecond.toFixed(1) + "/s";
 
@@ -580,11 +687,14 @@
         }
       }
 
-      storageCommonTag.textContent = "Common: " + state.storage.common;
-      storageUncommonTag.textContent = "Uncommon: " + state.storage.uncommon;
-      storageRareTag.textContent = "Rare: " + state.storage.rare;
-      storageEpicTag.textContent = "Epic: " + state.storage.epic;
-      storageMythicTag.textContent = "Mythic: " + state.storage.mythic;
+      storageSummaryTag.textContent =
+        "Storage C" + state.storage.common +
+        " U" + state.storage.uncommon +
+        " R" + state.storage.rare +
+        " E" + state.storage.epic +
+        " M" + state.storage.mythic;
+
+      mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers;
 
       upgradeBtn.textContent = "Upgrade Speed (" + state.speedUpgradeCost + ")";
       upgradeBtn.disabled = state.coins < state.speedUpgradeCost || !state.running;
@@ -608,25 +718,27 @@
       ctx.save();
       ctx.translate(-camera.x, -camera.y);
 
+      const drawWidth = Math.max(world.w, camera.x + vw + 2);
+
       ctx.fillStyle = "#1b1b1b";
-      ctx.fillRect(0, 0, world.w, world.h);
+      ctx.fillRect(0, 0, drawWidth, world.h);
 
       ctx.fillStyle = "#2a2a2a";
-      ctx.fillRect(0, world.baseTop, world.w, baseHeight);
+      ctx.fillRect(0, world.baseTop, drawWidth, baseHeight);
 
       ctx.strokeStyle = "#3d3d3d";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, world.baseTop);
-      ctx.lineTo(world.w, world.baseTop);
+      ctx.lineTo(drawWidth, world.baseTop);
       ctx.stroke();
 
       for (const zone of zones) {
         ctx.fillStyle = zone.level % 2 === 0 ? "#222" : "#262626";
-        ctx.fillRect(0, zone.dangerTop, world.w, zone.length);
+        ctx.fillRect(0, zone.dangerTop, drawWidth, zone.length);
 
         ctx.fillStyle = "#203020";
-        ctx.fillRect(0, zone.safeTop, world.w, safeHeight);
+        ctx.fillRect(0, zone.safeTop, drawWidth, safeHeight);
 
         ctx.fillStyle = "#d7d7d7";
         ctx.font = "14px Arial";
@@ -635,42 +747,33 @@
         ctx.fillText("SAFE", 10, zone.safeTop + 18);
       }
 
-      for (const pad of tpPads) {
-        ctx.fillStyle = "#2e3f5f";
-        ctx.beginPath();
-        ctx.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#9fbbe7";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = "#e7f0ff";
-        ctx.textAlign = "center";
-        ctx.font = "12px Arial";
-        ctx.fillText(pad.label, pad.x, pad.y + 4);
-      }
-
-      ctx.fillStyle = "#304830";
-      ctx.beginPath();
-      ctx.arc(base.storageX, base.storageY, base.storageR, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = "#2a3a2a";
+      ctx.fillRect(base.storageX, base.storageY, base.storageSize, base.storageSize);
       ctx.strokeStyle = "#9ad19a";
       ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeRect(base.storageX, base.storageY, base.storageSize, base.storageSize);
       ctx.fillStyle = "#dff5df";
       ctx.textAlign = "center";
       ctx.font = "13px Arial";
-      ctx.fillText("STORAGE", base.storageX, base.storageY + 4);
+      ctx.fillText("STORAGE", base.storageX + base.storageSize * 0.5, base.storageY + base.storageSize * 0.55);
 
       for (const b of brainrots) {
         if (b.delivered) continue;
         ctx.fillStyle = b.rarity.color;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(b.x - b.size * 0.5, b.y - b.size * 0.5, b.size, b.size);
         ctx.fillStyle = "#111";
         ctx.font = "10px Arial";
         ctx.textAlign = "center";
         ctx.fillText(b.label, b.x, b.y + 3);
+      }
+
+      ctx.fillStyle = isNearTextbot() ? "#8cd" : "#252525";
+      ctx.fillRect(textbot.x - textbot.size * 0.5, textbot.y - textbot.size * 0.5, textbot.size, textbot.size);
+      if (isNearTextbot()) {
+        ctx.fillStyle = "#cfeeff";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("TEXTBOT [T]", textbot.x, textbot.y - 14);
       }
 
       for (const wave of state.waves) {
@@ -678,27 +781,51 @@
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, wave.y);
-        ctx.lineTo(world.w, wave.y);
+        ctx.lineTo(drawWidth, wave.y);
         ctx.stroke();
       }
 
       ctx.fillStyle = "#f3f3f3";
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
       ctx.strokeStyle = "#111";
       ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeRect(player.x - player.size * 0.5, player.y - player.size * 0.5, player.size, player.size);
+
+      remotePlayers.forEach((rp, id) => {
+        ctx.fillStyle = "#80d8ff";
+        ctx.fillRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
+        ctx.strokeStyle = "#143b4b";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rp.x - player.size * 0.5, rp.y - player.size * 0.5, player.size, player.size);
+        ctx.fillStyle = "#bfefff";
+        ctx.font = "10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText((rp.label || id.slice(0, 4)).toUpperCase(), rp.x, rp.y - 10);
+      });
 
       ctx.restore();
     }
 
-    function showOverlay(text) {
+    function showOverlay(text, options) {
+      const opts = options || {};
       overlay.innerHTML = "";
       const box = document.createElement("div");
       box.className = "msg";
-      box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'>Press Restart to play again.</div>";
+      if (opts.start) {
+        box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'><button id='startRunBtn' type='button'>Start Run</button></div>";
+      } else {
+        box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'>Press Restart to play again.</div>";
+      }
       overlay.appendChild(box);
+      if (opts.start) {
+        const startRunBtn = document.getElementById("startRunBtn");
+        if (startRunBtn) {
+          startRunBtn.addEventListener("click", () => {
+            state.running = true;
+            clearOverlay();
+          }, { once: true });
+        }
+      }
     }
 
     function clearOverlay() {
@@ -719,6 +846,7 @@
       state.speedLevel = 1;
       state.baseSpeed = 180;
       state.speedUpgradeCost = 25;
+      state.invincible = false;
       state.carryId = null;
       state.waveTimer = 0;
       state.waves = [];
@@ -734,6 +862,7 @@
 
       spawnBrainrots();
       clearOverlay();
+      updateCamera();
     }
 
     function update(dt) {
@@ -745,9 +874,9 @@
       updateEconomy(dt);
       movePlayer(dt);
       updateUnlocks();
-      applyTpPads(dt);
       updateCarrier();
       updateWaves(dt);
+      syncMultiplayer(dt);
 
       const topSafe = zones[zones.length - 1].safeTop;
       if (player.y < topSafe) {
@@ -761,10 +890,18 @@
     }
 
     let last = performance.now();
+    let accumulator = 0;
+    const fixedStep = 1 / 120;
     function frame(now) {
-      const dt = Math.min(0.033, (now - last) / 1000);
+      const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      update(dt);
+      accumulator += dt;
+      let loops = 0;
+      while (accumulator >= fixedStep && loops < 4) {
+        update(fixedStep);
+        accumulator -= fixedStep;
+        loops += 1;
+      }
       drawWorld();
       requestAnimationFrame(frame);
     }
@@ -787,6 +924,10 @@
         e.preventDefault();
       }
       state.keys.add(e.key.toLowerCase());
+
+      if (e.key.toLowerCase() === "t") {
+        openTextbot();
+      }
     });
 
     window.addEventListener("keyup", (e) => {
@@ -807,9 +948,18 @@
 
     window.addEventListener("resize", setCanvasSize);
 
+    window.addEventListener("beforeunload", () => {
+      if (!playersCol) {
+        return;
+      }
+      deleteDoc(doc(playersCol, localPlayerId)).catch(() => {});
+    });
+
     setCanvasSize();
+    initMultiplayer();
     resetGame();
-    showOverlay("Base is at the bottom. Use TP pads to jump up, grab brainrots, and bring them back to storage for coins per second.");
+    state.running = false;
+    showOverlay("Base is at the bottom. Waves come from the top. Find the hidden textbot in level 3 and press T.", { start: true });
     requestAnimationFrame(frame);
   </script>
 </body>
@@ -817,7 +967,7 @@
   </template>
 
   <div class="launcher">
-    <div>Brainrot Tsunami Top View Launcher</div>
+    <div>ETFB Launcher</div>
     <button id="openBtn" type="button">Open Game in about:blank</button>
     <div id="status"></div>
   </div>
