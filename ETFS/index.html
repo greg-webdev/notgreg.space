@@ -638,6 +638,15 @@
           menuStatus.textContent = mode === "multi" ? "Joining multiplayer..." : "Starting singleplayer...";
         }
 
+        const withTimeout = (promise, ms, message) => {
+          return Promise.race([
+            promise,
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(message)), ms);
+            })
+          ]);
+        };
+
         const username = normalizeUsername(userInput.value);
         const protectedName = protectedNames.has(username.toLowerCase());
         if (protectedName && (passInput.value || "").trim() !== "g") {
@@ -667,7 +676,7 @@
             : defaultLobbyId;
 
           try {
-            await joinLobby(chosenLobby);
+            await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
           } catch (err) {
             showMainMenu(err && err.message ? err.message : "Unable to join lobby");
             return;
@@ -994,6 +1003,7 @@
     function showOverlay(text, options) {
       const opts = options || {};
       overlay.innerHTML = "";
+      overlay.style.pointerEvents = "auto";
       const box = document.createElement("div");
       box.className = "msg";
       if (opts.start) {

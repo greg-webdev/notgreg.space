@@ -219,6 +219,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // Your web app's Firebase configuration
@@ -370,7 +371,9 @@
     }
 
     let db = null;
+    let auth = null;
     let firebaseReady = false;
+    let firebaseInitPromise = null;
     let playersCol = null;
     let mpSyncTimer = 0;
     let playersUnsubscribe = null;
@@ -514,9 +517,11 @@
       updateHud();
     }
 
-    function initMultiplayer() {
+    async function initMultiplayer() {
       try {
         const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        await signInAnonymously(auth);
         db = getFirestore(app);
         firebaseReady = true;
         state.mpStatus = "ready";
@@ -644,6 +649,7 @@
         "<label id='passwordWrap' style='display:none;'>Password<input id='menuPassword' type='password' maxlength='8' placeholder='required for protected names' style='width:100%; margin-top:4px;'/></label>" +
         "</div>" +
         errorLine +
+        "<div id='menuStatus' style='min-height:1.2em;color:#cfcfcf;margin-top:6px;'></div>" +
         "<div style='margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap;'><button id='menuStartSingleBtn' type='button'>Start Singleplayer</button><button id='menuStartMultiBtn' type='button'>Start Multiplayer</button></div>";
 
       overlay.appendChild(box);
@@ -654,8 +660,11 @@
       const userInput = document.getElementById("menuUsername");
       const passWrap = document.getElementById("passwordWrap");
       const passInput = document.getElementById("menuPassword");
+      const menuStatus = document.getElementById("menuStatus");
       const startSingleBtn = document.getElementById("menuStartSingleBtn");
       const startMultiBtn = document.getElementById("menuStartMultiBtn");
+
+      overlay.style.pointerEvents = "auto";
 
       lobbyTypeSel.addEventListener("change", () => {
         customLobbyWrap.style.display = lobbyTypeSel.value === "custom" ? "block" : "none";
@@ -667,6 +676,21 @@
       });
 
       async function startFromMenu(mode) {
+        startSingleBtn.disabled = true;
+        startMultiBtn.disabled = true;
+        if (menuStatus) {
+          menuStatus.textContent = mode === "multi" ? "Joining multiplayer..." : "Starting singleplayer...";
+        }
+
+        const withTimeout = (promise, ms, message) => {
+          return Promise.race([
+            promise,
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(message)), ms);
+            })
+          ]);
+        };
+
         const username = normalizeUsername(userInput.value);
         const protectedName = protectedNames.has(username.toLowerCase());
         if (protectedName && (passInput.value || "").trim() !== "g") {
@@ -683,12 +707,20 @@
           state.mpStatus = firebaseReady ? "off" : "error";
           state.mpPeers = 0;
         } else {
+          if (firebaseInitPromise) {
+            await firebaseInitPromise;
+          }
+          if (!firebaseReady) {
+            showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed.");
+            return;
+          }
+
           const chosenLobby = lobbyTypeSel.value === "custom"
             ? normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase()
             : defaultLobbyId;
 
           try {
-            await joinLobby(chosenLobby);
+            await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
           } catch (err) {
             showMainMenu(err && err.message ? err.message : "Unable to join lobby");
             return;
@@ -1015,6 +1047,7 @@
     function showOverlay(text, options) {
       const opts = options || {};
       overlay.innerHTML = "";
+      overlay.style.pointerEvents = "auto";
       const box = document.createElement("div");
       box.className = "msg";
       if (opts.start) {
@@ -1036,6 +1069,7 @@
 
     function clearOverlay() {
       overlay.innerHTML = "";
+      overlay.style.pointerEvents = "none";
     }
 
     function resetGame() {
@@ -1162,7 +1196,7 @@
     });
 
     setCanvasSize();
-    initMultiplayer();
+    firebaseInitPromise = initMultiplayer();
     resetGame();
     state.running = false;
     showMainMenu();
