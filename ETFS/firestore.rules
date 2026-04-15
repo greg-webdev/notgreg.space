@@ -6,14 +6,16 @@ service cloud.firestore {
       allow read: if request.auth != null;
 
       allow create, update: if request.auth != null
-        && request.resource.data.keys().hasOnly(['x', 'y', 'label', 't', 'speed', 'invincible', 'baseIndex'])
+        && request.resource.data.keys().hasOnly(['x', 'y', 'label', 't', 'speed', 'invincible', 'baseIndex', 'ownedTotal', 'ownedSummary'])
         && request.resource.data.x is number
         && request.resource.data.y is number
         && request.resource.data.t is number
         && request.resource.data.label is string
         && request.resource.data.label.size() > 0
         && request.resource.data.label.size() <= 16
-        && (!('baseIndex' in request.resource.data) || (request.resource.data.baseIndex is number && request.resource.data.baseIndex >= 0 && request.resource.data.baseIndex < 5))
+        && (!('baseIndex' in request.resource.data) || (request.resource.data.baseIndex is number && request.resource.data.baseIndex >= 0 && request.resource.data.baseIndex < 10))
+        && (!('ownedTotal' in request.resource.data) || (request.resource.data.ownedTotal is number && request.resource.data.ownedTotal >= 0))
+        && (!('ownedSummary' in request.resource.data) || (request.resource.data.ownedSummary is string && request.resource.data.ownedSummary.size() <= 220))
         && (!('speed' in request.resource.data) || request.resource.data.speed is number)
         && (!('invincible' in request.resource.data) || request.resource.data.invincible is bool);
 
