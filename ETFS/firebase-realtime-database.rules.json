@@ -7,7 +7,7 @@
         "players": {
           ".read": true,
           "$playerId": {
-            ".write": "(!data.exists() && data.parent().numChildren() < 5) || data.exists()",
+            ".write": "newData.val() == null || (newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('label').isString())",
             ".validate": "newData.val() == null || (newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('x').isNumber() && newData.child('y').isNumber() && newData.child('label').isString() && newData.child('label').val().length > 0 && newData.child('label').val().length <= 16 && newData.child('t').isNumber() && (!newData.child('speed').exists() || newData.child('speed').isNumber()) && (!newData.child('invincible').exists() || newData.child('invincible').isBoolean()))"
           }
         }
