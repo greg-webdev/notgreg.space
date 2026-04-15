@@ -1,4 +1,48 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open ETFB in about:blank</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #111;
+      color: #f2f2f2;
+      font-family: Arial, sans-serif;
+      display: grid;
+      place-items: center;
+    }
+    .launcher {
+      width: min(92vw, 460px);
+      border: 1px solid #444;
+      background: #1b1b1b;
+      padding: 14px;
+      text-align: center;
+      display: grid;
+      gap: 10px;
+    }
+    button {
+      border: 1px solid #555;
+      background: #2d2d2d;
+      color: #f2f2f2;
+      font: inherit;
+      padding: 10px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    #status {
+      min-height: 1.2em;
+      color: #cfcfcf;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <template id="gameSource"><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -175,7 +219,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // Your web app's Firebase configuration
     const firebaseConfig = {
@@ -267,6 +311,9 @@
       gameOver: false,
       keys: new Set(),
       touch: { up: false, down: false, left: false, right: false },
+      gameMode: "single",
+      username: "player",
+      lobbyId: "",
       coins: 0,
       incomePerSecond: 0,
       highestUnlocked: 1,
@@ -312,7 +359,8 @@
       nearRange: 120
     };
 
-    const roomId = (new URLSearchParams(window.location.search).get("room") || "public").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || "public";
+    const defaultLobbyId = "default-lobby";
+    const protectedNames = new Set(["geg", "greg", "gregory"]);
     const playerKey = "etfb-player-id";
     let localPlayerId = localStorage.getItem(playerKey);
     if (!localPlayerId) {
@@ -321,8 +369,10 @@
     }
 
     let db = null;
+    let firebaseReady = false;
     let playersCol = null;
     let mpSyncTimer = 0;
+    let playersUnsubscribe = null;
     const remotePlayers = new Map();
 
     let nextBrainrotId = 1;
@@ -451,40 +501,202 @@
       try {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
-        playersCol = collection(db, "rooms", roomId, "players");
-        state.mpStatus = "live";
-
-        onSnapshot(playersCol, (snapshot) => {
-          const now = Date.now();
-          const next = new Map();
-          snapshot.forEach((snap) => {
-            if (snap.id === localPlayerId) {
-              return;
-            }
-            const data = snap.data();
-            if (!data || typeof data.x !== "number" || typeof data.y !== "number") {
-              return;
-            }
-            if (typeof data.t === "number" && now - data.t > 15000) {
-              return;
-            }
-            next.set(snap.id, data);
-          });
-
-          remotePlayers.clear();
-          next.forEach((v, k) => remotePlayers.set(k, v));
-          state.mpPeers = remotePlayers.size;
-        }, () => {
-          state.mpStatus = "error";
-        });
+        firebaseReady = true;
+        state.mpStatus = "ready";
       } catch (err) {
+        firebaseReady = false;
         state.mpStatus = "error";
         console.error(err);
       }
     }
 
+    async function leaveLobby() {
+      if (playersUnsubscribe) {
+        playersUnsubscribe();
+        playersUnsubscribe = null;
+      }
+
+      if (playersCol) {
+        await deleteDoc(doc(playersCol, localPlayerId)).catch(() => {});
+      }
+
+      playersCol = null;
+      remotePlayers.clear();
+      state.mpPeers = 0;
+      if (state.gameMode !== "multi") {
+        state.mpStatus = firebaseReady ? "off" : "error";
+      }
+    }
+
+    async function joinLobby(lobbyId) {
+      if (!firebaseReady) {
+        throw new Error("Firebase unavailable");
+      }
+
+      const cleanedLobby = (lobbyId || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || defaultLobbyId;
+
+      await leaveLobby();
+      playersCol = collection(db, "rooms", cleanedLobby, "players");
+
+      const snapshot = await getDocs(playersCol);
+      const now = Date.now();
+      let activeCount = 0;
+      let hasLocal = false;
+      snapshot.forEach((snap) => {
+        if (snap.id === localPlayerId) {
+          hasLocal = true;
+        }
+        const data = snap.data();
+        if (!data) {
+          return;
+        }
+        if (typeof data.t === "number" && now - data.t > 20000) {
+          return;
+        }
+        activeCount += 1;
+      });
+
+      if (activeCount >= 5 && !hasLocal) {
+        playersCol = null;
+        throw new Error("Lobby is full (5/5)");
+      }
+
+      await setDoc(doc(playersCol, localPlayerId), {
+        x: player.x,
+        y: player.y,
+        speed: state.baseSpeed,
+        invincible: state.invincible,
+        label: state.username.slice(0, 12) || "player",
+        t: Date.now()
+      }, { merge: true });
+
+      playersUnsubscribe = onSnapshot(playersCol, (snap) => {
+        const nowTs = Date.now();
+        const next = new Map();
+        let active = 0;
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (!data) {
+            return;
+          }
+          if (typeof data.t === "number" && nowTs - data.t > 20000) {
+            return;
+          }
+          active += 1;
+          if (docSnap.id === localPlayerId) {
+            return;
+          }
+          if (typeof data.x !== "number" || typeof data.y !== "number") {
+            return;
+          }
+          next.set(docSnap.id, data);
+        });
+
+        remotePlayers.clear();
+        next.forEach((v, k) => remotePlayers.set(k, v));
+        state.mpPeers = Math.min(5, Math.max(1, active));
+        state.mpStatus = "live";
+      }, () => {
+        state.mpStatus = "error";
+      });
+
+      state.lobbyId = cleanedLobby;
+      state.mpStatus = "live";
+    }
+
+    function normalizeUsername(name) {
+      const trimmed = (name || "").trim();
+      if (!trimmed) {
+        return "player";
+      }
+      return trimmed.replace(/\s+/g, " ").slice(0, 16);
+    }
+
+    function showMainMenu(errorText) {
+      const errorLine = errorText ? "<div style='color:#ff9a9a;margin-top:8px;'>" + errorText + "</div>" : "";
+      overlay.innerHTML = "";
+
+      const box = document.createElement("div");
+      box.className = "msg";
+      box.innerHTML =
+        "<div style='font-weight:700;'>Main Menu</div>" +
+        "<div style='margin-top:8px; display:grid; gap:8px; text-align:left;'>" +
+        "<label>Mode<select id='menuMode' style='width:100%; margin-top:4px;'><option value='single'>Singleplayer</option><option value='multi'>Multiplayer</option></select></label>" +
+        "<label>Lobby<select id='menuLobbyType' style='width:100%; margin-top:4px;'><option value='default'>Default Lobby</option><option value='custom'>Custom Lobby</option></select></label>" +
+        "<label id='customLobbyWrap' style='display:none;'>Custom Lobby ID<input id='customLobbyInput' maxlength='30' placeholder='type lobby id' style='width:100%; margin-top:4px;'/></label>" +
+        "<label>Username<input id='menuUsername' maxlength='16' placeholder='your name' style='width:100%; margin-top:4px;'/></label>" +
+        "<label id='passwordWrap' style='display:none;'>Password<input id='menuPassword' type='password' maxlength='8' placeholder='required for protected names' style='width:100%; margin-top:4px;'/></label>" +
+        "</div>" +
+        errorLine +
+        "<div style='margin-top:10px;'><button id='menuStartBtn' type='button'>Start</button></div>";
+
+      overlay.appendChild(box);
+
+      const modeSel = document.getElementById("menuMode");
+      const lobbyTypeSel = document.getElementById("menuLobbyType");
+      const customLobbyWrap = document.getElementById("customLobbyWrap");
+      const customLobbyInput = document.getElementById("customLobbyInput");
+      const userInput = document.getElementById("menuUsername");
+      const passWrap = document.getElementById("passwordWrap");
+      const passInput = document.getElementById("menuPassword");
+      const startBtn = document.getElementById("menuStartBtn");
+
+      modeSel.addEventListener("change", () => {
+        const isMulti = modeSel.value === "multi";
+        lobbyTypeSel.parentElement.style.display = isMulti ? "block" : "none";
+        customLobbyWrap.style.display = isMulti && lobbyTypeSel.value === "custom" ? "block" : "none";
+      });
+
+      lobbyTypeSel.addEventListener("change", () => {
+        customLobbyWrap.style.display = modeSel.value === "multi" && lobbyTypeSel.value === "custom" ? "block" : "none";
+      });
+
+      userInput.addEventListener("input", () => {
+        const normalized = normalizeUsername(userInput.value).toLowerCase();
+        passWrap.style.display = protectedNames.has(normalized) ? "block" : "none";
+      });
+
+      startBtn.addEventListener("click", async () => {
+        const mode = modeSel.value;
+        const username = normalizeUsername(userInput.value);
+        const protectedName = protectedNames.has(username.toLowerCase());
+        if (protectedName && (passInput.value || "").trim() !== "g") {
+          showMainMenu("Protected username requires password: g");
+          return;
+        }
+
+        state.username = username;
+        state.gameMode = mode;
+
+        if (mode === "single") {
+          await leaveLobby();
+          state.lobbyId = "";
+          state.mpStatus = firebaseReady ? "off" : "error";
+          state.mpPeers = 0;
+        } else {
+          const chosenLobby = lobbyTypeSel.value === "custom"
+            ? normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase()
+            : defaultLobbyId;
+
+          try {
+            await joinLobby(chosenLobby);
+          } catch (err) {
+            showMainMenu(err && err.message ? err.message : "Unable to join lobby");
+            return;
+          }
+        }
+
+        resetGame();
+        state.running = true;
+        clearOverlay();
+        updateHud();
+      });
+
+      modeSel.dispatchEvent(new Event("change"));
+    }
+
     function syncMultiplayer(dt) {
-      if (!playersCol) {
+      if (!playersCol || state.gameMode !== "multi") {
         return;
       }
 
@@ -502,6 +714,8 @@
         label: localPlayerId.slice(0, 4),
         t: Date.now()
       };
+
+      payload.label = state.username.slice(0, 12) || "player";
 
       setDoc(doc(playersCol, localPlayerId), payload, { merge: true }).catch(() => {
         state.mpStatus = "error";
@@ -650,7 +864,11 @@
         " E" + state.storage.epic +
         " M" + state.storage.mythic;
 
-      mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers;
+      if (state.gameMode === "multi") {
+        mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers + "/5" + (state.lobbyId ? " " + state.lobbyId : "");
+      } else {
+        mpTag.textContent = "MP: off";
+      }
 
       upgradeBtn.textContent = "Upgrade Speed (" + state.speedUpgradeCost + ")";
       upgradeBtn.disabled = state.coins < state.speedUpgradeCost || !state.running;
@@ -915,8 +1133,46 @@
     initMultiplayer();
     resetGame();
     state.running = false;
-    showOverlay("Base is at the bottom. Waves come from the top. Find the hidden textbot in level 3 and press T.", { start: true });
+    showMainMenu();
     requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
+  </template>
+
+  <div class="launcher">
+    <div>ETFB Launcher</div>
+    <button id="openBtn" type="button">Open Game in about:blank</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const source = document.getElementById("gameSource");
+    const openBtn = document.getElementById("openBtn");
+    const status = document.getElementById("status");
+
+    function setStatus(text) {
+      status.textContent = text || "";
+    }
+
+    openBtn.addEventListener("click", () => {
+      if (!source) {
+        setStatus("Missing embedded game source.");
+        return;
+      }
+
+      const win = window.open("about:blank", "_blank");
+      if (!win) {
+        setStatus("Popup blocked. Allow popups and try again.");
+        return;
+      }
+
+      const html = "<!DOCTYPE html>\n" + source.innerHTML;
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      setStatus("Opened game in about:blank.");
+    });
   </script>
 </body>
 </html>

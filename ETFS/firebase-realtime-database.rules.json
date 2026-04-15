@@ -1,0 +1,17 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$roomId": {
+        "players": {
+          ".read": true,
+          "$playerId": {
+            ".write": "(!data.exists() && data.parent().childrenCount < 5) || data.exists()",
+            ".validate": "newData.hasChildren(['x', 'y', 'label', 't']) && newData.child('x').isNumber() && newData.child('y').isNumber() && newData.child('label').isString() && newData.child('label').val().length > 0 && newData.child('label').val().length <= 16 && newData.child('t').isNumber() && (!newData.child('speed').exists() || newData.child('speed').isNumber()) && (!newData.child('invincible').exists() || newData.child('invincible').isBoolean())"
+          }
+        }
+      }
+    }
+  }
+}
