@@ -231,6 +231,7 @@
       messagingSenderId: "94282003655",
       appId: "1:94282003655:web:4ef828ce9ee6401781bae2"
     };
+    const realtimeDatabaseUrl = "https://etfbgeg-default-rtdb.firebaseio.com/";
 
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
@@ -383,6 +384,15 @@
     const brainrots = [];
     const ambientSquares = [];
 
+    function logEvent(type, details) {
+      const stamp = new Date().toISOString();
+      if (details !== undefined) {
+        console.log("[ETFS][" + stamp + "] " + type, details);
+      } else {
+        console.log("[ETFS][" + stamp + "] " + type);
+      }
+    }
+
     function rarityWeights(level) {
       if (level <= 2) return [65, 23, 9, 3, 0];
       if (level <= 4) return [48, 27, 16, 8, 1];
@@ -519,27 +529,42 @@
 
     async function initMultiplayer() {
       try {
+        logEvent("initMultiplayer:start", {
+          projectId: firebaseConfig.projectId,
+          firestore: "enabled",
+          rtdbUrl: realtimeDatabaseUrl
+        });
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         await signInAnonymously(auth);
         db = getFirestore(app);
         firebaseReady = true;
         state.mpStatus = "ready";
+        logEvent("initMultiplayer:ready", {
+          uid: auth.currentUser ? auth.currentUser.uid : "none"
+        });
       } catch (err) {
         firebaseReady = false;
         state.mpStatus = "error";
+        logEvent("initMultiplayer:error", err && err.message ? err.message : err);
         console.error(err);
       }
     }
 
     async function leaveLobby() {
+      logEvent("leaveLobby:start", {
+        hadSubscription: Boolean(playersUnsubscribe),
+        hadPlayersCollection: Boolean(playersCol)
+      });
       if (playersUnsubscribe) {
         playersUnsubscribe();
         playersUnsubscribe = null;
       }
 
       if (playersCol) {
-        deleteDoc(doc(playersCol, localPlayerId)).catch(() => {});
+        deleteDoc(doc(playersCol, localPlayerId)).catch((err) => {
+          logEvent("leaveLobby:deleteDocError", err && err.message ? err.message : err);
+        });
       }
 
       playersCol = null;
@@ -548,14 +573,17 @@
       if (state.gameMode !== "multi") {
         state.mpStatus = firebaseReady ? "off" : "error";
       }
+      logEvent("leaveLobby:done", { mpStatus: state.mpStatus });
     }
 
     async function joinLobby(lobbyId) {
       if (!firebaseReady) {
+        logEvent("joinLobby:blocked", "Firebase unavailable");
         throw new Error("Firebase unavailable");
       }
 
       const cleanedLobby = (lobbyId || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30) || defaultLobbyId;
+      logEvent("joinLobby:start", { requestedLobby: lobbyId, cleanedLobby });
 
       await leaveLobby();
       playersCol = collection(db, "rooms", cleanedLobby, "players");
@@ -580,6 +608,7 @@
 
       if (activeCount >= 5 && !hasLocal) {
         playersCol = null;
+        logEvent("joinLobby:full", { cleanedLobby, activeCount });
         throw new Error("Lobby is full (5/5)");
       }
 
@@ -618,12 +647,19 @@
         next.forEach((v, k) => remotePlayers.set(k, v));
         state.mpPeers = Math.min(5, Math.max(1, active));
         state.mpStatus = "live";
-      }, () => {
+        logEvent("joinLobby:snapshot", {
+          active,
+          remotePeers: next.size,
+          lobbyId: cleanedLobby
+        });
+      }, (err) => {
         state.mpStatus = "error";
+        logEvent("joinLobby:snapshotError", err && err.message ? err.message : err);
       });
 
       state.lobbyId = cleanedLobby;
       state.mpStatus = "live";
+      logEvent("joinLobby:done", { lobbyId: cleanedLobby, mpStatus: state.mpStatus });
     }
 
     function normalizeUsername(name) {
@@ -677,6 +713,11 @@
 
       async function startFromMenu(mode) {
         try {
+          logEvent("menu:startClick", {
+            mode,
+            lobbyType: lobbyTypeSel.value,
+            usernameInput: userInput.value
+          });
           startSingleBtn.disabled = true;
           startMultiBtn.disabled = true;
           if (menuStatus) {
@@ -695,6 +736,7 @@
           const username = normalizeUsername(userInput.value);
           const protectedName = protectedNames.has(username.toLowerCase());
           if (protectedName && (passInput.value || "").trim() !== "g") {
+            logEvent("menu:blockedProtectedName", { username });
             showMainMenu("Protected username requires password: g");
             return;
           }
@@ -707,11 +749,13 @@
             state.lobbyId = "";
             state.mpStatus = firebaseReady ? "off" : "error";
             state.mpPeers = 0;
+            logEvent("menu:startSingle", { mpStatus: state.mpStatus });
           } else {
             if (firebaseInitPromise) {
               await firebaseInitPromise;
             }
             if (!firebaseReady) {
+              logEvent("menu:multiplayerUnavailable", "Firebase anonymous sign-in failed");
               showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed.");
               return;
             }
@@ -721,13 +765,16 @@
               : defaultLobbyId;
 
             await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
+            logEvent("menu:startMulti", { chosenLobby });
           }
 
           resetGame();
           state.running = true;
           clearOverlay();
           updateHud();
+          logEvent("menu:startSuccess", { mode: state.gameMode });
         } catch (err) {
+          logEvent("menu:startError", err && err.message ? err.message : err);
           showMainMenu(err && err.message ? err.message : "Unable to start game");
         }
       }
@@ -767,6 +814,7 @@
 
       setDoc(doc(playersCol, localPlayerId), payload, { merge: true }).catch(() => {
         state.mpStatus = "error";
+        logEvent("syncMultiplayer:setDocError", { lobbyId: state.lobbyId });
       });
     }
 
