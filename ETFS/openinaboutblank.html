@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Open ETFB in about:blank</title>
+  <title>Open Escape the Tsunami for Squares in about:blank</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -17,7 +17,7 @@
       place-items: center;
     }
     .launcher {
-      width: min(92vw, 460px);
+      width: min(92vw, 520px);
       border: 1px solid #444;
       background: #1b1b1b;
       padding: 14px;
@@ -47,7 +47,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Brainrot Tsunami - Top View</title>
+  <title>Escape the Tsunami for Squares</title>
   <style>
     * {
       box-sizing: border-box;
@@ -185,20 +185,20 @@
   <div class="layout">
     <div class="hud">
       <div class="hud-left">
-        <div class="tag" id="zoneTag">Zone: Base</div>
-        <div class="tag" id="waveTag">Next Wave: 0m</div>
-        <div class="tag" id="speedTag">Speed: 180</div>
+        <div class="tag" id="zoneTag">Squares Zone: Base</div>
+        <div class="tag" id="waveTag">Next Square Wave: 0m</div>
+        <div class="tag" id="speedTag">Square Speed: 180</div>
         <div class="tag" id="godTag">God: OFF</div>
-        <div class="tag" id="coinTag">Coins: 0</div>
-        <div class="tag" id="incomeTag">Income: 0/s</div>
+        <div class="tag" id="coinTag">Square Coins: 0</div>
+        <div class="tag" id="incomeTag">Square Income: 0/s</div>
         <div class="tag" id="carryTag">Carry: none</div>
-        <div class="tag slim" id="ratesTag">Rates C1 U2 R4 E7 M11</div>
-        <div class="tag slim" id="storageSummaryTag">Storage C0 U0 R0 E0 M0</div>
+        <div class="tag slim" id="ratesTag">Square Rates C1 U2 R4 E7 M11</div>
+        <div class="tag slim" id="storageSummaryTag">Square Storage C0 U0 R0 E0 M0</div>
         <div class="tag slim" id="mpTag">MP: connecting</div>
       </div>
       <div class="hud-right">
-        <button id="upgradeBtn" type="button">Upgrade Speed</button>
-        <button id="restartBtn" type="button">Restart</button>
+        <button id="upgradeBtn" type="button">Upgrade Square Speed</button>
+        <button id="restartBtn" type="button">Restart Squares Run</button>
       </div>
     </div>
 
@@ -250,16 +250,16 @@
     const mobilePad = document.getElementById("mobilePad");
 
     const levelDefs = [
-      { name: "Easy", length: 360, spawnCount: 4 },
-      { name: "Medium", length: 420, spawnCount: 5 },
-      { name: "Hard", length: 490, spawnCount: 6 },
-      { name: "Expert", length: 560, spawnCount: 7 },
-      { name: "Insane", length: 640, spawnCount: 8 },
-      { name: "Extreme", length: 730, spawnCount: 9 },
-      { name: "Nightmare", length: 820, spawnCount: 10 },
-      { name: "Impossible", length: 920, spawnCount: 11 },
-      { name: "Chaos", length: 1030, spawnCount: 12 },
-      { name: "Final", length: 1160, spawnCount: 14 }
+      { name: "Easy", length: 360, spawnCount: 12 },
+      { name: "Medium", length: 420, spawnCount: 14 },
+      { name: "Hard", length: 490, spawnCount: 16 },
+      { name: "Expert", length: 560, spawnCount: 18 },
+      { name: "Insane", length: 640, spawnCount: 20 },
+      { name: "Extreme", length: 730, spawnCount: 23 },
+      { name: "Nightmare", length: 820, spawnCount: 26 },
+      { name: "Impossible", length: 920, spawnCount: 29 },
+      { name: "Chaos", length: 1030, spawnCount: 32 },
+      { name: "Final", length: 1160, spawnCount: 36 }
     ];
 
     const safeHeight = 130;
@@ -334,7 +334,7 @@
         epic: 0,
         mythic: 0
       },
-      message: "Collect brainrots and bring them back to base storage."
+      message: "Collect square units and bring them back to square storage."
     };
 
     const player = {
@@ -359,9 +359,9 @@
       nearRange: 120
     };
 
-    const defaultLobbyId = "default-lobby";
+    const defaultLobbyId = "default-squares-lobby";
     const protectedNames = new Set(["geg", "greg", "gregory"]);
-    const playerKey = "etfb-player-id";
+    const playerKey = "escape-squares-player-id";
     let localPlayerId = localStorage.getItem(playerKey);
     if (!localPlayerId) {
       localPlayerId = "p" + Math.random().toString(36).slice(2, 10);
@@ -377,6 +377,7 @@
 
     let nextBrainrotId = 1;
     const brainrots = [];
+    const ambientSquares = [];
 
     function rarityWeights(level) {
       if (level <= 2) return [65, 23, 9, 3, 0];
@@ -399,6 +400,7 @@
 
     function spawnBrainrots() {
       brainrots.length = 0;
+      ambientSquares.length = 0;
       nextBrainrotId = 1;
       for (const zone of zones) {
         for (let i = 0; i < zone.spawnCount; i += 1) {
@@ -409,11 +411,22 @@
             y: zone.dangerTop + 38 + Math.random() * (zone.length - 76),
             size: 20,
             rarity,
-            label: "B" + nextBrainrotId,
+            label: "S" + nextBrainrotId,
             delivered: false,
             carried: false
           });
           nextBrainrotId += 1;
+        }
+
+        // Add extra non-pickup square clutter so levels feel more square-dense.
+        const clutterCount = Math.max(10, Math.floor(zone.spawnCount * 1.8));
+        for (let i = 0; i < clutterCount; i += 1) {
+          ambientSquares.push({
+            x: 60 + Math.random() * (world.w - 120),
+            y: zone.dangerTop + 20 + Math.random() * (zone.length - 40),
+            size: 10 + Math.random() * 22,
+            shade: 35 + Math.floor(Math.random() * 40)
+          });
         }
       }
     }
@@ -476,7 +489,7 @@
         return;
       }
 
-      const speedInput = window.prompt("Textbot: type any speed number", String(state.baseSpeed));
+      const speedInput = window.prompt("Squarebot: type any speed number", String(state.baseSpeed));
       if (speedInput !== null) {
         const speedValue = Number(speedInput);
         if (Number.isFinite(speedValue) && speedValue >= 0) {
@@ -484,7 +497,7 @@
         }
       }
 
-      const invInput = window.prompt("Textbot: invincibility on/off", state.invincible ? "on" : "off");
+      const invInput = window.prompt("Squarebot: invincibility on/off", state.invincible ? "on" : "off");
       if (invInput !== null) {
         const value = invInput.trim().toLowerCase();
         if (["on", "1", "true", "yes", "y"].includes(value)) {
@@ -619,7 +632,7 @@
       const box = document.createElement("div");
       box.className = "msg";
       box.innerHTML =
-        "<div style='font-weight:700;'>Main Menu</div>" +
+        "<div style='font-weight:700;'>Escape the Tsunami for Squares</div>" +
         "<div style='margin-top:8px; display:grid; gap:8px; text-align:left;'>" +
         "<label>Mode<select id='menuMode' style='width:100%; margin-top:4px;'><option value='single'>Singleplayer</option><option value='multi'>Multiplayer</option></select></label>" +
         "<label>Lobby<select id='menuLobbyType' style='width:100%; margin-top:4px;'><option value='default'>Default Lobby</option><option value='custom'>Custom Lobby</option></select></label>" +
@@ -808,7 +821,7 @@
         if (Math.abs(wave.y - player.y) <= player.size * 0.5 + 2) {
           state.gameOver = true;
           state.running = false;
-          state.message = "A wave got you. Restart and use safe zones between levels.";
+          state.message = "A square wave got you. Restart and use safe zones between levels.";
           showOverlay(state.message);
           break;
         }
@@ -821,13 +834,13 @@
 
     function updateHud() {
       const info = getZoneInfo(player.y);
-      let zoneText = "Zone: Base";
+      let zoneText = "Squares Zone: Base";
       if (info.type === "danger") {
-        zoneText = "Zone: L" + info.zone.level + " " + info.zone.name;
+        zoneText = "Squares Zone: L" + info.zone.level + " " + info.zone.name;
       } else if (info.type === "safe") {
-        zoneText = "Zone: " + info.label;
+        zoneText = "Squares Zone: " + info.label;
       } else if (info.type === "top") {
-        zoneText = "Zone: Top";
+        zoneText = "Squares Zone: Top";
       }
       zoneTag.textContent = zoneText;
 
@@ -841,12 +854,12 @@
         const fallback = player.y + (state.waveInterval - state.waveTimer) * estWaveSpeed;
         nearest = Math.max(0, fallback);
       }
-      waveTag.textContent = "Next Wave: " + nearest.toFixed(0) + "m";
+      waveTag.textContent = "Next Square Wave: " + nearest.toFixed(0) + "m";
 
-      speedTag.textContent = "Speed: " + state.baseSpeed;
+      speedTag.textContent = "Square Speed: " + state.baseSpeed;
       godTag.textContent = "God: " + (state.invincible ? "ON" : "OFF");
-      coinTag.textContent = "Coins: " + state.coins.toFixed(0);
-      incomeTag.textContent = "Income: " + state.incomePerSecond.toFixed(1) + "/s";
+      coinTag.textContent = "Square Coins: " + state.coins.toFixed(0);
+      incomeTag.textContent = "Square Income: " + state.incomePerSecond.toFixed(1) + "/s";
 
       if (state.carryId === null) {
         carryTag.textContent = "Carry: none";
@@ -858,7 +871,7 @@
       }
 
       storageSummaryTag.textContent =
-        "Storage C" + state.storage.common +
+        "Square Storage C" + state.storage.common +
         " U" + state.storage.uncommon +
         " R" + state.storage.rare +
         " E" + state.storage.epic +
@@ -870,7 +883,7 @@
         mpTag.textContent = "MP: off";
       }
 
-      upgradeBtn.textContent = "Upgrade Speed (" + state.speedUpgradeCost + ")";
+      upgradeBtn.textContent = "Upgrade Square Speed (" + state.speedUpgradeCost + ")";
       upgradeBtn.disabled = state.coins < state.speedUpgradeCost || !state.running;
     }
 
@@ -929,7 +942,12 @@
       ctx.fillStyle = "#dff5df";
       ctx.textAlign = "center";
       ctx.font = "13px Arial";
-      ctx.fillText("STORAGE", base.storageX + base.storageSize * 0.5, base.storageY + base.storageSize * 0.55);
+      ctx.fillText("SQUARE STORAGE", base.storageX + base.storageSize * 0.5, base.storageY + base.storageSize * 0.55);
+
+      for (const sq of ambientSquares) {
+        ctx.fillStyle = "rgb(" + sq.shade + "," + sq.shade + "," + sq.shade + ")";
+        ctx.fillRect(sq.x - sq.size * 0.5, sq.y - sq.size * 0.5, sq.size, sq.size);
+      }
 
       for (const b of brainrots) {
         if (b.delivered) continue;
@@ -947,7 +965,7 @@
         ctx.fillStyle = "#cfeeff";
         ctx.font = "12px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("TEXTBOT [T]", textbot.x, textbot.y - 14);
+        ctx.fillText("SQUAREBOT [T]", textbot.x, textbot.y - 14);
       }
 
       for (const wave of state.waves) {
@@ -988,7 +1006,7 @@
       if (opts.start) {
         box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'><button id='startRunBtn' type='button'>Start Run</button></div>";
       } else {
-        box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'>Press Restart to play again.</div>";
+        box.innerHTML = "<div>" + text + "</div><div style='margin-top:8px;'>Press Restart Squares Run to play again.</div>";
       }
       overlay.appendChild(box);
       if (opts.start) {
@@ -1055,7 +1073,7 @@
       const topSafe = zones[zones.length - 1].safeTop;
       if (player.y < topSafe) {
         state.running = false;
-        state.message = "You reached the top after level 10.";
+        state.message = "You escaped the tsunami for squares.";
         showOverlay(state.message);
       }
 
@@ -1134,6 +1152,7 @@
     resetGame();
     state.running = false;
     showMainMenu();
+    restartBtn.textContent = "Restart Squares Run";
     requestAnimationFrame(frame);
   </script>
 </body>
@@ -1141,8 +1160,8 @@
   </template>
 
   <div class="launcher">
-    <div>ETFB Launcher</div>
-    <button id="openBtn" type="button">Open Game in about:blank</button>
+    <div>Escape the Tsunami for Squares Launcher</div>
+    <button id="openBtn" type="button">Open Escape the Tsunami for Squares in about:blank</button>
     <div id="status"></div>
   </div>
 
@@ -1171,7 +1190,7 @@
       win.document.open();
       win.document.write(html);
       win.document.close();
-      setStatus("Opened game in about:blank.");
+      setStatus("Opened Escape the Tsunami for Squares in about:blank.");
     });
   </script>
 </body>
