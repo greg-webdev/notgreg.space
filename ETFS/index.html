@@ -1142,7 +1142,8 @@
     }
 
     function updateCarrier() {
-      if (state.carryIds.length < state.maxCarry) {
+      const carryLimit = state.infiniteInventory ? Number.MAX_SAFE_INTEGER : state.maxCarry;
+      if (state.carryIds.length < carryLimit) {
         for (const b of brainrots) {
           if (b.delivered || b.carried) continue;
           const px0 = player.x - player.size * 0.5;
@@ -1153,7 +1154,7 @@
           if (overlap) {
             state.carryIds.push(b.id);
             b.carried = true;
-            if (state.carryIds.length >= state.maxCarry) {
+              if (state.carryIds.length >= carryLimit) {
               break;
             }
           }
@@ -1268,7 +1269,7 @@
       if (state.carryIds.length === 0) {
         carryTag.textContent = "Carry: none";
       } else {
-        carryTag.textContent = "Carry: " + state.carryIds.length + "/" + state.maxCarry;
+        carryTag.textContent = "Carry: " + state.carryIds.length + "/" + (state.infiniteInventory ? "INF" : state.maxCarry);
       }
 
       storageSummaryTag.textContent =
@@ -1554,6 +1555,7 @@
       state.baseSpeed = 180;
       state.speedUpgradeCost = 25;
       state.invincible = false;
+      state.infiniteInventory = false;
       state.carryIds = [];
       state.waveTimer = 0;
       state.waves = [];
