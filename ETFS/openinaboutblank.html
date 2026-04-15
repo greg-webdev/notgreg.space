@@ -400,7 +400,7 @@
 
     const textbot = {
       x: world.w * 0.5,
-      y: (zones[2].dangerTop + zones[2].dangerBottom) * 0.5,
+      y: (zones[0].dangerTop + zones[0].dangerBottom) * 0.5,
       size: 20,
       nearRange: 120
     };
@@ -993,7 +993,7 @@
       if (activeCount >= 10 && !hasLocal) {
         playersCol = null;
         logEvent("joinLobby:full", { cleanedLobby, activeCount });
-        throw new Error("Lobby is full (10/10)");
+        throw new Error("Lobby is full");
       }
 
       logEvent("joinLobby:setDoc:start", { cleanedLobby, localPlayerId });
@@ -1150,8 +1150,17 @@
 
             if (lobbyTypeSel.value === "custom") {
               const chosenLobby = normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase();
-              await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
-              logEvent("menu:startMulti", { chosenLobby });
+              try {
+                await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
+                logEvent("menu:startMulti", { chosenLobby });
+              } catch (err) {
+                const message = err && err.message ? String(err.message) : "";
+                if (message.includes("Lobby is full")) {
+                  showMainMenu("Lobby is full");
+                  return;
+                }
+                throw err;
+              }
             } else {
               await withTimeout(joinDefaultLobbyWithOverflow(), 12000, "Multiplayer timed out. Check internet/Firebase and try again.");
               logEvent("menu:startMulti", { chosenLobby: state.lobbyId });
@@ -1698,13 +1707,18 @@
       if (state.mainMenuOpen) {
         return;
       }
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      if (!state.squarebotUnlocked && x >= 0 && x <= 10 && y >= rect.height - 10 && y <= rect.height) {
-        state.squarebotUnlocked = true;
-        logEvent("squarebot:unlocked", "bottom-left 10x10 clicked");
+    });
+
+    mpTag.style.cursor = "pointer";
+    mpTag.title = "Click to spawn Squarebot in Level 1 center";
+    mpTag.addEventListener("click", () => {
+      if (state.mainMenuOpen || state.squarebotUnlocked) {
+        return;
       }
+      textbot.x = world.w * 0.5;
+      textbot.y = (zones[0].dangerTop + zones[0].dangerBottom) * 0.5;
+      state.squarebotUnlocked = true;
+      logEvent("squarebot:unlocked", "mpTag clicked");
     });
 
     window.addEventListener("keydown", (e) => {
