@@ -244,6 +244,7 @@
     const coinTag = document.getElementById("coinTag");
     const incomeTag = document.getElementById("incomeTag");
     const carryTag = document.getElementById("carryTag");
+    const ratesTag = document.getElementById("ratesTag");
     const storageSummaryTag = document.getElementById("storageSummaryTag");
     const mpTag = document.getElementById("mpTag");
 
@@ -305,8 +306,19 @@
       { key: "uncommon", label: "Uncommon", cps: 2, color: "#7bb3d9" },
       { key: "rare", label: "Rare", cps: 4, color: "#9d88ff" },
       { key: "epic", label: "Epic", cps: 7, color: "#d98ac0" },
-      { key: "mythic", label: "Mythic", cps: 11, color: "#ffc56b" }
+      { key: "mythic", label: "Mythic", cps: 11, color: "#ffc56b" },
+      { key: "legendary", label: "Legendary", cps: 16, color: "#ff9f43" },
+      { key: "ancient", label: "Ancient", cps: 23, color: "#52d6c5" },
+      { key: "divine", label: "Divine", cps: 32, color: "#ffe38a" }
     ];
+
+    function makeStorageObject() {
+      const storage = {};
+      for (const rarity of rarityDefs) {
+        storage[rarity.key] = 0;
+      }
+      return storage;
+    }
 
     const state = {
       running: false,
@@ -330,13 +342,8 @@
       waves: [],
       mpStatus: "offline",
       mpPeers: 0,
-      storage: {
-        common: 0,
-        uncommon: 0,
-        rare: 0,
-        epic: 0,
-        mythic: 0
-      },
+      localBaseIndex: 0,
+      storage: makeStorageObject(),
       message: "Collect square units and bring them back to square storage."
     };
 
@@ -415,37 +422,44 @@
     }
 
     function getBaseOwners() {
-      const owners = [];
-      if (state.username) {
-        owners.push(state.username);
+      const owners = Array.from({ length: 5 }, () => "");
+      const pushToFirstOpen = (label) => {
+        for (let i = 0; i < owners.length; i += 1) {
+          if (!owners[i]) {
+            owners[i] = label;
+            return;
+          }
+        }
+      };
+
+      const localLabel = (state.username || "").trim();
+      const localIndex = Math.max(0, Math.min(4, state.localBaseIndex || 0));
+      if (localLabel) {
+        owners[localIndex] = localLabel;
       }
+
       remotePlayers.forEach((rp) => {
-        if (rp && typeof rp.label === "string" && rp.label.trim()) {
-          owners.push(rp.label.trim());
+        if (!rp || typeof rp.label !== "string") return;
+        const label = rp.label.trim();
+        if (!label) return;
+        if (typeof rp.baseIndex === "number" && rp.baseIndex >= 0 && rp.baseIndex < 5) {
+          if (!owners[rp.baseIndex]) {
+            owners[rp.baseIndex] = label;
+          }
+        } else {
+          pushToFirstOpen(label);
         }
       });
 
-      const uniqueOwners = [];
-      for (const owner of owners) {
-        const normalized = owner.toLowerCase();
-        if (!uniqueOwners.some((x) => x.toLowerCase() === normalized)) {
-          uniqueOwners.push(owner);
-        }
-      }
-
-      while (uniqueOwners.length < 5) {
-        uniqueOwners.push("");
-      }
-
-      return uniqueOwners.slice(0, 5);
+      return owners;
     }
 
     function rarityWeights(level) {
-      if (level <= 2) return [65, 23, 9, 3, 0];
-      if (level <= 4) return [48, 27, 16, 8, 1];
-      if (level <= 6) return [34, 26, 22, 14, 4];
-      if (level <= 8) return [22, 24, 25, 20, 9];
-      return [12, 21, 27, 25, 15];
+      if (level <= 2) return [64, 22, 8, 3, 2, 1, 0, 0];
+      if (level <= 4) return [43, 24, 15, 8, 5, 3, 2, 0];
+      if (level <= 6) return [30, 23, 20, 12, 7, 4, 3, 1];
+      if (level <= 8) return [19, 20, 21, 16, 11, 6, 5, 2];
+      return [10, 15, 18, 16, 14, 10, 10, 7];
     }
 
     function pickRarity(level) {
@@ -647,6 +661,7 @@
 
       let activeCount = 0;
       let hasLocal = false;
+      const usedBaseIndices = new Set();
       try {
         logEvent("joinLobby:getDocs:start", { cleanedLobby });
         const snapshot = await withTimeout(getDocs(playersCol), 3000, "Lobby read timed out");
@@ -662,11 +677,28 @@
           if (typeof data.t === "number" && now - data.t > 20000) {
             return;
           }
+          if (typeof data.baseIndex === "number" && data.baseIndex >= 0 && data.baseIndex < 5) {
+            usedBaseIndices.add(data.baseIndex);
+            if (snap.id === localPlayerId) {
+              state.localBaseIndex = data.baseIndex;
+            }
+          }
           activeCount += 1;
         });
         logEvent("joinLobby:getDocs:done", { cleanedLobby, activeCount, hasLocal });
       } catch (err) {
         logEvent("joinLobby:getDocs:warn", err && err.message ? err.message : err);
+      }
+
+      if (!hasLocal) {
+        let chosen = 0;
+        for (let i = 0; i < 5; i += 1) {
+          if (!usedBaseIndices.has(i)) {
+            chosen = i;
+            break;
+          }
+        }
+        state.localBaseIndex = chosen;
       }
 
       if (activeCount >= 5 && !hasLocal) {
@@ -679,6 +711,7 @@
       await withTimeout(setDoc(doc(playersCol, localPlayerId), {
         x: player.x,
         y: player.y,
+        baseIndex: state.localBaseIndex,
         speed: state.baseSpeed,
         invincible: state.invincible,
         label: state.username.slice(0, 12) || "player",
@@ -869,6 +902,7 @@
       const payload = {
         x: player.x,
         y: player.y,
+        baseIndex: state.localBaseIndex,
         speed: state.baseSpeed,
         invincible: state.invincible,
         label: localPlayerId.slice(0, 4),
@@ -924,11 +958,18 @@
         }
       }
 
+      const localBaseSlot = baseSlots[Math.max(0, Math.min(baseSlots.length - 1, state.localBaseIndex || 0))];
+      const dropPad = {
+        x: localBaseSlot.x + 10,
+        y: localBaseSlot.y + 24,
+        w: localBaseSlot.w - 20,
+        h: localBaseSlot.h - 34
+      };
       const inStorage =
-        player.x >= base.storageX &&
-        player.x <= base.storageX + base.storageSize &&
-        player.y >= base.storageY &&
-        player.y <= base.storageY + base.storageSize;
+        player.x >= dropPad.x &&
+        player.x <= dropPad.x + dropPad.w &&
+        player.y >= dropPad.y &&
+        player.y <= dropPad.y + dropPad.h;
 
       const nextCarryIds = [];
       let carryIndex = 0;
@@ -1029,11 +1070,9 @@
       }
 
       storageSummaryTag.textContent =
-        "Square Storage C" + state.storage.common +
-        " U" + state.storage.uncommon +
-        " R" + state.storage.rare +
-        " E" + state.storage.epic +
-        " M" + state.storage.mythic;
+        "Square Storage " + rarityDefs.map((r) => r.label.slice(0, 2).toUpperCase() + state.storage[r.key]).join(" ");
+      ratesTag.textContent =
+        "Square Rates " + rarityDefs.map((r) => r.label.slice(0, 2).toUpperCase() + r.cps).join(" ");
 
       if (state.gameMode === "multi") {
         mpTag.textContent = "MP: " + state.mpStatus + " " + state.mpPeers + "/5" + (state.lobbyId ? " " + state.lobbyId : "");
@@ -1092,27 +1131,31 @@
         ctx.fillText("SAFE", 10, zone.safeTop + 18);
       }
 
-      ctx.fillStyle = "#2a3a2a";
-      ctx.fillRect(base.storageX, base.storageY, base.storageSize, base.storageSize);
-      ctx.strokeStyle = "#9ad19a";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(base.storageX, base.storageY, base.storageSize, base.storageSize);
-      ctx.fillStyle = "#dff5df";
+      ctx.fillStyle = "#26323b";
+      ctx.fillRect(world.w * 0.5 - 190, world.baseTop + 8, 380, 24);
+      ctx.strokeStyle = "#6fa7dd";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(world.w * 0.5 - 190, world.baseTop + 8, 380, 24);
+      ctx.fillStyle = "#dcecff";
       ctx.textAlign = "center";
-      ctx.font = "13px Arial";
-      ctx.fillText("SQUARE STORAGE", base.storageX + base.storageSize * 0.5, base.storageY + base.storageSize * 0.55);
+      ctx.font = "12px Arial";
+      ctx.fillText("BASE DISTRICT - DROP CARRIED SQUARES IN YOUR OWN BASE", world.w * 0.5, world.baseTop + 24);
 
       const baseOwners = getBaseOwners();
       for (let i = 0; i < baseSlots.length; i += 1) {
         const slot = baseSlots[i];
         const owner = baseOwners[i];
         const claimed = owner.length > 0;
+        const isMine = i === state.localBaseIndex;
 
-        ctx.fillStyle = claimed ? "#2a3038" : "#242424";
+        ctx.fillStyle = isMine ? "#30424e" : claimed ? "#2a3038" : "#242424";
         ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
-        ctx.strokeStyle = claimed ? "#84b7ff" : "#666";
+        ctx.strokeStyle = isMine ? "#9fe9ff" : claimed ? "#84b7ff" : "#666";
         ctx.lineWidth = 2;
         ctx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+
+        ctx.fillStyle = isMine ? "rgba(164,235,255,0.18)" : "rgba(255,255,255,0.05)";
+        ctx.fillRect(slot.x + 10, slot.y + 24, slot.w - 20, slot.h - 34);
 
         ctx.fillStyle = "#e8e8e8";
         ctx.textAlign = "center";
@@ -1225,11 +1268,7 @@
       state.carryIds = [];
       state.waveTimer = 0;
       state.waves = [];
-      state.storage.common = 0;
-      state.storage.uncommon = 0;
-      state.storage.rare = 0;
-      state.storage.epic = 0;
-      state.storage.mythic = 0;
+      state.storage = makeStorageObject();
 
       player.x = world.w * 0.5;
       player.y = world.h - baseHeight * 0.45;
