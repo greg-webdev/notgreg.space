@@ -493,6 +493,27 @@
       return 0;
     }
 
+    function createDeterministicRng(seedStr) {
+      let h = 2166136261;
+      const src = String(seedStr || "seed");
+      for (let i = 0; i < src.length; i += 1) {
+        h ^= src.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      let state32 = h >>> 0;
+      return () => {
+        state32 = (Math.imul(1664525, state32) + 1013904223) >>> 0;
+        return state32 / 4294967296;
+      };
+    }
+
+    function getSquareSeedKey() {
+      if (state.gameMode === "multi" && state.lobbyId) {
+        return "multi:" + state.lobbyId;
+      }
+      return "single:default";
+    }
+
     function getBaseOwners() {
       const owners = Array.from({ length: baseSlots.length }, () => "");
       const pushToFirstOpen = (label) => {
@@ -622,10 +643,11 @@
       return [10, 15, 18, 16, 14, 10, 10, 7];
     }
 
-    function pickRarity(level) {
+    function pickRarity(level, rng) {
       const weights = rarityWeights(level);
       const total = weights.reduce((a, b) => a + b, 0);
-      let roll = Math.random() * total;
+      const rand = typeof rng === "function" ? rng : Math.random;
+      let roll = rand() * total;
       for (let i = 0; i < weights.length; i += 1) {
         roll -= weights[i];
         if (roll <= 0) return rarityDefs[i];
@@ -637,13 +659,14 @@
       brainrots.length = 0;
       ambientSquares.length = 0;
       nextBrainrotId = 1;
+      const rng = createDeterministicRng(getSquareSeedKey());
       for (const zone of zones) {
         for (let i = 0; i < zone.spawnCount; i += 1) {
-          const rarity = pickRarity(zone.level);
+          const rarity = pickRarity(zone.level, rng);
           brainrots.push({
             id: nextBrainrotId,
-            x: 90 + Math.random() * (world.w - 180),
-            y: zone.dangerTop + 38 + Math.random() * (zone.length - 76),
+            x: 90 + rng() * (world.w - 180),
+            y: zone.dangerTop + 38 + rng() * (zone.length - 76),
             size: 20,
             rarity,
             label: "S" + nextBrainrotId,
@@ -657,10 +680,10 @@
         const clutterCount = Math.max(10, Math.floor(zone.spawnCount * 1.8));
         for (let i = 0; i < clutterCount; i += 1) {
           ambientSquares.push({
-            x: 60 + Math.random() * (world.w - 120),
-            y: zone.dangerTop + 20 + Math.random() * (zone.length - 40),
-            size: 10 + Math.random() * 22,
-            shade: 35 + Math.floor(Math.random() * 40)
+            x: 60 + rng() * (world.w - 120),
+            y: zone.dangerTop + 20 + rng() * (zone.length - 40),
+            size: 10 + rng() * 22,
+            shade: 35 + Math.floor(rng() * 40)
           });
         }
       }
