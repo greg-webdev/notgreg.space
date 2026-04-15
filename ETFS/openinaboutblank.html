@@ -539,7 +539,7 @@
       }
 
       if (playersCol) {
-        await deleteDoc(doc(playersCol, localPlayerId)).catch(() => {});
+        deleteDoc(doc(playersCol, localPlayerId)).catch(() => {});
       }
 
       playersCol = null;
@@ -676,61 +676,60 @@
       });
 
       async function startFromMenu(mode) {
-        startSingleBtn.disabled = true;
-        startMultiBtn.disabled = true;
-        if (menuStatus) {
-          menuStatus.textContent = mode === "multi" ? "Joining multiplayer..." : "Starting singleplayer...";
-        }
-
-        const withTimeout = (promise, ms, message) => {
-          return Promise.race([
-            promise,
-            new Promise((_, reject) => {
-              setTimeout(() => reject(new Error(message)), ms);
-            })
-          ]);
-        };
-
-        const username = normalizeUsername(userInput.value);
-        const protectedName = protectedNames.has(username.toLowerCase());
-        if (protectedName && (passInput.value || "").trim() !== "g") {
-          showMainMenu("Protected username requires password: g");
-          return;
-        }
-
-        state.username = username;
-        state.gameMode = mode;
-
-        if (mode === "single") {
-          await leaveLobby();
-          state.lobbyId = "";
-          state.mpStatus = firebaseReady ? "off" : "error";
-          state.mpPeers = 0;
-        } else {
-          if (firebaseInitPromise) {
-            await firebaseInitPromise;
+        try {
+          startSingleBtn.disabled = true;
+          startMultiBtn.disabled = true;
+          if (menuStatus) {
+            menuStatus.textContent = mode === "multi" ? "Joining multiplayer..." : "Starting singleplayer...";
           }
-          if (!firebaseReady) {
-            showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed.");
+
+          const withTimeout = (promise, ms, message) => {
+            return Promise.race([
+              promise,
+              new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(message)), ms);
+              })
+            ]);
+          };
+
+          const username = normalizeUsername(userInput.value);
+          const protectedName = protectedNames.has(username.toLowerCase());
+          if (protectedName && (passInput.value || "").trim() !== "g") {
+            showMainMenu("Protected username requires password: g");
             return;
           }
 
-          const chosenLobby = lobbyTypeSel.value === "custom"
-            ? normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase()
-            : defaultLobbyId;
+          state.username = username;
+          state.gameMode = mode;
 
-          try {
+          if (mode === "single") {
+            leaveLobby().catch(() => {});
+            state.lobbyId = "";
+            state.mpStatus = firebaseReady ? "off" : "error";
+            state.mpPeers = 0;
+          } else {
+            if (firebaseInitPromise) {
+              await firebaseInitPromise;
+            }
+            if (!firebaseReady) {
+              showMainMenu("Multiplayer unavailable. Firebase anonymous sign-in failed.");
+              return;
+            }
+
+            const chosenLobby = lobbyTypeSel.value === "custom"
+              ? normalizeUsername(customLobbyInput.value).replace(/\s+/g, "-").toLowerCase()
+              : defaultLobbyId;
+
             await withTimeout(joinLobby(chosenLobby), 8000, "Multiplayer timed out. Check internet/Firebase and try again.");
-          } catch (err) {
-            showMainMenu(err && err.message ? err.message : "Unable to join lobby");
-            return;
           }
-        }
 
-        resetGame();
-        state.running = true;
-        clearOverlay();
-        updateHud();
+          resetGame();
+          state.running = true;
+          clearOverlay();
+          updateHud();
+        } catch (err) {
+          showMainMenu(err && err.message ? err.message : "Unable to start game");
+        }
       }
 
       startSingleBtn.addEventListener("click", () => {
