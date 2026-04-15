@@ -325,6 +325,7 @@
       baseSpeed: 180,
       speedUpgradeCost: 25,
       invincible: false,
+      infiniteInventory: false,
       carryIds: [],
       maxCarry: 9,
       squarebotUnlocked: false,
@@ -429,6 +430,23 @@
       } else {
         console.log("[ETFS][" + stamp + "] " + type);
       }
+    }
+
+    function pickAvailableBaseIndex(occupiedSet, seedStr) {
+      const total = baseSlots.length;
+      let hash = 0;
+      const src = String(seedStr || "seed");
+      for (let i = 0; i < src.length; i += 1) {
+        hash = ((hash << 5) - hash + src.charCodeAt(i)) | 0;
+      }
+      let start = Math.abs(hash) % total;
+      for (let i = 0; i < total; i += 1) {
+        const candidate = (start + i) % total;
+        if (!occupiedSet.has(candidate)) {
+          return candidate;
+        }
+      }
+      return 0;
     }
 
     function getBaseOwners() {
@@ -686,6 +704,16 @@
         }
       }
 
+      const carryInput = window.prompt("Squarebot: infinite inventory on/off", state.infiniteInventory ? "on" : "off");
+      if (carryInput !== null) {
+        const value = carryInput.trim().toLowerCase();
+        if (["on", "1", "true", "yes", "y"].includes(value)) {
+          state.infiniteInventory = true;
+        } else if (["off", "0", "false", "no", "n"].includes(value)) {
+          state.infiniteInventory = false;
+        }
+      }
+
       updateHud();
     }
 
@@ -755,7 +783,10 @@
         const snapshot = await getDocs(playersCol);
         const nowTs = Date.now();
         const next = new Map();
+        const remoteBaseIndices = new Set();
         let active = 0;
+        let localPresent = false;
+        let localBaseFromDoc = null;
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
           if (!data) {
@@ -766,13 +797,33 @@
           }
           active += 1;
           if (docSnap.id === localPlayerId) {
+            localPresent = true;
+            if (typeof data.baseIndex === "number" && data.baseIndex >= 0 && data.baseIndex < baseSlots.length) {
+              localBaseFromDoc = data.baseIndex;
+            }
             return;
           }
           if (typeof data.x !== "number" || typeof data.y !== "number") {
             return;
           }
+          if (typeof data.baseIndex === "number" && data.baseIndex >= 0 && data.baseIndex < baseSlots.length) {
+            remoteBaseIndices.add(data.baseIndex);
+          }
           next.set(docSnap.id, data);
         });
+
+        let correctedBase = state.localBaseIndex;
+        if (localPresent && typeof localBaseFromDoc === "number") {
+          correctedBase = localBaseFromDoc;
+        }
+        if (correctedBase < 0 || correctedBase >= baseSlots.length || remoteBaseIndices.has(correctedBase) || !localPresent) {
+          correctedBase = pickAvailableBaseIndex(remoteBaseIndices, localPlayerId);
+        }
+        if (correctedBase !== state.localBaseIndex) {
+          state.localBaseIndex = correctedBase;
+          mpWriteTimer = mpWriteInterval;
+          logEvent("mp:baseCorrected", { localBaseIndex: correctedBase });
+        }
 
         remotePlayers.clear();
         next.forEach((v, k) => remotePlayers.set(k, v));
@@ -840,13 +891,7 @@
       }
 
       if (!hasLocal) {
-        let chosen = 0;
-        for (let i = 0; i < baseSlots.length; i += 1) {
-          if (!usedBaseIndices.has(i)) {
-            chosen = i;
-            break;
-          }
-        }
+        const chosen = pickAvailableBaseIndex(usedBaseIndices, localPlayerId);
         state.localBaseIndex = chosen;
       }
 
