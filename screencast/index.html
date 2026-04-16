@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screencast</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #111;
+    }
+
+    .card {
+      width: min(92vw, 340px);
+      padding: 16px;
+      border: 1px solid #ccc;
+      background: #fff;
+      display: grid;
+      gap: 10px;
+    }
+
+    input,
+    button {
+      font: inherit;
+      padding: 8px;
+    }
+
+    #status {
+      min-height: 1.2em;
+      font-size: 14px;
+    }
+
+    #authInfo {
+      position: fixed;
+      left: 8px;
+      bottom: 8px;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      background: #fff;
+      font-size: 12px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <label for="username">Username</label>
+    <input id="username" type="text" autocomplete="off" />
+    <button id="loginBtn" type="button">Sign In</button>
+    <div id="status"></div>
+  </div>
+  <div id="authInfo">auth: pending</div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const usernameInput = document.getElementById("username");
+    const loginBtn = document.getElementById("loginBtn");
+    const status = document.getElementById("status");
+    const authInfo = document.getElementById("authInfo");
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC3qwHrum16Q5uKufb9l-ak6YGGDawSKAY",
+      authDomain: "screencast-adc0c.firebaseapp.com",
+      projectId: "screencast-adc0c",
+      storageBucket: "screencast-adc0c.firebasestorage.app",
+      messagingSenderId: "453140207401",
+      appId: "1:453140207401:web:78453853d2958b05c7c938"
+    };
+
+    let firebaseApp = null;
+    let firebaseAuth = null;
+    let authPromise = null;
+    let stream = null;
+
+    function ensureFirebase() {
+      if (!firebaseApp) {
+        firebaseApp = initializeApp(firebaseConfig);
+      }
+      return firebaseApp;
+    }
+
+    async function ensureAnonymousAuth() {
+      if (!authPromise) {
+        const app = ensureFirebase();
+        firebaseAuth = getAuth(app);
+        authPromise = signInAnonymously(firebaseAuth);
+      }
+
+      const credential = await authPromise;
+      const user = credential.user;
+      authInfo.textContent = "auth: anonymous " + user.uid;
+      return user;
+    }
+
+    async function signIn() {
+      const name = (usernameInput.value || "").trim().toLowerCase();
+
+      if (name !== "client" && name !== "pc") {
+        status.textContent = "Only usernames client or pc are allowed.";
+        return;
+      }
+
+      if (name === "client") {
+        status.textContent = "signed in as client";
+        return;
+      }
+
+      try {
+        await ensureAnonymousAuth();
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        status.textContent = "sharing";
+      } catch (err) {
+        if (String(err && err.message || "").toLowerCase().includes("camera") || (err && err.name === "NotAllowedError")) {
+          status.textContent = "camera permission denied";
+        } else {
+          status.textContent = "auth failed";
+        }
+      }
+    }
+
+    loginBtn.addEventListener("click", signIn);
+    usernameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        signIn();
+      }
+    });
+
+    ensureAnonymousAuth().catch((err) => {
+      authInfo.textContent = "auth: failed " + (err && err.message ? err.message : "unknown error");
+    });
+  </script>
+</body>
+</html>
