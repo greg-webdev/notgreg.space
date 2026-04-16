@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Screencast</title>
+  <link rel="icon" href="data:," />
   <style>
     body {
       margin: 0;
@@ -183,7 +184,7 @@
             senderUid: firebaseAuth && firebaseAuth.currentUser ? firebaseAuth.currentUser.uid : "anon"
           }, { merge: true });
         } catch (err) {
-          status.textContent = "share write failed";
+          status.textContent = "share write failed: " + (err && err.code ? err.code : "unknown");
         } finally {
           captureInFlight = false;
         }
@@ -206,6 +207,15 @@
       }, () => {
         status.textContent = "stream read failed";
       });
+    }
+
+    function describeError(err) {
+      if (!err) return "unknown";
+      if (typeof err === "string") return err;
+      if (err.code) return String(err.code);
+      if (err.name && err.message) return String(err.name + ": " + err.message);
+      if (err.message) return String(err.message);
+      return "unknown";
     }
 
     async function ensureAnonymousAuth() {
@@ -237,7 +247,7 @@
           startClientView();
           status.textContent = "signed in as client";
         } catch (err) {
-          status.textContent = "auth failed";
+          status.textContent = "client setup failed: " + describeError(err);
         }
         return;
       }
@@ -245,18 +255,37 @@
       try {
         await ensureAnonymousAuth();
         ensureFirestore();
+      } catch (err) {
+        status.textContent = "auth/firestore failed: " + describeError(err);
+        previewHint.textContent = "Check Firebase Auth + Firestore setup/rules.";
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        status.textContent = "camera unavailable";
+        previewHint.textContent = "Camera needs HTTPS or localhost.";
+        return;
+      }
+
+      try {
         stopClientSubscription();
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         localPreview.srcObject = stream;
+        await localPreview.play().catch(() => {});
         showLocalPreview();
         previewHint.textContent = "PC preview + sharing every 0.5s";
         startCaptureLoop();
         status.textContent = "sharing";
       } catch (err) {
-        if (String(err && err.message || "").toLowerCase().includes("camera") || (err && err.name === "NotAllowedError")) {
+        if (err && (err.name === "NotAllowedError" || err.name === "SecurityError")) {
           status.textContent = "camera permission denied";
+          previewHint.textContent = "Allow camera permission in browser settings.";
+        } else if (err && err.name === "NotFoundError") {
+          status.textContent = "no camera device found";
+          previewHint.textContent = "Connect a camera and retry.";
         } else {
-          status.textContent = "auth failed";
+          status.textContent = "camera failed: " + describeError(err);
+          previewHint.textContent = "If using plain http/file, switch to https or localhost.";
         }
       }
     }
