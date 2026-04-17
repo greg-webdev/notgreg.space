@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Windows Browser Launcher</title>
+  <title>macOS Style Launcher</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      font-family: Tahoma, "MS Sans Serif", Arial, sans-serif;
-      background: radial-gradient(circle at top, #224970, #1b2d4b 55%, #101a31);
-      color: #eef4ff;
+      font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(circle at 30% 12%, #3d6198, #1a2b4b 48%, #0f172a 100%);
+      color: #eff6ff;
     }
 
     .launcher {
@@ -24,37 +24,41 @@
 
     .panel {
       width: min(92vw, 480px);
-      border: 2px solid #dde6ff;
-      background: rgba(10, 18, 41, 0.9);
-      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
-      padding: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: linear-gradient(145deg, rgba(14, 29, 54, 0.68), rgba(13, 24, 43, 0.56));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+      backdrop-filter: blur(6px);
+      padding: 24px;
+      border-radius: 20px;
       text-align: center;
     }
 
     h1 {
       margin: 0 0 10px;
       font-size: 1.45rem;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.02em;
     }
 
     p {
       margin: 0 0 16px;
       line-height: 1.45;
-      color: #ced6ff;
+      color: #d5e2ff;
     }
 
     button {
       font: inherit;
-      font-weight: 700;
-      border: 2px solid #f3f6ff;
-      background: #2d63e6;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.34);
+      background: linear-gradient(180deg, #6ba3ff, #4d7ef3);
       color: #fff;
-      padding: 10px 16px;
+      padding: 11px 18px;
       cursor: pointer;
+      border-radius: 10px;
+      box-shadow: 0 10px 24px rgba(26, 66, 155, 0.5);
     }
 
     button:hover {
-      background: #4374ef;
+      background: linear-gradient(180deg, #7cb0ff, #5a89f5);
     }
 
     .error {
@@ -66,9 +70,9 @@
 <body>
   <main class="launcher">
     <section class="panel">
-      <h1>Open Retro Browser Mock</h1>
-      <p>Click to open an about:blank desktop with a classic browser on a vintage Google-style page.</p>
-      <button id="launchBtn" type="button">Launch about:blank Browser</button>
+      <h1>Open macOS Mock</h1>
+      <p>Click to open an about:blank page styled like modern macOS with a Safari-like browser.</p>
+      <button id="launchBtn" type="button">Launch about:blank macOS</button>
       <div id="error" class="error" aria-live="polite"></div>
     </section>
   </main>
@@ -85,88 +89,491 @@
         return;
       }
 
-      const retroGoogleHtml = "<!DOCTYPE html><html><head><meta charset='UTF-8'><style>" +
-        "html,body{margin:0;padding:0;background:#e6e6e6;font-family:'Times New Roman',Times,serif;}" +
-        "#page{max-width:760px;margin:18px auto 0;text-align:center;color:#000;}" +
-        "#logo{font-size:98px;line-height:0.9;font-weight:700;letter-spacing:-3px;text-shadow:2px 2px 4px rgba(0,0,0,0.3);}" +
-        "#logo .g1{color:#1f57cc;}#logo .o1{color:#d62015;}#logo .o2{color:#efbf00;}#logo .g2{color:#1f57cc;}#logo .l{color:#35a334;}#logo .e{color:#d62015;}" +
-        "#beta{display:block;font-size:48px;letter-spacing:6px;color:#666;margin-top:-8px;}" +
-        "#tag{font-size:42px;margin:28px 0 10px;}" +
-        "#search{width:min(90%,460px);height:42px;border:4px solid #e5c57a;box-sizing:border-box;font-size:26px;padding:0 8px;background:#fff;}" +
-        "#buttons{margin-top:8px;}" +
-        "button{font-size:24px;border:none;background:transparent;padding:6px 14px;cursor:pointer;}" +
-        "#more{display:block;margin:24px 0 0;font-size:38px;color:#0a2c9c;}" +
-        "#copy{margin-top:24px;font-size:34px;}" +
-        "@media (max-width:900px){#logo{font-size:64px;}#beta{font-size:30px;}#tag{font-size:28px;}#search{height:34px;font-size:20px;}button{font-size:18px;}#more{font-size:24px;}#copy{font-size:22px;}}" +
-        "</style></head><body><div id='page'>" +
-        "<div id='logo'><span class='g1'>G</span><span class='o1'>o</span><span class='o2'>o</span><span class='g2'>g</span><span class='l'>l</span><span class='e'>e</span>!<span id='beta'>BETA</span></div>" +
-        "<div id='tag'>Search the web using Google</div>" +
-        "<input id='search' type='text'/>" +
-        "<div id='buttons'><button id='searchBtn' type='button'>Google Search</button><button id='luckyBtn' type='button'>I'm feeling lucky</button></div>" +
-        "<a id='more' href='https://www.google.com/' target='_blank' rel='noopener noreferrer'>More Google!</a>" +
-        "<div id='copy'>Copyright &copy;1999 Google Inc.</div>" +
-        "</div><script>" +
-        "const q=document.getElementById('search');" +
-        "document.getElementById('searchBtn').addEventListener('click',()=>{window.open('https://www.google.com/search?q='+encodeURIComponent(q.value),'_blank');});" +
-        "document.getElementById('luckyBtn').addEventListener('click',()=>{window.open('https://www.google.com/','_blank');});" +
-        "q.addEventListener('keydown',(e)=>{if(e.key==='Enter'){window.open('https://www.google.com/search?q='+encodeURIComponent(q.value),'_blank');}});" +
-        "<\/script></body></html>";
+      const startPageHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(circle at top, #f7f8fb, #f0f2f7 55%, #e9ecf4);
+      color: #1d2433;
+    }
 
-      const bootHtml = "<!DOCTYPE html>" +
-        "<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
-        "<title>Windows Browser Mock</title><style>" +
-        "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:'MS Sans Serif',Tahoma,sans-serif;cursor:default;}" +
-        "#desktop{position:fixed;inset:0;background:#58a7a7;}" +
-        "#browser{position:absolute;left:140px;top:50px;width:min(76vw,920px);height:min(76vh,620px);background:#c0c0c0;border:2px solid #fff;border-right-color:#555;border-bottom-color:#555;display:flex;flex-direction:column;}" +
-        "#titlebar{height:34px;background:linear-gradient(90deg,#1a479f,#3b67c8);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:20px;font-weight:700;}" +
-        "#winBtns{display:flex;gap:4px;}" +
-        ".wbtn{width:18px;height:16px;background:#c0c0c0;border:1px solid #fff;border-right-color:#444;border-bottom-color:#444;}" +
-        "#toolbar{display:flex;align-items:center;gap:8px;padding:6px;background:#d4d4d4;border-top:2px solid #fff;border-bottom:2px solid #8f8f8f;font-size:18px;}" +
-        "#toolbar button{height:28px;padding:0 10px;border:2px solid #fff;border-right-color:#555;border-bottom-color:#555;background:#c0c0c0;font-size:15px;}" +
-        "#addr{flex:1;height:28px;border:2px inset #bbb;padding:0 8px;font-size:15px;}" +
-        "#viewport{flex:1;border-top:2px solid #fff;background:#fff;}" +
-        "#viewport iframe{width:100%;height:100%;border:none;}" +
-        "#taskbar{position:absolute;left:0;right:0;bottom:0;height:40px;background:#b7bbc1;border-top:2px solid #f3f3f3;display:flex;align-items:center;padding:0 4px;box-sizing:border-box;}" +
-        "#startBtn{height:31px;padding:0 10px;border:2px solid #fff;border-right-color:#545454;border-bottom-color:#545454;background:#c0c0c0;color:#000;font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px;}" +
-        "#flag{width:16px;height:12px;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);border:1px solid #222;}" +
-        "#flag span:nth-child(1){background:#e31d1d;}#flag span:nth-child(2){background:#30d92a;}#flag span:nth-child(3){background:#1d67ff;}#flag span:nth-child(4){background:#f4da00;}" +
-        "#clock{margin-left:auto;height:28px;display:flex;align-items:center;padding:0 10px;border:2px solid #8f8f8f;border-top-color:#f1f1f1;border-left-color:#f1f1f1;background:#c7c9cd;font-size:15px;}" +
-        "@media (max-width:900px){#browser{left:2vw;top:2vh;width:96vw;height:80vh;}#toolbar{font-size:14px;}#toolbar button{font-size:12px;}}" +
-        "</style></head><body>" +
-        "<section id='desktop'>" +
-        "<div id='browser'>" +
-        "<div id='titlebar'><span>Internet Browser</span><div id='winBtns'><div class='wbtn'></div><div class='wbtn'></div><div class='wbtn'></div></div></div>" +
-        "<div id='toolbar'><button type='button' disabled>Back</button><button type='button' disabled>Forward</button><input id='addr' type='text' value='https://www.google.com/'/><button id='goBtn' type='button'>Go</button></div>" +
-        "<div id='viewport'><iframe id='pageFrame' title='Browser content'></iframe></div>" +
-        "</div>" +
-        "<div id='taskbar'><div id='startBtn'><div id='flag'><span></span><span></span><span></span><span></span></div>Start</div><div id='clock'>4:55 PM</div></div>" +
-        "</section>" +
-        "<script>" +
-        "const pageFrame=document.getElementById('pageFrame');" +
-        "const addr=document.getElementById('addr');" +
-        "const goBtn=document.getElementById('goBtn');" +
-        "const clock=document.getElementById('clock');" +
-        "const retroHtml=" + JSON.stringify(retroGoogleHtml) + ";" +
-        "pageFrame.srcdoc=retroHtml;" +
-        "function navigate(){" +
-        "const value=addr.value.trim();" +
-        "if(!value){pageFrame.srcdoc=retroHtml;return;}" +
-        "if(value.toLowerCase().includes('google')){pageFrame.srcdoc=retroHtml;return;}" +
-        "let target=value;" +
-        "if(!/^https?:\\/\\//i.test(target)){target='https://'+target;}" +
-        "pageFrame.removeAttribute('srcdoc');" +
-        "pageFrame.src=target;" +
-        "}" +
-        "goBtn.addEventListener('click',navigate);" +
-        "addr.addEventListener('keydown',(e)=>{if(e.key==='Enter'){navigate();}});" +
-        "function pad(v){return String(v).padStart(2,'0');}" +
-        "function renderClock(){const d=new Date();let h=d.getHours();const m=pad(d.getMinutes());const ap=h>=12?'PM':'AM';h=h%12||12;clock.textContent=h+':' + m + ' ' + ap;}" +
-        "renderClock();" +
-        "setInterval(renderClock,1000);" +
-        "<\/script></body></html>";
+    .shell {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: min(900px, 92vw);
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 22px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 26px 60px rgba(28, 42, 80, 0.18);
+      padding: 26px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 4px 0 10px;
+      font-size: clamp(1.9rem, 3.3vw, 2.6rem);
+      font-weight: 680;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 0;
+      color: #47536e;
+      font-size: clamp(1rem, 1.6vw, 1.2rem);
+    }
+
+    .search {
+      margin: 24px auto 0;
+      width: min(700px, 90%);
+      height: 52px;
+      border: 1px solid #d4d9e7;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      background: #fff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .search input {
+      border: none;
+      outline: none;
+      flex: 1;
+      font: inherit;
+      font-size: 1rem;
+      color: #1e2738;
+      background: transparent;
+    }
+
+    .search button {
+      border: 1px solid #c8d3f2;
+      border-radius: 10px;
+      padding: 8px 14px;
+      background: linear-gradient(180deg, #6ea4ff, #4f83f4);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .chips {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      border: 1px solid #d6deee;
+      border-radius: 999px;
+      padding: 8px 12px;
+      color: #334563;
+      background: #fff;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>Safari Start Page</h1>
+      <p>Search the web and launch quick links.</p>
+      <div class="search">
+        <input id="q" type="text" placeholder="Search or enter website name">
+        <button id="go" type="button">Search</button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-url="https://www.google.com">Google</button>
+        <button class="chip" data-url="https://www.youtube.com">YouTube</button>
+        <button class="chip" data-url="https://www.wikipedia.org">Wikipedia</button>
+        <button class="chip" data-url="https://github.com">GitHub</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const q = document.getElementById("q");
+    const go = document.getElementById("go");
+    const chips = Array.from(document.querySelectorAll(".chip"));
+
+    function search() {
+      const v = q.value.trim();
+      if (!v) {
+        return;
+      }
+      window.open("https://www.google.com/search?q=" + encodeURIComponent(v), "_blank");
+    }
+
+    go.addEventListener("click", search);
+    q.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        search();
+      }
+    });
+
+    chips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        window.open(chip.dataset.url, "_blank");
+      });
+    });
+  <\/script>
+</body>
+</html>`;
+
+      const osHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>macOS Mock</title>
+  <style>
+    :root {
+      --glass: rgba(247, 248, 255, 0.44);
+      --glass-edge: rgba(255, 255, 255, 0.54);
+      --ink: #0f1f38;
+      --muted: #5e6f86;
+      --accent: #2f7cf6;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      user-select: none;
+    }
+
+    #desktop {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 16% 22%, rgba(255, 223, 181, 0.34), transparent 40%),
+        radial-gradient(circle at 78% 18%, rgba(151, 194, 255, 0.35), transparent 38%),
+        radial-gradient(circle at 58% 75%, rgba(118, 87, 221, 0.3), transparent 45%),
+        linear-gradient(145deg, #39569a, #28376b 47%, #1d2340);
+    }
+
+    #menubar {
+      height: 30px;
+      background: linear-gradient(180deg, rgba(253, 254, 255, 0.72), rgba(225, 232, 245, 0.5));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      box-sizing: border-box;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    #apple {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .menu-item {
+      opacity: 0.93;
+    }
+
+    #status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #2a3d5f;
+      font-weight: 500;
+    }
+
+    #window {
+      position: absolute;
+      top: 64px;
+      left: max(4vw, 70px);
+      width: min(1120px, 92vw);
+      height: min(700px, calc(100vh - 170px));
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.34);
+      background: rgba(249, 250, 255, 0.68);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 30px 85px rgba(6, 12, 29, 0.45);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #titlebar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(252, 253, 255, 0.65), rgba(233, 238, 248, 0.45));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.65);
+      box-sizing: border-box;
+    }
+
+    .traffic {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), inset 0 -1px 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #febc2e; }
+    .green { background: #28c840; }
+
+    #window-title {
+      margin: 0 auto;
+      font-size: 13px;
+      font-weight: 650;
+      color: #344460;
+      transform: translateX(-34px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #toolbar {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      box-sizing: border-box;
+      background: linear-gradient(180deg, rgba(248, 250, 255, 0.6), rgba(234, 239, 248, 0.38));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .tool {
+      border: 1px solid rgba(177, 190, 219, 0.75);
+      color: #38507a;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 10px;
+      height: 32px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    #addr {
+      flex: 1;
+      height: 34px;
+      border: 1px solid rgba(177, 190, 219, 0.75);
+      border-radius: 11px;
+      padding: 0 12px;
+      background: rgba(255, 255, 255, 0.78);
+      color: #2a3d5f;
+      font-size: 14px;
+      outline: none;
+    }
+
+    #viewport {
+      flex: 1;
+      background: #fff;
+    }
+
+    #viewport iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
+    #dock-wrap {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      padding: 8px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(244, 246, 255, 0.53), rgba(205, 216, 241, 0.35));
+      border: 1px solid var(--glass-edge);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 16px 40px rgba(9, 14, 28, 0.33);
+    }
+
+    #dock {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .dock-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.64);
+      background: linear-gradient(145deg, #fefefe, #dfe6f7);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 5px 10px rgba(18, 28, 52, 0.18);
+      transition: transform 140ms ease;
+    }
+
+    .dock-icon:hover {
+      transform: translateY(-8px) scale(1.08);
+    }
+
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: rgba(26, 76, 184, 0.85);
+      margin: 6px auto 0;
+    }
+
+    @media (max-width: 900px) {
+      #window {
+        left: 2vw;
+        width: 96vw;
+        top: 52px;
+        height: calc(100vh - 140px);
+      }
+
+      #toolbar {
+        gap: 8px;
+      }
+
+      .tool {
+        padding: 0 10px;
+      }
+
+      #dock {
+        gap: 8px;
+      }
+
+      .dock-icon {
+        width: 38px;
+        height: 38px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="desktop">
+    <header id="menubar">
+      <span id="apple">&#63743;</span>
+      <span class="menu-item"><strong>Safari</strong></span>
+      <span class="menu-item">File</span>
+      <span class="menu-item">Edit</span>
+      <span class="menu-item">View</span>
+      <span class="menu-item">History</span>
+      <span class="menu-item">Bookmarks</span>
+      <span class="menu-item">Window</span>
+      <span class="menu-item">Help</span>
+      <span id="status">
+        <span>Wi-Fi</span>
+        <span>100%</span>
+        <span id="clock">9:41 AM</span>
+      </span>
+    </header>
+
+    <section id="window" aria-label="Safari window">
+      <div id="titlebar">
+        <span class="traffic red"></span>
+        <span class="traffic yellow"></span>
+        <span class="traffic green"></span>
+        <div id="window-title">Start Page</div>
+      </div>
+
+      <div id="toolbar">
+        <button class="tool" type="button" disabled>Back</button>
+        <button class="tool" type="button" disabled>Forward</button>
+        <input id="addr" type="text" value="startpage://home" aria-label="Address">
+        <button id="go" class="tool" type="button">Go</button>
+      </div>
+
+      <div id="viewport">
+        <iframe id="frame" title="Browser content"></iframe>
+      </div>
+    </section>
+
+    <div id="dock-wrap">
+      <div id="dock">
+        <div><div class="dock-icon" style="background: linear-gradient(145deg, #5eb4ff, #2c7ff2);"></div><div class="dot"></div></div>
+        <div><div class="dock-icon" style="background: linear-gradient(145deg, #ffb56c, #ff7c5b);"></div><div class="dot"></div></div>
+        <div><div class="dock-icon" style="background: linear-gradient(145deg, #8bf5af, #45c58a);"></div><div class="dot"></div></div>
+        <div><div class="dock-icon" style="background: linear-gradient(145deg, #d7b1ff, #9e84ff);"></div><div class="dot"></div></div>
+        <div><div class="dock-icon" style="background: linear-gradient(145deg, #ffe79a, #ffc56a);"></div><div class="dot"></div></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const frame = document.getElementById("frame");
+    const addr = document.getElementById("addr");
+    const go = document.getElementById("go");
+    const windowTitle = document.getElementById("window-title");
+    const clock = document.getElementById("clock");
+    const startPage = "__START_PAGE_PAYLOAD__";
+
+    function setStartPage() {
+      frame.srcdoc = startPage;
+      windowTitle.textContent = "Start Page";
+      addr.value = "startpage://home";
+    }
+
+    function navigate() {
+      const value = addr.value.trim();
+      if (!value || value === "startpage://home") {
+        setStartPage();
+        return;
+      }
+
+      let target = value;
+      if (!/^https?:\/\//i.test(target)) {
+        target = "https://" + target;
+      }
+
+      frame.removeAttribute("srcdoc");
+      frame.src = target;
+      windowTitle.textContent = target;
+    }
+
+    go.addEventListener("click", navigate);
+    addr.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        navigate();
+      }
+    });
+
+    function pad(v) {
+      return String(v).padStart(2, "0");
+    }
+
+    function renderClock() {
+      const d = new Date();
+      let h = d.getHours();
+      const m = pad(d.getMinutes());
+      const ap = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      clock.textContent = h + ":" + m + " " + ap;
+    }
+
+    setStartPage();
+    renderClock();
+    setInterval(renderClock, 1000);
+  <\/script>
+</body>
+</html>`;
+
+      const renderedOsHtml = osHtml.replace("\"__START_PAGE_PAYLOAD__\"", JSON.stringify(startPageHtml));
 
       win.document.open();
-      win.document.write(bootHtml);
+      win.document.write(renderedOsHtml);
       win.document.close();
       errorEl.textContent = "";
     });
