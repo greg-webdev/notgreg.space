@@ -3,3 +3,4 @@ insanity/hax.exe filter=lfs diff=lfs merge=lfs -text
 mods/** filter=lfs diff=lfs merge=lfs -text
 mods/index.html -filter -diff -merge text
 mods/**/index.html -filter -diff -merge text
+minecraftapk/*.apk filter=lfs diff=lfs merge=lfs -text

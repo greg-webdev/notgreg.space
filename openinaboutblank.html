@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standalone about:blank Launcher</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: linear-gradient(160deg, #0f1730, #1f3a6d);
+      color: #f4f7ff;
+    }
+
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .panel {
+      width: min(92vw, 640px);
+      background: rgba(10, 18, 41, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.35rem;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: #d7e2ff;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 220px;
+      border: 1px solid #8ba3db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    button {
+      border: 1px solid #c8d6ff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: #3b6ff5;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #4f7ffc;
+    }
+
+    .msg {
+      margin-top: 10px;
+      min-height: 1.2em;
+      color: #ffbfbf;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="panel">
+      <h1>Standalone about:blank Launcher</h1>
+      <p>Open any URL in an iframe, or fetch the full HTML source (default: minecraft.html) and write it into about:blank.</p>
+      <div class="row">
+        <input id="urlInput" type="text" placeholder="minecraft.html or https://example.com/file.html" autocomplete="off" value="minecraft.html">
+        <button id="openIframeBtn" type="button">Open Iframe</button>
+        <button id="openHtmlBtn" type="button">Fetch HTML</button>
+      </div>
+      <div id="msg" class="msg" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script>
+    const urlInput = document.getElementById("urlInput");
+    const openIframeBtn = document.getElementById("openIframeBtn");
+    const openHtmlBtn = document.getElementById("openHtmlBtn");
+    const msg = document.getElementById("msg");
+
+    function setMessage(text, isError = true) {
+      msg.textContent = text;
+      msg.style.color = isError ? "#ffbfbf" : "#b9ffc7";
+    }
+
+    function normalizeUrl(value, allowRelative = true) {
+      const text = value.trim();
+      if (!text) {
+        return "";
+      }
+      if (/^https?:\/\//i.test(text)) {
+        return text;
+      }
+      if (allowRelative && /^[./]|^[\w-]+\.html?(?:[?#].*)?$/i.test(text)) {
+        return text;
+      }
+      return "https://" + text;
+    }
+
+    function safeAttr(value) {
+      return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    }
+
+    function withBaseHref(html, sourceUrl) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        if (!doc.head) {
+          const head = doc.createElement("head");
+          doc.documentElement.insertBefore(head, doc.body || null);
+        }
+
+        let base = doc.querySelector("base");
+        if (!base) {
+          base = doc.createElement("base");
+          doc.head.insertBefore(base, doc.head.firstChild);
+        }
+
+        base.setAttribute("href", sourceUrl);
+        return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+      } catch (_) {
+        return html;
+      }
+    }
+
+    function openIframeMode() {
+      const target = normalizeUrl(urlInput.value);
+      if (!target) {
+        setMessage("Enter a URL first.");
+        return;
+      }
+
+      const newWin = window.open("about:blank", "_blank");
+      if (!newWin) {
+        setMessage("Popup blocked. Allow popups and try again.");
+        return;
+      }
+
+      const payload = "<!DOCTYPE html>" +
+        "<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+        "<title>Embedded Page</title><style>" +
+        "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#111;}" +
+        "iframe{display:block;width:100%;height:100%;border:none;}" +
+        "</style></head><body>" +
+        "<iframe src=\"" + safeAttr(target) + "\" referrerpolicy='no-referrer'></iframe>" +
+        "</body></html>";
+
+      newWin.document.open();
+      newWin.document.write(payload);
+      newWin.document.close();
+      setMessage("Opened in iframe mode.", false);
+    }
+
+    async function openHtmlMode() {
+      const target = normalizeUrl(urlInput.value);
+      if (!target) {
+        setMessage("Enter a URL first.");
+        return;
+      }
+
+      openHtmlBtn.disabled = true;
+      setMessage("Fetching HTML source...", false);
+
+      const newWin = window.open("about:blank", "_blank");
+      if (!newWin) {
+        setMessage("Popup blocked. Allow popups and try again.");
+        openHtmlBtn.disabled = false;
+        return;
+      }
+
+      newWin.document.open();
+      newWin.document.write("<!DOCTYPE html><html><head><title>Loading...</title></head><body style='font-family:Segoe UI,Tahoma,Arial,sans-serif;padding:16px'>Loading content...</body></html>");
+      newWin.document.close();
+
+      try {
+        const response = await fetch(target, {
+          method: "GET",
+          credentials: "omit",
+          cache: "no-store",
+          redirect: "follow"
+        });
+
+        if (!response.ok) {
+          throw new Error("Request failed with status " + response.status + ".");
+        }
+
+        const html = await response.text();
+        if (!html.trim()) {
+          throw new Error("The response was empty.");
+        }
+
+        const source = response.url || target;
+        const htmlWithBase = withBaseHref(html, source);
+
+        newWin.document.open();
+        newWin.document.write(htmlWithBase);
+        newWin.document.close();
+
+        setMessage("Fetched HTML and wrote it into about:blank.", false);
+      } catch (error) {
+        const detail = error && error.message ? error.message : "Unknown error.";
+        newWin.document.open();
+        newWin.document.write("<!DOCTYPE html><html><head><title>Failed</title></head><body style='font-family:Segoe UI,Tahoma,Arial,sans-serif;padding:16px'>Failed to load content.<br><br>" + detail.replace(/</g, "&lt;") + "</body></html>");
+        newWin.document.close();
+        setMessage(detail + " If this is CORS-related, use a same-origin file or a server-side proxy.");
+      } finally {
+        openHtmlBtn.disabled = false;
+      }
+    }
+
+    openIframeBtn.addEventListener("click", openIframeMode);
+    openHtmlBtn.addEventListener("click", openHtmlMode);
+    urlInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        openHtmlMode();
+      }
+    });
+  </script>
+</body>
+</html>

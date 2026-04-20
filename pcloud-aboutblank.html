@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pCloud to about:blank</title>
+  <style>
+    :root {
+      --bg-1: #0d1b2a;
+      --bg-2: #1b263b;
+      --panel: rgba(18, 33, 62, 0.9);
+      --text: #f1f5ff;
+      --muted: #d3def7;
+      --accent: #5fa8ff;
+      --accent-hover: #77b7ff;
+      --border: rgba(255, 255, 255, 0.25);
+      --danger: #ffb8b8;
+      --ok: #b9ffc7;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
+      color: var(--text);
+    }
+
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .panel {
+      width: min(92vw, 700px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.45rem;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .url {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #90b4f2;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid #c8d6ff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .msg {
+      margin-top: 12px;
+      min-height: 1.2em;
+      color: var(--danger);
+    }
+
+    .msg.ok {
+      color: var(--ok);
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="panel">
+      <h1>Download and Open HTML in about:blank</h1>
+      <p>Downloads the target HTML file from pCloud, saves it locally, and writes that same file content into a new about:blank tab.</p>
+      <div id="targetUrl" class="url"></div>
+      <div class="row">
+        <button id="openBtn" type="button">Fetch and Open</button>
+      </div>
+      <div id="msg" class="msg" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script>
+    const DOWNLOAD_URL = "https://ptok2.pcloud.com/cBZGcsTJ07ZHNmk7l7ZFy0w7ZZFbjb5kZ2ZZmfzZkZpEMW7Z0YZqTZyYZXLZALZjRZlYZoYZOFZ79ZWmZQLZLzZHQZ8R4E5ZOi4FJxI3DOSIx23yvxS4bBCPURLV/Eaglercraft_1.12.2_WASM_Offline_Download.html";
+    const openBtn = document.getElementById("openBtn");
+    const msg = document.getElementById("msg");
+    const targetUrl = document.getElementById("targetUrl");
+
+    targetUrl.textContent = DOWNLOAD_URL;
+
+    function setMessage(text, isOk = false) {
+      msg.textContent = text;
+      msg.classList.toggle("ok", isOk);
+    }
+
+    function withBaseHref(html, baseHref) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        if (!doc.head) {
+          const head = doc.createElement("head");
+          doc.documentElement.insertBefore(head, doc.body || null);
+        }
+
+        let base = doc.querySelector("base");
+        if (!base) {
+          base = doc.createElement("base");
+          doc.head.insertBefore(base, doc.head.firstChild);
+        }
+        base.setAttribute("href", baseHref);
+
+        return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+      } catch (_) {
+        return html;
+      }
+    }
+
+    function getBaseHref(url) {
+      try {
+        const parsed = new URL(url);
+        const path = parsed.pathname || "/";
+        parsed.pathname = path.slice(0, path.lastIndexOf("/") + 1);
+        parsed.search = "";
+        parsed.hash = "";
+        return parsed.toString();
+      } catch (_) {
+        return url;
+      }
+    }
+
+    function getFileName(url) {
+      try {
+        const parsed = new URL(url);
+        const chunk = parsed.pathname.split("/").pop();
+        return chunk || "download.html";
+      } catch (_) {
+        return "download.html";
+      }
+    }
+
+    function triggerDownload(blobUrl, fileName) {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = fileName;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    async function fetchAndOpen() {
+      openBtn.disabled = true;
+      setMessage("Downloading file...", true);
+
+      const win = window.open("about:blank", "_blank");
+      if (!win) {
+        setMessage("Popup blocked. Allow popups and try again.");
+        openBtn.disabled = false;
+        return;
+      }
+
+      win.document.open();
+      win.document.write("<!DOCTYPE html><html><head><title>Loading...</title></head><body style='font-family:Segoe UI,Tahoma,Arial,sans-serif;padding:16px'>Loading content...</body></html>");
+      win.document.close();
+
+      try {
+        const response = await fetch(DOWNLOAD_URL, {
+          method: "GET",
+          credentials: "omit",
+          cache: "no-store",
+          redirect: "follow"
+        });
+
+        if (!response.ok) {
+          throw new Error("Request failed with status " + response.status + ".");
+        }
+
+        const fileBlob = await response.blob();
+        const fileUrl = URL.createObjectURL(fileBlob);
+        const finalUrl = response.url || DOWNLOAD_URL;
+        const fileName = getFileName(finalUrl);
+
+        triggerDownload(fileUrl, fileName);
+
+        const html = await fileBlob.text();
+        if (!html.trim()) {
+          throw new Error("The link returned an empty response.");
+        }
+
+        const htmlWithBase = withBaseHref(html, getBaseHref(finalUrl));
+
+        win.document.open();
+        win.document.write(htmlWithBase);
+        win.document.close();
+
+        URL.revokeObjectURL(fileUrl);
+
+        setMessage("Downloaded file and opened its HTML in a new about:blank tab.", true);
+      } catch (error) {
+        const base = error && error.message ? error.message : "Unknown error.";
+        win.document.open();
+        win.document.write("<!DOCTYPE html><html><head><title>Failed</title></head><body style='font-family:Segoe UI,Tahoma,Arial,sans-serif;padding:16px'>Failed to load content.<br><br>" + base.replace(/</g, "&lt;") + "</body></html>");
+        win.document.close();
+        setMessage(
+          base + " If this is a CORS error, fetch that URL through your own server/proxy and load the result here."
+        );
+      } finally {
+        openBtn.disabled = false;
+      }
+    }
+
+    openBtn.addEventListener("click", fetchAndOpen);
+  </script>
+</body>
+</html>
