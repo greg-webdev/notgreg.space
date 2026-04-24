@@ -1093,6 +1093,10 @@
               <option value="off">Off</option>
             </select>
           </div>
+            <div class="row">
+              <label for="selectedPadPower">Pad Power</label>
+              <input id="selectedPadPower" type="number" min="0" max="5" step="0.1" value="1" />
+            </div>
           <div class="editor-grid">
             <div class="row">
               <label for="selectedX">Center X</label>
@@ -1358,6 +1362,7 @@
       applySelected: document.getElementById("applySelected"),
       selectedItemMeta: document.getElementById("selectedItemMeta"),
       selectedActive: document.getElementById("selectedActive"),
+      selectedPadPower: document.getElementById("selectedPadPower"),
       selectedX: document.getElementById("selectedX"),
       selectedY: document.getElementById("selectedY"),
       selectedFromX: document.getElementById("selectedFromX"),
@@ -1453,8 +1458,11 @@
       selectedLineIndices: [],
       score: 0,
       teleporterCooldown: 0,
+      padRuntime: [],
+      teleportDestinations: new Map(),
       dragMode: null,
       dragLast: null,
+      rotateDragOffset: 0,
       selectionRect: null,
       triggerJobs: [],
       triggerSequenceDraft: [],
@@ -1469,6 +1477,11 @@
       darkMode: true,
       animationsEnabled: true,
       viewScale: 1,
+      viewCenterX: null,
+      viewCenterY: null,
+      activePointers: new Map(),
+      pinchStartDistance: 0,
+      pinchStartScale: 1,
       menuCollapsed: false,
       menuTab: "build",
       undoStack: [],
@@ -1567,7 +1580,7 @@
         id: "pads",
         tools: [
           ["goal", "Goal"],
-          ["teleport", "Teleport Pad"],
+          ["teleport", "Teleport Zone"],
           ["boost", "Boost Pad"],
           ["hazard", "Hazard"],
           ["spring", "Spring Pad"],
@@ -2003,6 +2016,9 @@
     }
 
     function debugPadEvent(m, pad, eventName, details = null, throttleSec = 0.08) {
+      if (!state.debugMode) {
+        return;
+      }
       const key = "dbg-" + eventName + "-" + pad.id;
       if ((m.cooldown[key] || 0) > 0) {
         return;
@@ -2084,7 +2100,7 @@
       if (!part || !part.padType) {
         return true;
       }
-      return part.padType === "teleport" || part.padType === "spring";
+      return part.padType === "spring";
     }
 
     function normalizePartGeometry(part) {
@@ -2094,6 +2110,9 @@
       const base = Number.isFinite(part.size) ? part.size : world.partSize;
       setPartDimensions(part, Number.isFinite(part.sizeX) ? part.sizeX : base, Number.isFinite(part.sizeY) ? part.sizeY : base);
       part.baseAngle = Number.isFinite(part.baseAngle) ? normalizeAngle(part.baseAngle) : 0;
+      if (part.padType) {
+        part.padPower = clamp(Number.isFinite(part.padPower) ? part.padPower : 1, 0, 5);
+      }
     }
 
     function updateRangePreviews() {
@@ -2113,21 +2132,43 @@
       ui.zoomReset.textContent = Math.round(state.viewScale * 100) + "%";
     }
 
+    function ensureViewCenter() {
+      if (!Number.isFinite(state.viewCenterX) || !Number.isFinite(state.viewCenterY)) {
+        state.viewCenterX = world.width * 0.5;
+        state.viewCenterY = world.height * 0.5;
+      }
+    }
+
+    function zoomAtScreenPoint(screenX, screenY, nextScale) {
+      ensureViewCenter();
+      const before = screenToWorldPoint(screenX, screenY);
+      const prevScale = state.viewScale;
+      setViewScale(nextScale);
+      if (Math.abs(state.viewScale - prevScale) < 0.00001) {
+        return;
+      }
+      const after = screenToWorldPoint(screenX, screenY);
+      state.viewCenterX += before.x - after.x;
+      state.viewCenterY += before.y - after.y;
+    }
+
     function screenToWorldPoint(x, y) {
+      ensureViewCenter();
       const cx = world.width * 0.5;
       const cy = world.height * 0.5;
       return {
-        x: (x - cx) / state.viewScale + cx,
-        y: (y - cy) / state.viewScale + cy
+        x: (x - cx) / state.viewScale + state.viewCenterX,
+        y: (y - cy) / state.viewScale + state.viewCenterY
       };
     }
 
     function applyViewTransform(drawCtx) {
+      ensureViewCenter();
       const cx = world.width * 0.5;
       const cy = world.height * 0.5;
       drawCtx.translate(cx, cy);
       drawCtx.scale(state.viewScale, state.viewScale);
-      drawCtx.translate(-cx, -cy);
+      drawCtx.translate(-state.viewCenterX, -state.viewCenterY);
     }
 
     function applyAnimationPreference() {
@@ -2876,6 +2917,7 @@
       canvas.width = Math.floor(rect.width * dpr);
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ensureViewCenter();
     }
 
     function updateUiValueLabels() {
@@ -3031,6 +3073,7 @@
 
       if (part.padType) {
         part.active = true;
+        part.padPower = Number.isFinite(part.padPower) ? part.padPower : 1;
         if (part.padType === "putobjecthere") {
           part.putObjectPartId = state.selectedPartId || "";
         }
@@ -3104,6 +3147,8 @@
         steps: trigger.sequenceSteps.length,
         rect: trigger.x.toFixed(1) + "," + trigger.y.toFixed(1) + " " + trigger.w.toFixed(1) + "x" + trigger.h.toFixed(1)
       });
+      setSelectedTriggerId(trigger.id);
+      switchToEditMode();
     }
 
     function findPartById(id) {
@@ -3813,6 +3858,7 @@
       if (trigger) {
         ui.selectedItemMeta.textContent = "trigger zone";
         ui.selectedActive.value = "on";
+        ui.selectedPadPower.value = "";
         ui.selectedX.value = "";
         ui.selectedY.value = "";
         ui.selectedFromX.value = "";
@@ -3824,6 +3870,7 @@
         ui.selectedWidth.value = "";
         ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
+        ui.selectedPadPower.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
         ui.selectedFromX.disabled = true;
@@ -3843,6 +3890,7 @@
       if (!part && !selectedLine) {
         ui.selectedItemMeta.textContent = "none";
         ui.selectedActive.value = "on";
+        ui.selectedPadPower.value = "";
         ui.selectedX.value = "";
         ui.selectedY.value = "";
         ui.selectedFromX.value = "";
@@ -3854,6 +3902,7 @@
         ui.selectedWidth.value = "";
         ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
+        ui.selectedPadPower.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
         ui.selectedFromX.disabled = true;
@@ -3875,6 +3924,7 @@
         const my = (selectedLine.y1 + selectedLine.y2) * 0.5;
         ui.selectedItemMeta.textContent = "line | static";
         ui.selectedActive.value = "on";
+        ui.selectedPadPower.value = "";
         ui.selectedX.value = formatNum(mx);
         ui.selectedY.value = formatNum(my);
         ui.selectedFromX.value = formatNum(selectedLine.x1);
@@ -3886,6 +3936,7 @@
         ui.selectedWidth.value = "";
         ui.selectedHeight.value = "";
         ui.selectedActive.disabled = true;
+        ui.selectedPadPower.disabled = true;
         ui.selectedX.disabled = true;
         ui.selectedY.disabled = true;
         ui.selectedFromX.disabled = false;
@@ -3909,6 +3960,7 @@
 
       ui.selectedItemMeta.textContent = part.tool + " | " + part.motion;
       ui.selectedActive.value = part.active ? "on" : "off";
+      ui.selectedPadPower.value = part.padType ? formatNum(Number.isFinite(part.padPower) ? part.padPower : 1) : "";
       ui.selectedX.value = formatNum(part.x);
       ui.selectedY.value = formatNum(part.y);
       if (isTeleportPad(part)) {
@@ -3928,6 +3980,7 @@
       ui.selectedHeight.value = formatNum(dims.h);
       ui.selectedX.disabled = isPathMover(part);
       ui.selectedY.disabled = isPathMover(part);
+      ui.selectedPadPower.disabled = !part.padType;
       ui.selectedAngle.disabled = false;
       ui.selectedSize.disabled = false;
       ui.selectedWidth.disabled = false;
@@ -3985,6 +4038,9 @@
       const nextHeight = heightVal == null ? (baseSizeVal == null ? fallbackDims.h : baseSizeVal) : heightVal;
       setPartDimensions(part, nextWidth, nextHeight);
       part.active = ui.selectedActive.value !== "off";
+      if (part.padType) {
+        part.padPower = clamp(parseNum(ui.selectedPadPower, Number.isFinite(part.padPower) ? part.padPower : 1), 0, 5);
+      }
       if (part.motion !== "static" && !part.padType) {
         part.activationTriggerId = ui.movingTriggerLink.value;
       }
@@ -4435,6 +4491,56 @@
         const pose = computePartPose(pad, state.simTime);
         state.partPoses.set(pad.id, pose);
         buildPartColliders(pad, pose);
+      }
+
+      rebuildPadRuntimeCache();
+    }
+
+    function rebuildPadRuntimeCache() {
+      state.padRuntime.length = 0;
+      state.teleportDestinations.clear();
+      const teleportEntries = [];
+
+      for (const pad of state.pads) {
+        const pose = state.partPoses.get(pad.id) || { x: pad.x, y: pad.y };
+        const dims = getPartDimensions(pad);
+        const entry = {
+          pad,
+          pose,
+          halfW: dims.w * 0.5,
+          halfH: dims.h * 0.5
+        };
+        state.padRuntime.push(entry);
+        if (pad.padType === "teleport") {
+          teleportEntries.push(entry);
+        }
+      }
+
+      if (!teleportEntries.length) {
+        return;
+      }
+
+      for (let i = 0; i < teleportEntries.length; i += 1) {
+        const source = teleportEntries[i];
+        const sourcePad = source.pad;
+
+        if (Number.isFinite(sourcePad.teleportTargetX) && Number.isFinite(sourcePad.teleportTargetY)) {
+          state.teleportDestinations.set(sourcePad.id, {
+            x: sourcePad.teleportTargetX,
+            y: sourcePad.teleportTargetY
+          });
+          continue;
+        }
+
+        if (teleportEntries.length < 2) {
+          continue;
+        }
+
+        const target = teleportEntries[(i + 1) % teleportEntries.length];
+        state.teleportDestinations.set(sourcePad.id, {
+          x: target.pose.x,
+          y: target.pose.y - getPartMaxExtent(sourcePad) * 0.6
+        });
       }
     }
 
@@ -4891,18 +4997,6 @@
       }
     }
 
-    function teleportPairForPad(pad) {
-      const teleports = state.pads.filter((p) => p.padType === "teleport");
-      if (teleports.length < 2) {
-        return null;
-      }
-      const idx = teleports.indexOf(pad);
-      if (idx < 0) {
-        return null;
-      }
-      return teleports[(idx + 1) % teleports.length];
-    }
-
     function getTeleportDestinationForPad(pad) {
       if (isTeleportPad(pad)) {
         if (Number.isFinite(pad.teleportTargetX) && Number.isFinite(pad.teleportTargetY)) {
@@ -4913,33 +5007,27 @@
         }
       }
 
-      const target = teleportPairForPad(pad);
-      if (!target) {
-        return null;
-      }
-      const targetPose = state.partPoses.get(target.id);
-      if (!targetPose) {
+      const cached = state.teleportDestinations.get(pad.id);
+      if (!cached) {
         return null;
       }
       return {
-        x: targetPose.x,
-        y: targetPose.y - getPartMaxExtent(pad) * 0.6
+        x: cached.x,
+        y: cached.y
       };
     }
 
     function applyPads(m, dt) {
-      for (const key of Object.keys(m.cooldown)) {
+      for (const key in m.cooldown) {
         m.cooldown[key] = Math.max(0, m.cooldown[key] - dt);
       }
 
-      for (const pad of state.pads) {
-        const pose = state.partPoses.get(pad.id);
-        if (!pose) {
-          continue;
-        }
-        const dims = getPartDimensions(pad);
-        const halfW = dims.w * 0.5;
-        const halfH = dims.h * 0.5;
+      for (const padInfo of state.padRuntime) {
+        const pad = padInfo.pad;
+        const pose = padInfo.pose;
+        const padPower = clamp(Number.isFinite(pad.padPower) ? pad.padPower : 1, 0, 5);
+        const halfW = padInfo.halfW;
+        const halfH = padInfo.halfH;
         if (Math.abs(m.x - pose.x) > halfW + m.r || Math.abs(m.y - pose.y) > halfH + m.r) {
           continue;
         }
@@ -4964,7 +5052,7 @@
         }
 
         if (pad.padType === "boost") {
-          const boostMag = 240;
+          const boostMag = 240 * padPower;
           const a = pad.baseAngle;
           m.vx += Math.cos(a) * boostMag * dt;
           m.vy += Math.sin(a) * boostMag * dt;
@@ -4974,7 +5062,7 @@
 
         if (pad.padType === "spring") {
           if ((m.cooldown.spring || 0) <= 0) {
-            m.vy = Math.min(m.vy, -340);
+            m.vy = Math.min(m.vy, -340 * padPower);
             m.cooldown.spring = 0.1;
             debugPadEvent(m, pad, "spring", { vy: m.vy.toFixed(1) }, 0.1);
           }
@@ -4982,7 +5070,7 @@
         }
 
         if (pad.padType === "sticky") {
-          const drag = Math.max(0, 1 - dt * 6.5);
+          const drag = Math.max(0, 1 - dt * 6.5 * padPower);
           m.vx *= drag;
           m.vy *= drag;
           debugPadEvent(m, pad, "sticky", { vx: m.vx.toFixed(1), vy: m.vy.toFixed(1) }, 0.15);
@@ -4991,8 +5079,8 @@
 
         if (pad.padType === "chaos") {
           if ((m.cooldown.chaos || 0) <= 0) {
-            m.vx += (Math.random() - 0.5) * 480;
-            m.vy += (Math.random() - 0.5) * 420;
+            m.vx += (Math.random() - 0.5) * 480 * padPower;
+            m.vy += (Math.random() - 0.5) * 420 * padPower;
             m.cooldown.chaos = 0.12;
             debugPadEvent(m, pad, "chaos", { vx: m.vx.toFixed(1), vy: m.vy.toFixed(1) }, 0.12);
           }
@@ -5361,15 +5449,55 @@
       return clamp(Math.ceil(travel / threshold), 1, 6);
     }
 
-    function getPointerPosition(evt) {
+    function getPointerScreenPosition(evt) {
       const rect = canvas.getBoundingClientRect();
-      const screenX = evt.clientX - rect.left;
-      const screenY = evt.clientY - rect.top;
-      const worldPoint = screenToWorldPoint(screenX, screenY);
+      return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+      };
+    }
+
+    function getPointerPosition(evt) {
+      const screen = getPointerScreenPosition(evt);
+      const worldPoint = screenToWorldPoint(screen.x, screen.y);
       return {
         x: worldPoint.x,
         y: worldPoint.y
       };
+    }
+
+    function beginPinchZoom() {
+      if (state.activePointers.size !== 2) {
+        return;
+      }
+      const points = Array.from(state.activePointers.values());
+      const dx = points[1].x - points[0].x;
+      const dy = points[1].y - points[0].y;
+      state.pinchStartDistance = Math.hypot(dx, dy);
+      state.pinchStartScale = state.viewScale;
+      state.pointerDown = false;
+      state.drawStart = null;
+      state.dragMode = null;
+      state.dragLast = null;
+      state.selectionRect = null;
+    }
+
+    function updatePinchZoomFromPointers() {
+      if (state.activePointers.size !== 2 || state.pinchStartDistance <= 0.0001) {
+        return false;
+      }
+      const points = Array.from(state.activePointers.values());
+      const dx = points[1].x - points[0].x;
+      const dy = points[1].y - points[0].y;
+      const distance = Math.hypot(dx, dy);
+      if (distance <= 0.0001) {
+        return true;
+      }
+      const centerX = (points[0].x + points[1].x) * 0.5;
+      const centerY = (points[0].y + points[1].y) * 0.5;
+      const zoomRatio = distance / state.pinchStartDistance;
+      zoomAtScreenPoint(centerX, centerY, state.pinchStartScale * zoomRatio);
+      return true;
     }
 
     function selectNearestPart(x, y, maxDist = 44, additive = false) {
@@ -5562,6 +5690,38 @@
       ];
     }
 
+    function getRotateHandleForPart(part, pose) {
+      const dims = getPartDimensions(part);
+      const hh = dims.h * 0.5;
+      const offset = 34;
+      return {
+        x: pose.x,
+        y: pose.y - hh - offset
+      };
+    }
+
+    function getResizeHandlesForTrigger(trigger) {
+      if (!trigger) {
+        return [];
+      }
+      const x1 = trigger.x;
+      const y1 = trigger.y;
+      const x2 = trigger.x + trigger.w;
+      const y2 = trigger.y + trigger.h;
+      const cx = (x1 + x2) * 0.5;
+      const cy = (y1 + y2) * 0.5;
+      return [
+        { name: "nw", x: x1, y: y1 },
+        { name: "n", x: cx, y: y1 },
+        { name: "ne", x: x2, y: y1 },
+        { name: "e", x: x2, y: cy },
+        { name: "se", x: x2, y: y2 },
+        { name: "s", x: cx, y: y2 },
+        { name: "sw", x: x1, y: y2 },
+        { name: "w", x: x1, y: cy }
+      ];
+    }
+
     function getSelectedResizeHandleAt(x, y) {
       const part = findPartById(state.selectedPartId);
       if (!part) {
@@ -5570,6 +5730,31 @@
       rebuildColliderCache();
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
       const handles = getResizeHandlesForPart(part, pose);
+      for (const handle of handles) {
+        if (distanceSq(x, y, handle.x, handle.y) <= 13 * 13) {
+          return handle.name;
+        }
+      }
+      return null;
+    }
+
+    function getSelectedRotateHandleAt(x, y) {
+      const part = findPartById(state.selectedPartId);
+      if (!part) {
+        return false;
+      }
+      rebuildColliderCache();
+      const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y, angle: part.baseAngle || 0 };
+      const handle = getRotateHandleForPart(part, pose);
+      return distanceSq(x, y, handle.x, handle.y) <= 14 * 14;
+    }
+
+    function getSelectedTriggerResizeHandleAt(x, y) {
+      const trigger = getSelectedTrigger();
+      if (!trigger) {
+        return null;
+      }
+      const handles = getResizeHandlesForTrigger(trigger);
       for (const handle of handles) {
         if (distanceSq(x, y, handle.x, handle.y) <= 13 * 13) {
           return handle.name;
@@ -5591,6 +5776,35 @@
       }
 
       setPartDimensions(part, nextW, nextH);
+    }
+
+    function resizeTriggerByHandle(trigger, handleName, pointer) {
+      if (!trigger) {
+        return;
+      }
+      const minSize = 12;
+      let left = trigger.x;
+      let top = trigger.y;
+      let right = trigger.x + trigger.w;
+      let bottom = trigger.y + trigger.h;
+
+      if (handleName.includes("w")) {
+        left = Math.min(pointer.x, right - minSize);
+      }
+      if (handleName.includes("e")) {
+        right = Math.max(pointer.x, left + minSize);
+      }
+      if (handleName.includes("n")) {
+        top = Math.min(pointer.y, bottom - minSize);
+      }
+      if (handleName.includes("s")) {
+        bottom = Math.max(pointer.y, top + minSize);
+      }
+
+      trigger.x = left;
+      trigger.y = top;
+      trigger.w = right - left;
+      trigger.h = bottom - top;
     }
 
     function moveSelectedPartBy(dx, dy) {
@@ -6161,6 +6375,32 @@
           ctx.fillStyle = partColor(pad);
           ctx.font = "700 10px IBM Plex Mono";
           ctx.fillText((pad.padType || "zone").toUpperCase(), pose.x - hw + 5, pose.y - hh + 12);
+
+          if (pad.padType === "boost") {
+            const arrowLen = Math.max(20, Math.min(dims.w, dims.h) * 0.46);
+            const arrowA = Number.isFinite(pose.angle) ? pose.angle : 0;
+            const tipX = pose.x + Math.cos(arrowA) * arrowLen;
+            const tipY = pose.y + Math.sin(arrowA) * arrowLen;
+            const leftX = tipX - Math.cos(arrowA - Math.PI * 0.78) * 10;
+            const leftY = tipY - Math.sin(arrowA - Math.PI * 0.78) * 10;
+            const rightX = tipX - Math.cos(arrowA + Math.PI * 0.78) * 10;
+            const rightY = tipY - Math.sin(arrowA + Math.PI * 0.78) * 10;
+
+            ctx.strokeStyle = "rgba(255, 226, 77, 0.98)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(pose.x, pose.y);
+            ctx.lineTo(tipX, tipY);
+            ctx.stroke();
+
+            ctx.fillStyle = "rgba(255, 226, 77, 0.98)";
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(leftX, leftY);
+            ctx.lineTo(rightX, rightY);
+            ctx.closePath();
+            ctx.fill();
+          }
         } else {
           drawPartShape(ctx, pad, pose, partColor(pad), selected);
         }
@@ -6191,6 +6431,20 @@
         return;
       }
 
+      const selectedTrigger = getSelectedTrigger();
+      if (selectedTrigger) {
+        const resizeHandles = getResizeHandlesForTrigger(selectedTrigger);
+        for (const handle of resizeHandles) {
+          const isAxis = handle.name.length === 1;
+          ctx.fillStyle = isAxis ? "#0d8b96" : "#28a6b3";
+          ctx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+          ctx.strokeStyle = "rgba(12, 62, 68, 0.95)";
+          ctx.lineWidth = 1.6;
+          ctx.strokeRect(handle.x - 5, handle.y - 5, 10, 10);
+        }
+        return;
+      }
+
       const part = findPartById(state.selectedPartId);
       if (!part) {
         return;
@@ -6198,6 +6452,26 @@
 
       const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y };
       const resizeHandles = getResizeHandlesForPart(part, pose);
+      const rotateHandle = getRotateHandleForPart(part, pose);
+
+      ctx.strokeStyle = "rgba(40, 166, 179, 0.75)";
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pose.x, pose.y);
+      ctx.lineTo(rotateHandle.x, rotateHandle.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#f3c64f";
+      ctx.beginPath();
+      ctx.arc(rotateHandle.x, rotateHandle.y, 7, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(12, 62, 68, 0.95)";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(rotateHandle.x, rotateHandle.y, 7, 0, TAU);
+      ctx.stroke();
 
       for (const handle of resizeHandles) {
         const isAxis = handle.name.length === 1;
@@ -6923,15 +7197,15 @@
     });
 
     ui.zoomOut.addEventListener("click", () => {
-      setViewScale(state.viewScale / 1.15);
+      zoomAtScreenPoint(world.width * 0.5, world.height * 0.5, state.viewScale / 1.15);
     });
 
     ui.zoomReset.addEventListener("click", () => {
-      setViewScale(1);
+      zoomAtScreenPoint(world.width * 0.5, world.height * 0.5, 1);
     });
 
     ui.zoomIn.addEventListener("click", () => {
-      setViewScale(state.viewScale * 1.15);
+      zoomAtScreenPoint(world.width * 0.5, world.height * 0.5, state.viewScale * 1.15);
     });
 
     ui.menuToggle.addEventListener("click", () => {
@@ -7029,12 +7303,24 @@
 
     canvas.addEventListener("wheel", (evt) => {
       evt.preventDefault();
+      const screen = getPointerScreenPosition(evt);
       const scaleFactor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
-      setViewScale(state.viewScale * scaleFactor);
+      zoomAtScreenPoint(screen.x, screen.y, state.viewScale * scaleFactor);
     }, { passive: false });
 
     canvas.addEventListener("pointerdown", (evt) => {
       canvas.setPointerCapture(evt.pointerId);
+      const screen = getPointerScreenPosition(evt);
+      state.activePointers.set(evt.pointerId, screen);
+
+      if (state.activePointers.size >= 2) {
+        beginPinchZoom();
+        if (evt.pointerType === "touch") {
+          evt.preventDefault();
+        }
+        return;
+      }
+
       const pos = getPointerPosition(evt);
       state.pointerDown = true;
       state.pointer = pos;
@@ -7064,6 +7350,27 @@
         if (resizeHandle) {
           pushHistorySnapshot();
           state.dragMode = "resize-part:" + resizeHandle;
+          return;
+        }
+
+        if (getSelectedRotateHandleAt(pos.x, pos.y)) {
+          pushHistorySnapshot();
+          rebuildColliderCache();
+          const selected = findPartById(state.selectedPartId);
+          const pose = selected ? (state.partPoses.get(selected.id) || { x: selected.x, y: selected.y, angle: selected.baseAngle || 0 }) : null;
+          if (pose) {
+            state.rotateDragOffset = normalizeAngle(Math.atan2(pos.y - pose.y, pos.x - pose.x) - pose.angle);
+          } else {
+            state.rotateDragOffset = 0;
+          }
+          state.dragMode = "rotate-part";
+          return;
+        }
+
+        const triggerResizeHandle = getSelectedTriggerResizeHandleAt(pos.x, pos.y);
+        if (triggerResizeHandle) {
+          pushHistorySnapshot();
+          state.dragMode = "resize-trigger:" + triggerResizeHandle;
           return;
         }
 
@@ -7125,16 +7432,32 @@
 
       if (ui.tool.value === "peg") {
         addPegAsResizablePart(pos.x, pos.y, 9);
+        switchToEditMode();
+        setMenuTab("selected");
         state.pointerDown = false;
         return;
       }
 
       addPart(ui.tool.value, pos.x, pos.y);
+      switchToEditMode();
+      setMenuTab("selected");
       state.pointerDown = false;
       state.dragMode = null;
     });
 
     canvas.addEventListener("pointermove", (evt) => {
+      const screen = getPointerScreenPosition(evt);
+      if (state.activePointers.has(evt.pointerId)) {
+        state.activePointers.set(evt.pointerId, screen);
+      }
+
+      if (state.activePointers.size >= 2 && updatePinchZoomFromPointers()) {
+        if (evt.pointerType === "touch") {
+          evt.preventDefault();
+        }
+        return;
+      }
+
       state.pointer = getPointerPosition(evt);
 
       if (!state.pointerDown || ui.tool.value !== "select") {
@@ -7174,6 +7497,18 @@
         return;
       }
 
+      if (state.dragMode && state.dragMode.startsWith("resize-trigger:")) {
+        const trigger = getSelectedTrigger();
+        if (!trigger) {
+          return;
+        }
+        const handleName = state.dragMode.split(":")[1] || "se";
+        resizeTriggerByHandle(trigger, handleName, state.pointer);
+        syncTriggerMenuFromSelectedTrigger();
+        updateSelectionInfo();
+        return;
+      }
+
       if (state.dragMode === "drag-teleport-target" && isTeleportPad(part)) {
         part.teleportTargetX = state.pointer.x;
         part.teleportTargetY = state.pointer.y;
@@ -7206,6 +7541,15 @@
         return;
       }
 
+      if (state.dragMode === "rotate-part" && part) {
+        rebuildColliderCache();
+        const pose = state.partPoses.get(part.id) || { x: part.x, y: part.y, angle: part.baseAngle || 0 };
+        const dragAngle = Math.atan2(state.pointer.y - pose.y, state.pointer.x - pose.x);
+        part.baseAngle = normalizeAngle(dragAngle - state.rotateDragOffset);
+        syncSelectedEditorFromPart();
+        return;
+      }
+
       if (state.dragMode === "move-part" && part && state.dragLast) {
         const dx = state.pointer.x - state.dragLast.x;
         const dy = state.pointer.y - state.dragLast.y;
@@ -7225,6 +7569,22 @@
     });
 
     canvas.addEventListener("pointerup", (evt) => {
+      const wasPinching = state.pinchStartDistance > 0;
+      state.activePointers.delete(evt.pointerId);
+      if (state.activePointers.size < 2) {
+        state.pinchStartDistance = 0;
+        state.pinchStartScale = state.viewScale;
+      }
+      if (wasPinching) {
+        state.pointerDown = false;
+        state.drawStart = null;
+        state.dragMode = null;
+        state.dragLast = null;
+        state.rotateDragOffset = 0;
+        state.selectionRect = null;
+        return;
+      }
+
       const pos = getPointerPosition(evt);
 
       if (ui.tool.value === "select") {
@@ -7242,16 +7602,14 @@
         state.drawStart = null;
         state.dragMode = null;
         state.dragLast = null;
+        state.rotateDragOffset = 0;
         state.selectionRect = null;
         return;
       }
 
       if (state.pointerDown && state.drawStart) {
         if (ui.tool.value === "line") {
-          const created = addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
-          if (created) {
-            switchToEditMode();
-          }
+          addLine(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
         } else if (ui.tool.value === "trigger") {
           addTriggerZone(state.drawStart.x, state.drawStart.y, pos.x, pos.y);
           switchToEditMode();
@@ -7261,14 +7619,21 @@
       state.drawStart = null;
       state.dragMode = null;
       state.dragLast = null;
+      state.rotateDragOffset = 0;
       state.selectionRect = null;
     });
 
-    canvas.addEventListener("pointercancel", () => {
+    canvas.addEventListener("pointercancel", (evt) => {
+      state.activePointers.delete(evt.pointerId);
+      if (state.activePointers.size < 2) {
+        state.pinchStartDistance = 0;
+        state.pinchStartScale = state.viewScale;
+      }
       state.pointerDown = false;
       state.drawStart = null;
       state.dragMode = null;
       state.dragLast = null;
+      state.rotateDragOffset = 0;
       state.selectionRect = null;
     });
 
