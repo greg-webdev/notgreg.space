@@ -2953,8 +2953,12 @@
     }
 
     function switchToEditMode() {
+      ui.toolCategory.value = "edit";
+      rebuildToolOptions("select");
       ui.tool.value = "select";
-      syncToolMenuFromTool();
+      renderToolCategoryButtons();
+      renderToolButtons();
+      drawToolPreview();
     }
 
     function rememberBuild(group, ref) {
