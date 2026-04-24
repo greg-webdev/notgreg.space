@@ -378,11 +378,18 @@
     input[type="range"] {
       accent-color: #0d8b96;
       appearance: none;
-      position: absolute;
+      position: relative;
       left: 0;
-      top: 18px;
-      opacity: 0;
-      height: 1px;
+      top: 0;
+      opacity: 1;
+      cursor: pointer;
+      height: 18px;
+      border: 0;
+      background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 10px;
       border-radius: 999px;
       border: 1px solid rgba(128, 117, 96, 0.5);
       background: linear-gradient(90deg, rgba(13, 139, 150, 0.95) 0%, rgba(13, 139, 150, 0.95) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) var(--range-pct, 50%), rgba(186, 173, 148, 0.62) 100%);
@@ -407,9 +414,36 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     }
 
+    input[type="range"]::-moz-range-track {
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 117, 96, 0.5);
+      background: rgba(186, 173, 148, 0.62);
+    }
+
+    input[type="range"]::-moz-range-progress {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(13, 139, 150, 0.95);
+    }
+
     body.dark input[type="range"] {
       border-color: rgba(94, 119, 142, 0.6);
+      background: transparent;
+    }
+
+    body.dark input[type="range"]::-webkit-slider-runnable-track {
+      border-color: rgba(94, 119, 142, 0.6);
       background: linear-gradient(90deg, rgba(36, 187, 202, 0.95) 0%, rgba(36, 187, 202, 0.95) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) var(--range-pct, 50%), rgba(62, 79, 97, 0.82) 100%);
+    }
+
+    body.dark input[type="range"]::-moz-range-track {
+      border-color: rgba(94, 119, 142, 0.6);
+      background: rgba(62, 79, 97, 0.82);
+    }
+
+    body.dark input[type="range"]::-moz-range-progress {
+      background: rgba(36, 187, 202, 0.95);
     }
 
     body.dark input[type="range"]::-webkit-slider-thumb,
@@ -1200,6 +1234,7 @@
               <select id="sequenceStepType">
                 <option value="wait">Wait</option>
                 <option value="move-part">Move Object</option>
+                <option value="transform-object">Transform Object</option>
                 <option value="teleport-marbles">Teleport Marbles</option>
                 <option value="target-action">Target Action</option>
                 <option value="spawn-marbles">Spawn Marbles</option>
@@ -1272,6 +1307,9 @@
             </div>
           </div>
           <div class="row">
+            <button id="advancedControlsButton" type="button">Advanced Controls</button>
+          </div>
+          <div class="row">
             <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
             <div class="debug-actions">
               <button id="clearDebugLogs">Clear Logs</button>
@@ -1324,6 +1362,7 @@
       settingsMenuToggle: document.getElementById("settingsMenuToggle"),
       settingsPopupOverlay: document.getElementById("settingsPopupOverlay"),
       closeSettingsPopup: document.getElementById("closeSettingsPopup"),
+      advancedControlsButton: document.getElementById("advancedControlsButton"),
       emptyTabsScreen: document.getElementById("emptyTabsScreen"),
       emptyNewTab: document.getElementById("emptyNewTab"),
       menuTabs: document.getElementById("menuTabs"),
@@ -3208,6 +3247,7 @@
       if (
         type === "wait" ||
         type === "move-part" ||
+        type === "transform-object" ||
         type === "teleport-marbles" ||
         type === "target-action" ||
         type === "spawn-marbles"
@@ -3244,6 +3284,16 @@
       if (safeType === "move-part") {
         return { type: "move-part", partId: "", x: null, y: null };
       }
+      if (safeType === "transform-object") {
+        return {
+          type: "transform-object",
+          partId: "",
+          transformMode: "move-direction",
+          directionDeg: 0,
+          distance: 120,
+          turnDeg: 45
+        };
+      }
       if (safeType === "teleport-marbles") {
         return { type: "teleport-marbles", x: null, y: null };
       }
@@ -3275,6 +3325,23 @@
           partId,
           x: Number.isFinite(x) ? x : null,
           y: Number.isFinite(y) ? y : null
+        };
+      }
+
+      if (type === "transform-object") {
+        const partId = findPartById(step && step.partId) ? step.partId : "";
+        const rawMode = step && step.transformMode;
+        const transformMode = rawMode === "turn-angle" ? "turn-angle" : "move-direction";
+        const directionDeg = Number(step && step.directionDeg);
+        const distance = Number(step && step.distance);
+        const turnDeg = Number(step && step.turnDeg);
+        return {
+          type,
+          partId,
+          transformMode,
+          directionDeg: Number.isFinite(directionDeg) ? clamp(directionDeg, -720, 720) : 0,
+          distance: Number.isFinite(distance) ? clamp(distance, -2000, 2000) : 120,
+          turnDeg: Number.isFinite(turnDeg) ? clamp(turnDeg, -360, 360) : 45
         };
       }
 
@@ -3427,6 +3494,7 @@
         const typeSelect = createSelect([
           { value: "wait", label: "Wait" },
           { value: "move-part", label: "Move Object" },
+          { value: "transform-object", label: "Transform Object" },
           { value: "teleport-marbles", label: "Teleport Marbles" },
           { value: "target-action", label: "Target Action" },
           { value: "spawn-marbles", label: "Spawn Marbles" }
@@ -3529,6 +3597,62 @@
           grid.appendChild(createInputRow("Object", objectSelect));
           grid.appendChild(createInputRow("Move To X", xInput));
           grid.appendChild(createInputRow("Move To Y", yInput));
+        } else if (step.type === "transform-object") {
+          const objectSelect = createSelect(allObjects, step.partId || "");
+          objectSelect.addEventListener("change", () => {
+            step.partId = findPartById(objectSelect.value) ? objectSelect.value : "";
+          });
+
+          const modeSelect = createSelect([
+            { value: "move-direction", label: "Move In Direction" },
+            { value: "turn-angle", label: "Turn By Angle" }
+          ], step.transformMode || "move-direction");
+          modeSelect.addEventListener("change", () => {
+            step.transformMode = modeSelect.value === "turn-angle" ? "turn-angle" : "move-direction";
+            renderTriggerSequenceEditor();
+          });
+
+          const directionInput = document.createElement("input");
+          directionInput.type = "number";
+          directionInput.min = "-720";
+          directionInput.max = "720";
+          directionInput.step = "1";
+          directionInput.value = String(step.directionDeg == null ? 0 : step.directionDeg);
+          directionInput.addEventListener("change", () => {
+            const value = Number(directionInput.value);
+            step.directionDeg = Number.isFinite(value) ? clamp(value, -720, 720) : 0;
+          });
+
+          const distanceInput = document.createElement("input");
+          distanceInput.type = "number";
+          distanceInput.min = "-2000";
+          distanceInput.max = "2000";
+          distanceInput.step = "1";
+          distanceInput.value = String(step.distance == null ? 120 : step.distance);
+          distanceInput.addEventListener("change", () => {
+            const value = Number(distanceInput.value);
+            step.distance = Number.isFinite(value) ? clamp(value, -2000, 2000) : 120;
+          });
+
+          const turnInput = document.createElement("input");
+          turnInput.type = "number";
+          turnInput.min = "-360";
+          turnInput.max = "360";
+          turnInput.step = "1";
+          turnInput.value = String(step.turnDeg == null ? 45 : step.turnDeg);
+          turnInput.addEventListener("change", () => {
+            const value = Number(turnInput.value);
+            step.turnDeg = Number.isFinite(value) ? clamp(value, -360, 360) : 45;
+          });
+
+          grid.appendChild(createInputRow("Object", objectSelect));
+          grid.appendChild(createInputRow("Special Menu", modeSelect));
+          if (step.transformMode === "turn-angle") {
+            grid.appendChild(createInputRow("Turn Angle (deg)", turnInput));
+          } else {
+            grid.appendChild(createInputRow("Direction (deg)", directionInput));
+            grid.appendChild(createInputRow("Distance", distanceInput));
+          }
         } else if (step.type === "teleport-marbles") {
           const xInput = document.createElement("input");
           xInput.type = "number";
@@ -4757,6 +4881,25 @@
       }
     }
 
+    function transformPartByDirection(part, directionDeg, distance) {
+      if (!part || !Number.isFinite(directionDeg) || !Number.isFinite(distance)) {
+        return;
+      }
+      const angle = directionDeg * (Math.PI / 180);
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      movePartToPosition(part, part.x + dx, part.y + dy);
+    }
+
+    function rotatePartByAngle(part, turnDeg) {
+      if (!part || !Number.isFinite(turnDeg)) {
+        return;
+      }
+      const deltaRad = turnDeg * (Math.PI / 180);
+      const base = Number.isFinite(part.baseAngle) ? part.baseAngle : 0;
+      part.baseAngle = normalizeAngle(base + deltaRad);
+    }
+
     function teleportAllMarblesTo(x, y) {
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
         return;
@@ -4837,6 +4980,35 @@
         } else {
           debugLog("TRIGGER_SEQUENCE_MOVE_SKIPPED", { trigger: triggerShort });
         }
+        return 0;
+      }
+
+      if (step.type === "transform-object") {
+        const targetPart = findPartById(step.partId || (trigger && (trigger.sequenceMovePartId || trigger.selectedPartId)));
+        const mode = step.transformMode === "turn-angle" ? "turn-angle" : "move-direction";
+        if (!targetPart) {
+          debugLog("TRIGGER_SEQUENCE_TRANSFORM_SKIPPED", { trigger: triggerShort, reason: "no_target" });
+          return 0;
+        }
+        if (mode === "turn-angle") {
+          const turnDeg = Number.isFinite(step.turnDeg) ? clamp(step.turnDeg, -360, 360) : 0;
+          rotatePartByAngle(targetPart, turnDeg);
+          debugLog("TRIGGER_SEQUENCE_TRANSFORM_TURN", {
+            trigger: triggerShort,
+            part: targetPart.id.slice(-4),
+            turnDeg: turnDeg.toFixed(1)
+          });
+          return 0;
+        }
+        const directionDeg = Number.isFinite(step.directionDeg) ? clamp(step.directionDeg, -720, 720) : 0;
+        const distance = Number.isFinite(step.distance) ? clamp(step.distance, -2000, 2000) : 0;
+        transformPartByDirection(targetPart, directionDeg, distance);
+        debugLog("TRIGGER_SEQUENCE_TRANSFORM_MOVE", {
+          trigger: triggerShort,
+          part: targetPart.id.slice(-4),
+          directionDeg: directionDeg.toFixed(1),
+          distance: distance.toFixed(1)
+        });
         return 0;
       }
 
@@ -6381,29 +6553,41 @@
           ctx.fillText((pad.padType || "zone").toUpperCase(), pose.x - hw + 5, pose.y - hh + 12);
 
           if (pad.padType === "boost") {
-            const arrowLen = Math.max(20, Math.min(dims.w, dims.h) * 0.46);
+            const arrowLen = Math.max(16, Math.min(dims.w, dims.h) * 0.42);
             const arrowA = Number.isFinite(pose.angle) ? pose.angle : 0;
-            const tipX = pose.x + Math.cos(arrowA) * arrowLen;
-            const tipY = pose.y + Math.sin(arrowA) * arrowLen;
-            const leftX = tipX - Math.cos(arrowA - Math.PI * 0.78) * 10;
-            const leftY = tipY - Math.sin(arrowA - Math.PI * 0.78) * 10;
-            const rightX = tipX - Math.cos(arrowA + Math.PI * 0.78) * 10;
-            const rightY = tipY - Math.sin(arrowA + Math.PI * 0.78) * 10;
+            const ux = Math.cos(arrowA);
+            const uy = Math.sin(arrowA);
+            const px = -uy;
+            const py = ux;
+            const tailHalf = arrowLen * 0.42;
+            const headLen = Math.max(8, arrowLen * 0.34);
+            const shaftHalf = Math.max(4, arrowLen * 0.12);
+            const headHalf = Math.max(6, arrowLen * 0.26);
+            const startX = pose.x - ux * tailHalf;
+            const startY = pose.y - uy * tailHalf;
+            const neckX = pose.x + ux * shaftHalf;
+            const neckY = pose.y + uy * shaftHalf;
+            const tipX = pose.x + ux * (shaftHalf + headLen);
+            const tipY = pose.y + uy * (shaftHalf + headLen);
 
-            ctx.strokeStyle = "rgba(255, 226, 77, 0.98)";
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.58)";
+            ctx.lineWidth = 4.5;
+            ctx.lineCap = "round";
             ctx.beginPath();
-            ctx.moveTo(pose.x, pose.y);
-            ctx.lineTo(tipX, tipY);
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(neckX, neckY);
             ctx.stroke();
 
             ctx.fillStyle = "rgba(255, 226, 77, 0.98)";
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.58)";
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.moveTo(tipX, tipY);
-            ctx.lineTo(leftX, leftY);
-            ctx.lineTo(rightX, rightY);
+            ctx.lineTo(neckX + px * headHalf, neckY + py * headHalf);
+            ctx.lineTo(neckX - px * headHalf, neckY - py * headHalf);
             ctx.closePath();
             ctx.fill();
+            ctx.stroke();
           }
         } else {
           drawPartShape(ctx, pad, pose, partColor(pad), selected);
@@ -7198,6 +7382,10 @@
     ui.toggleAnimations.addEventListener("click", () => {
       state.animationsEnabled = !state.animationsEnabled;
       applyAnimationPreference();
+    });
+
+    ui.advancedControlsButton.addEventListener("click", () => {
+      // Placeholder: advanced controls panel will be implemented later.
     });
 
     ui.zoomOut.addEventListener("click", () => {
