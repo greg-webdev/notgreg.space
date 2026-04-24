@@ -991,6 +991,15 @@
       }
     }
   </style>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PD6MHFH6S"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);} 
+    gtag('js', new Date());
+
+    gtag('config', 'G-0PD6MHFH6S');
+  </script>
 </head>
 <body class="dark">
   <div class="topbar">
@@ -1310,13 +1319,7 @@
           <div class="row">
             <button id="advancedControlsButton" type="button" data-i18n="advancedControls">Advanced Controls</button>
           </div>
-          <div class="row">
-            <label for="languageSelect">Language</label>
-            <select id="languageSelect">
-              <option value="en">English</option>
-              <option value="ru">Русский</option>
-            </select>
-          </div>
+          
           <div class="row">
             <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
             <div class="debug-actions">
@@ -1371,7 +1374,7 @@
       settingsMenuToggle: document.getElementById("settingsMenuToggle"),
       settingsPopupOverlay: document.getElementById("settingsPopupOverlay"),
       closeSettingsPopup: document.getElementById("closeSettingsPopup"),
-      languageSelect: document.getElementById("languageSelect"),
+      // languageSelect removed per user request
       advancedControlsButton: document.getElementById("advancedControlsButton"),
       emptyTabsScreen: document.getElementById("emptyTabsScreen"),
       emptyNewTab: document.getElementById("emptyNewTab"),
@@ -1477,20 +1480,7 @@
         close: 'Close',
         advancedControls: 'Advanced Controls'
       },
-      ru: {
-        animations: 'Анимации: Вкл',
-        zoomOut: 'Уменьшить',
-        zoomReset: '100%',
-        zoomIn: 'Увеличить',
-        recenter: 'Центрировать',
-        menuToggle: 'Скрыть меню',
-        saveMbr: 'Сохранить .mbr',
-        loadMbr: 'Загрузить .mbr',
-        themeToggle: 'Светлая тема',
-        settings: 'Настройки',
-        close: 'Закрыть',
-        advancedControls: 'Доп. настройки'
-      }
+      // Russian locale removed per user request
     };
 
     function t(key) {
@@ -1505,15 +1495,7 @@
         if (el.tagName === 'INPUT' || el.tagName === 'SELECT') return;
         el.textContent = t(key);
       });
-      if (ui.languageSelect) ui.languageSelect.value = locale;
-    }
-
-    // hook language selector to update locale
-    if (typeof ui !== 'undefined' && ui.languageSelect) {
-      ui.languageSelect.addEventListener('change', (e) => {
-        locale = e.target.value || 'en';
-        applyTranslations();
-      });
+      // languageSelect removed; nothing to set
     }
 
 
