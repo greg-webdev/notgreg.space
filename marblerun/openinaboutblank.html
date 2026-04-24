@@ -1340,7 +1340,7 @@
     }
 
     const canvas = document.getElementById("sim");
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
     const hud = document.getElementById("hud");
     const toolPreviewCanvas = document.getElementById("toolPreview");
     const toolPreviewCtx = toolPreviewCanvas.getContext("2d");
@@ -1480,6 +1480,12 @@
         segments: [],
         circles: []
       },
+      solidPolygons: [],
+      colliderSegmentGrid: new Map(),
+      colliderCircleGrid: new Map(),
+      colliderCellSize: 64,
+      colliderQueryId: 1,
+      marblePairQueryId: 1,
       partPoses: new Map(),
       buildHistory: [],
       paused: false,
@@ -2721,6 +2727,33 @@
       hud.style.display = hasTabs ? "block" : "none";
     }
 
+    function normalizeRunTabName(value, fallback = "Run") {
+      const raw = typeof value === "string" ? value : "";
+      const compact = raw.replace(/\s+/g, " ").trim();
+      return compact ? compact.slice(0, 48) : fallback;
+    }
+
+    function makeSafeFileStem(value, fallback = "marble-run") {
+      const base = normalizeRunTabName(value || "", fallback)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return base || fallback;
+    }
+
+    function renameRunTab(index) {
+      if (index < 0 || index >= state.runs.length) {
+        return;
+      }
+      const run = state.runs[index];
+      const next = prompt("Rename tab", run.name || "");
+      if (next == null) {
+        return;
+      }
+      run.name = normalizeRunTabName(next, run.name || ("Run " + run.id));
+      renderRunTabs();
+    }
+
     function renderRunTabs() {
       ui.runTabs.innerHTML = "";
       for (let i = 0; i < state.runs.length; i += 1) {
@@ -2731,6 +2764,11 @@
         const label = document.createElement("span");
         label.className = "tab-label";
         label.textContent = run.name;
+        label.title = "Double-click to rename tab";
+        label.addEventListener("dblclick", (evt) => {
+          evt.stopPropagation();
+          renameRunTab(i);
+        });
 
         const close = document.createElement("span");
         close.className = "tab-close";
@@ -2804,7 +2842,7 @@
       state.nextRunId += 1;
       const run = {
         id: runId,
-        name: name || "Run " + runId,
+        name: normalizeRunTabName(name, "Run " + runId),
         data: seedData ? cloneData(seedData) : makeEmptySceneData()
       };
       state.runs.push(run);
@@ -2860,7 +2898,9 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "marble-run-" + Date.now() + ".mbr";
+      const activeRun = state.runs[state.activeRunIndex] || null;
+      const fileStem = makeSafeFileStem(activeRun ? activeRun.name : "marble-run", "marble-run");
+      a.download = fileStem + ".mbr";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -2905,7 +2945,7 @@
 
       state.runs = payload.runs.map((run) => ({
         id: Number.isFinite(run.id) ? run.id : state.nextRunId++,
-        name: typeof run.name === "string" && run.name.trim() ? run.name : "Run",
+        name: normalizeRunTabName(run.name, "Run"),
         data: cloneData(run.data || makeEmptySceneData())
       }));
 
@@ -4596,6 +4636,159 @@
       }
     }
 
+    function makeSpatialCellKey(ix, iy) {
+      return ix + "," + iy;
+    }
+
+    function addToSpatialGrid(grid, ix, iy, item) {
+      const key = makeSpatialCellKey(ix, iy);
+      let cell = grid.get(key);
+      if (!cell) {
+        cell = [];
+        grid.set(key, cell);
+      }
+      cell.push(item);
+    }
+
+    function rebuildColliderSpatialGrid() {
+      state.colliderSegmentGrid.clear();
+      state.colliderCircleGrid.clear();
+
+      const cellSize = state.colliderCellSize;
+      for (const s of state.colliders.segments) {
+        const minX = Math.min(s.x1, s.x2);
+        const maxX = Math.max(s.x1, s.x2);
+        const minY = Math.min(s.y1, s.y2);
+        const maxY = Math.max(s.y1, s.y2);
+        const minIx = Math.floor(minX / cellSize);
+        const maxIx = Math.floor(maxX / cellSize);
+        const minIy = Math.floor(minY / cellSize);
+        const maxIy = Math.floor(maxY / cellSize);
+        for (let iy = minIy; iy <= maxIy; iy += 1) {
+          for (let ix = minIx; ix <= maxIx; ix += 1) {
+            addToSpatialGrid(state.colliderSegmentGrid, ix, iy, s);
+          }
+        }
+      }
+
+      for (const c of state.colliders.circles) {
+        const minIx = Math.floor((c.x - c.r) / cellSize);
+        const maxIx = Math.floor((c.x + c.r) / cellSize);
+        const minIy = Math.floor((c.y - c.r) / cellSize);
+        const maxIy = Math.floor((c.y + c.r) / cellSize);
+        for (let iy = minIy; iy <= maxIy; iy += 1) {
+          for (let ix = minIx; ix <= maxIx; ix += 1) {
+            addToSpatialGrid(state.colliderCircleGrid, ix, iy, c);
+          }
+        }
+      }
+    }
+
+    function rebuildSolidPolygonCache() {
+      state.solidPolygons.length = 0;
+
+      const appendPolygonForPart = (part) => {
+        if (!part) {
+          return;
+        }
+        if (part.padType && !isSolidPad(part)) {
+          return;
+        }
+        if (part.shape !== "block" && part.shape !== "padSquare" && part.shape !== "wedge") {
+          return;
+        }
+
+        const pose = state.partPoses.get(part.id);
+        if (!pose) {
+          return;
+        }
+
+        const dims = getPartDimensions(part);
+        const hw = dims.w * 0.5;
+        const hh = dims.h * 0.5;
+        let vertices;
+
+        if (part.shape === "wedge") {
+          vertices = [
+            worldPoint(pose, -hw, -hh),
+            worldPoint(pose, hw, hh),
+            worldPoint(pose, -hw, hh)
+          ];
+        } else {
+          vertices = [
+            worldPoint(pose, -hw, -hh),
+            worldPoint(pose, hw, -hh),
+            worldPoint(pose, hw, hh),
+            worldPoint(pose, -hw, hh)
+          ];
+        }
+
+        let area2 = 0;
+        for (let i = 0; i < vertices.length; i += 1) {
+          const a = vertices[i];
+          const b = vertices[(i + 1) % vertices.length];
+          area2 += a.x * b.y - b.x * a.y;
+        }
+
+        state.solidPolygons.push({
+          vertices,
+          windingSign: area2 >= 0 ? 1 : -1
+        });
+      };
+
+      for (const part of state.parts) {
+        appendPolygonForPart(part);
+      }
+      for (const pad of state.pads) {
+        appendPolygonForPart(pad);
+      }
+    }
+
+    function collectNearbyCollidersForMarble(m, outSegments, outCircles) {
+      outSegments.length = 0;
+      outCircles.length = 0;
+
+      const cellSize = state.colliderCellSize;
+      const r = Math.max(1, m.r);
+      const minIx = Math.floor((m.x - r) / cellSize) - 1;
+      const maxIx = Math.floor((m.x + r) / cellSize) + 1;
+      const minIy = Math.floor((m.y - r) / cellSize) - 1;
+      const maxIy = Math.floor((m.y + r) / cellSize) + 1;
+
+      const queryId = state.colliderQueryId++;
+      if (state.colliderQueryId > 1000000000) {
+        state.colliderQueryId = 1;
+      }
+
+      for (let iy = minIy; iy <= maxIy; iy += 1) {
+        for (let ix = minIx; ix <= maxIx; ix += 1) {
+          const key = makeSpatialCellKey(ix, iy);
+
+          const segs = state.colliderSegmentGrid.get(key);
+          if (segs) {
+            for (const s of segs) {
+              if (s._queryId === queryId) {
+                continue;
+              }
+              s._queryId = queryId;
+              outSegments.push(s);
+            }
+          }
+
+          const circles = state.colliderCircleGrid.get(key);
+          if (circles) {
+            for (const c of circles) {
+              if (c._queryId === queryId) {
+                continue;
+              }
+              c._queryId = queryId;
+              outCircles.push(c);
+            }
+          }
+        }
+      }
+    }
+
     function rebuildColliderCache() {
       state.colliders.segments.length = 0;
       state.colliders.circles.length = 0;
@@ -4620,6 +4813,9 @@
         state.partPoses.set(pad.id, pose);
         buildPartColliders(pad, pose);
       }
+
+      rebuildSolidPolygonCache();
+      rebuildColliderSpatialGrid();
 
       rebuildPadRuntimeCache();
     }
@@ -5325,63 +5521,8 @@
       }
     }
 
-    function unstickMarbleFromWorld(m) {
-      const solidPolygons = [];
-      const appendPolygonForPart = (part) => {
-        if (!part) {
-          return;
-        }
-        if (part.padType && !isSolidPad(part)) {
-          return;
-        }
-        if (part.shape !== "block" && part.shape !== "padSquare" && part.shape !== "wedge") {
-          return;
-        }
-
-        const pose = state.partPoses.get(part.id);
-        if (!pose) {
-          return;
-        }
-
-        const dims = getPartDimensions(part);
-        const hw = dims.w * 0.5;
-        const hh = dims.h * 0.5;
-        let vertices;
-
-        if (part.shape === "wedge") {
-          vertices = [
-            worldPoint(pose, -hw, -hh),
-            worldPoint(pose, hw, hh),
-            worldPoint(pose, -hw, hh)
-          ];
-        } else {
-          vertices = [
-            worldPoint(pose, -hw, -hh),
-            worldPoint(pose, hw, -hh),
-            worldPoint(pose, hw, hh),
-            worldPoint(pose, -hw, hh)
-          ];
-        }
-
-        let area2 = 0;
-        for (let i = 0; i < vertices.length; i += 1) {
-          const a = vertices[i];
-          const b = vertices[(i + 1) % vertices.length];
-          area2 += a.x * b.y - b.x * a.y;
-        }
-
-        solidPolygons.push({
-          vertices,
-          windingSign: area2 >= 0 ? 1 : -1
-        });
-      };
-
-      for (const part of state.parts) {
-        appendPolygonForPart(part);
-      }
-      for (const pad of state.pads) {
-        appendPolygonForPart(pad);
-      }
+    function unstickMarbleFromWorld(m, nearbySegments = state.colliders.segments, nearbyCircles = state.colliders.circles) {
+      const solidPolygons = state.solidPolygons;
 
       const pointInConvexPolygon = (x, y, vertices) => {
         let sign = 0;
@@ -5412,7 +5553,7 @@
       };
 
       const isOverlappingAt = (x, y) => {
-        for (const s of state.colliders.segments) {
+        for (const s of nearbySegments) {
           const cp = nearestPointOnSegment(x, y, s);
           if (!shouldCollideOneWaySegmentAt(x, y, m.vx, m.vy, m.r, s, cp)) {
             continue;
@@ -5421,7 +5562,7 @@
             return true;
           }
         }
-        for (const c of state.colliders.circles) {
+        for (const c of nearbyCircles) {
           if (Math.hypot(x - c.x, y - c.y) < m.r + c.r - 0.01) {
             return true;
           }
@@ -5502,7 +5643,7 @@
           pushY += enclosurePush.sumY;
         }
 
-        for (const s of state.colliders.segments) {
+        for (const s of nearbySegments) {
           const cp = nearestPointOnSegment(m.x, m.y, s);
           if (!shouldCollideOneWaySegmentAt(m.x, m.y, m.vx, m.vy, m.r, s, cp)) {
             continue;
@@ -5536,7 +5677,7 @@
           overlapCount += 1;
         }
 
-        for (const c of state.colliders.circles) {
+        for (const c of nearbyCircles) {
           let nx = m.x - c.x;
           let ny = m.y - c.y;
           let dist = Math.hypot(nx, ny);
@@ -5941,17 +6082,44 @@
 
     function resizePartByHandle(part, pose, handleName, pointer) {
       const dims = getPartDimensions(part);
-      let nextW = dims.w;
-      let nextH = dims.h;
+      const minSize = 12;
+      let left = pose.x - dims.w * 0.5;
+      let right = pose.x + dims.w * 0.5;
+      let top = pose.y - dims.h * 0.5;
+      let bottom = pose.y + dims.h * 0.5;
 
-      if (handleName.includes("e") || handleName.includes("w")) {
-        nextW = Math.abs(pointer.x - pose.x) * 2;
+      if (handleName.includes("w")) {
+        left = Math.min(pointer.x, right - minSize);
       }
-      if (handleName.includes("n") || handleName.includes("s")) {
-        nextH = Math.abs(pointer.y - pose.y) * 2;
+      if (handleName.includes("e")) {
+        right = Math.max(pointer.x, left + minSize);
       }
+      if (handleName.includes("n")) {
+        top = Math.min(pointer.y, bottom - minSize);
+      }
+      if (handleName.includes("s")) {
+        bottom = Math.max(pointer.y, top + minSize);
+      }
+
+      const nextW = right - left;
+      const nextH = bottom - top;
+      const nextX = (left + right) * 0.5;
+      const nextY = (top + bottom) * 0.5;
+      const dx = nextX - part.x;
+      const dy = nextY - part.y;
 
       setPartDimensions(part, nextW, nextH);
+      part.x = nextX;
+      part.y = nextY;
+      ensurePartPathEndpoints(part);
+      part.fromX += dx;
+      part.fromY += dy;
+      part.toX += dx;
+      part.toY += dy;
+      if (isTeleportPad(part) && Number.isFinite(part.teleportTargetX) && Number.isFinite(part.teleportTargetY)) {
+        part.teleportTargetX += dx;
+        part.teleportTargetY += dy;
+      }
     }
 
     function resizeTriggerByHandle(trigger, handleName, pointer) {
@@ -6282,23 +6450,68 @@
           }
         }
 
-        for (let pass = 0; pass < 3; pass += 1) {
+        const nearbySegments = [];
+        const nearbyCircles = [];
+        const marbleGrid = new Map();
+        const marbleCellSize = Math.max(24, state.colliderCellSize);
+        const marbles = state.marbles;
+
+        for (let i = 0; i < marbles.length; i += 1) {
+          const m = marbles[i];
+          const ix = Math.floor(m.x / marbleCellSize);
+          const iy = Math.floor(m.y / marbleCellSize);
+          const key = makeSpatialCellKey(ix, iy);
+          let cell = marbleGrid.get(key);
+          if (!cell) {
+            cell = [];
+            marbleGrid.set(key, cell);
+          }
+          cell.push(i);
+        }
+
+        const solverPasses = state.marbles.length >= 700 ? 2 : 3;
+        for (let pass = 0; pass < solverPasses; pass += 1) {
           for (let i = 0; i < state.marbles.length; i += 1) {
             const m = state.marbles[i];
 
-            for (const s of state.colliders.segments) {
+            collectNearbyCollidersForMarble(m, nearbySegments, nearbyCircles);
+
+            for (const s of nearbySegments) {
               resolveMarbleSegment(m, s);
             }
 
-            for (const c of state.colliders.circles) {
+            for (const c of nearbyCircles) {
               resolveMarbleCircle(m, c);
             }
 
-            for (let j = i + 1; j < state.marbles.length; j += 1) {
-              resolveMarbleMarble(m, state.marbles[j]);
+            const queryId = state.marblePairQueryId++;
+            if (state.marblePairQueryId > 1000000000) {
+              state.marblePairQueryId = 1;
             }
 
-            unstickMarbleFromWorld(m);
+            const baseIx = Math.floor(m.x / marbleCellSize);
+            const baseIy = Math.floor(m.y / marbleCellSize);
+            for (let cy = baseIy - 1; cy <= baseIy + 1; cy += 1) {
+              for (let cx = baseIx - 1; cx <= baseIx + 1; cx += 1) {
+                const candidates = marbleGrid.get(makeSpatialCellKey(cx, cy));
+                if (!candidates) {
+                  continue;
+                }
+                for (const j of candidates) {
+                  if (j <= i) {
+                    continue;
+                  }
+                  const other = state.marbles[j];
+                  if (!other || other._pairQueryId === queryId) {
+                    continue;
+                  }
+                  other._pairQueryId = queryId;
+                  resolveMarbleMarble(m, other);
+                }
+              }
+            }
+
+            unstickMarbleFromWorld(m, nearbySegments, nearbyCircles);
             resolveWorldBounds(m);
             limitSpeed(m);
           }
