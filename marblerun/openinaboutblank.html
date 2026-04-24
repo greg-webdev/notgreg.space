@@ -999,15 +999,16 @@
       <button id="newRunTab" class="tab-add-btn" title="New Tab" aria-label="New Tab">+</button>
     </div>
     <div class="top-actions">
-      <button id="toggleAnimations">Animations: On</button>
-      <button id="zoomOut">Zoom -</button>
-      <button id="zoomReset" class="zoom-chip">100%</button>
-      <button id="zoomIn">Zoom +</button>
-      <button id="menuToggle">Hide Menu</button>
-      <button id="saveMbr">Save .mbr</button>
-      <button id="loadMbr">Load .mbr</button>
-      <button id="themeToggle">Light Mode</button>
-      <button id="settingsMenuToggle">Settings</button>
+      <button id="toggleAnimations" data-i18n="animations">Animations: On</button>
+      <button id="zoomOut" data-i18n="zoomOut">Zoom -</button>
+      <button id="zoomReset" class="zoom-chip" data-i18n="zoomReset">100%</button>
+      <button id="zoomIn" data-i18n="zoomIn">Zoom +</button>
+      <button id="recenterView" data-i18n="recenter">Recenter</button>
+      <button id="menuToggle" data-i18n="menuToggle">Hide Menu</button>
+      <button id="saveMbr" data-i18n="saveMbr">Save .mbr</button>
+      <button id="loadMbr" data-i18n="loadMbr">Load .mbr</button>
+      <button id="themeToggle" data-i18n="themeToggle">Light Mode</button>
+      <button id="settingsMenuToggle" data-i18n="settings">Settings</button>
       <input id="loadMbrInput" type="file" accept=".mbr,application/json" hidden />
     </div>
   </div>
@@ -1284,8 +1285,8 @@
   <div id="settingsPopupOverlay" class="settings-popup-overlay" aria-hidden="true">
     <div class="settings-popup-card" role="dialog" aria-modal="true" aria-labelledby="settingsPopupTitle">
       <div class="settings-popup-header">
-        <h2 id="settingsPopupTitle">Settings</h2>
-        <button id="closeSettingsPopup" class="settings-popup-close" type="button">Close</button>
+        <h2 id="settingsPopupTitle" data-i18n="settings">Settings</h2>
+        <button id="closeSettingsPopup" class="settings-popup-close" type="button" data-i18n="close">Close</button>
       </div>
       <div class="settings-popup-content">
         <div class="group">
@@ -1307,7 +1308,14 @@
             </div>
           </div>
           <div class="row">
-            <button id="advancedControlsButton" type="button">Advanced Controls</button>
+            <button id="advancedControlsButton" type="button" data-i18n="advancedControls">Advanced Controls</button>
+          </div>
+          <div class="row">
+            <label for="languageSelect">Language</label>
+            <select id="languageSelect">
+              <option value="en">English</option>
+              <option value="ru">Русский</option>
+            </select>
           </div>
           <div class="row">
             <label class="debug-toggle" for="debugMode"><input id="debugMode" type="checkbox" />Debug Mode (full runtime logs)</label>
@@ -1354,6 +1362,7 @@
       zoomOut: document.getElementById("zoomOut"),
       zoomReset: document.getElementById("zoomReset"),
       zoomIn: document.getElementById("zoomIn"),
+      recenterView: document.getElementById("recenterView"),
       menuToggle: document.getElementById("menuToggle"),
       saveMbr: document.getElementById("saveMbr"),
       loadMbr: document.getElementById("loadMbr"),
@@ -1362,6 +1371,7 @@
       settingsMenuToggle: document.getElementById("settingsMenuToggle"),
       settingsPopupOverlay: document.getElementById("settingsPopupOverlay"),
       closeSettingsPopup: document.getElementById("closeSettingsPopup"),
+      languageSelect: document.getElementById("languageSelect"),
       advancedControlsButton: document.getElementById("advancedControlsButton"),
       emptyTabsScreen: document.getElementById("emptyTabsScreen"),
       emptyNewTab: document.getElementById("emptyNewTab"),
@@ -1449,6 +1459,63 @@
       chaosPack: document.getElementById("chaosPack"),
       demo: document.getElementById("demo")
     };
+
+    // --- Internationalization (simple) ---
+    let locale = 'en';
+    const I18N = {
+      en: {
+        animations: 'Animations: On',
+        zoomOut: 'Zoom -',
+        zoomReset: '100%',
+        zoomIn: 'Zoom +',
+        recenter: 'Recenter',
+        menuToggle: 'Hide Menu',
+        saveMbr: 'Save .mbr',
+        loadMbr: 'Load .mbr',
+        themeToggle: 'Light Mode',
+        settings: 'Settings',
+        close: 'Close',
+        advancedControls: 'Advanced Controls'
+      },
+      ru: {
+        animations: 'Анимации: Вкл',
+        zoomOut: 'Уменьшить',
+        zoomReset: '100%',
+        zoomIn: 'Увеличить',
+        recenter: 'Центрировать',
+        menuToggle: 'Скрыть меню',
+        saveMbr: 'Сохранить .mbr',
+        loadMbr: 'Загрузить .mbr',
+        themeToggle: 'Светлая тема',
+        settings: 'Настройки',
+        close: 'Закрыть',
+        advancedControls: 'Доп. настройки'
+      }
+    };
+
+    function t(key) {
+      return (I18N[locale] && I18N[locale][key]) || I18N.en[key] || key;
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n');
+        if (!key) return;
+        // Keep inputs/selects intact and only change labels/buttons text
+        if (el.tagName === 'INPUT' || el.tagName === 'SELECT') return;
+        el.textContent = t(key);
+      });
+      if (ui.languageSelect) ui.languageSelect.value = locale;
+    }
+
+    // hook language selector to update locale
+    if (typeof ui !== 'undefined' && ui.languageSelect) {
+      ui.languageSelect.addEventListener('change', (e) => {
+        locale = e.target.value || 'en';
+        applyTranslations();
+      });
+    }
+
 
     const world = {
       width: 0,
@@ -1546,6 +1613,17 @@
         delete: "delete"
       }
     };
+
+    // wire recenter button and apply initial translations
+    if (ui.recenterView) {
+      ui.recenterView.addEventListener('click', () => {
+        state.viewCenterX = world.width * 0.5;
+        state.viewCenterY = world.height * 0.5;
+      });
+    }
+
+    // set language select default and apply translations once DOM/UI mapped
+    applyTranslations();
 
     const TOOL_PRESETS = {
       block: { shape: "block", motion: "static" },
